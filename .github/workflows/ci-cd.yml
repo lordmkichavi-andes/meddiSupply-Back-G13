@@ -172,28 +172,22 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
+      # - name: Login to Amazon ECR
+      #   id: login-ecr
+      #   uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build, tag, and push image to Amazon ECR
+      - name: Build Docker image (test without ECR push)
         id: build-image
         working-directory: ./services/usuarios
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG: ${{ github.sha }}-usuarios
         run: |
           echo "🐳 Construyendo imagen Docker para usuarios..."
           
-          # Construir imagen
-          docker build -t $ECR_REGISTRY/usuarios:$IMAGE_TAG .
-          docker build -t $ECR_REGISTRY/usuarios:latest .
+          # Construir imagen localmente para pruebas
+          docker build -t usuarios:${{ github.sha }} .
+          docker build -t usuarios:latest .
           
-          echo "📤 Subiendo imagen a ECR..."
-          docker push $ECR_REGISTRY/usuarios:$IMAGE_TAG
-          docker push $ECR_REGISTRY/usuarios:latest
-          
-          echo "✅ Imagen subida exitosamente: $ECR_REGISTRY/usuarios:$IMAGE_TAG"
+          echo "✅ Imagen construida exitosamente: usuarios:${{ github.sha }}"
+          echo "ℹ️  Nota: Push a ECR deshabilitado - crear repositorio 'usuarios' en ECR primero"
 
       - name: Upload test artifacts
         uses: actions/upload-artifact@v4
