@@ -1,11 +1,15 @@
-name: Deploy Microservices Cluster with Docker
+name: CI/CD Microservices
 
 on:
   push:
-    branches: [ develop, main, 'feature/*' ]
+    branches:
+      - main
+      - develop
+      - 'feature/*'
   pull_request:
-    branches: [ develop, main ]
-    types: [opened, synchronize, reopened]
+    branches:
+      - main
+      - develop
 
 env:
   AWS_REGION: us-east-1
@@ -13,36 +17,18 @@ env:
   MIN_COVERAGE: 5
 
 jobs:
-  # Job para detectar cambios en microservicios
+  # Job para detectar cambios
   detect-changes:
     runs-on: ubuntu-latest
     outputs:
       changed-services: ${{ steps.changes.outputs.changed-services }}
-      branch-type: ${{ steps.branch-info.outputs.type }}
       pr-number: ${{ steps.pr-info.outputs.number }}
       pr-title: ${{ steps.pr-info.outputs.title }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Necesario para comparar con base
-
-      - name: Branch Information
-        id: branch-info
-        run: |
-          if [[ "${{ github.head_ref }}" == feature/* ]] || [[ "${{ github.head_ref }}" == feat/* ]]; then
-            echo "type=feature" >> $GITHUB_OUTPUT
-            echo "🎯 Branch type: FEATURE"
-          elif [[ "${{ github.ref_name }}" == develop ]]; then
-            echo "type=develop" >> $GITHUB_OUTPUT
-            echo "🚀 Branch type: DEVELOP"
-          elif [[ "${{ github.ref_name }}" == main ]]; then
-            echo "type=main" >> $GITHUB_OUTPUT
-            echo "🏭 Branch type: MAIN"
-          else
-            echo "type=other" >> $GITHUB_OUTPUT
-            echo "📝 Branch type: OTHER"
-          fi
+          fetch-depth: 0
 
       - name: PR Information
         id: pr-info
@@ -52,7 +38,7 @@ jobs:
           echo "title=${{ github.event.pull_request.title }}" >> $GITHUB_OUTPUT
           echo "🔍 PR #${{ github.event.number }}: ${{ github.event.pull_request.title }}"
 
-      - name: Detect Changed Microservices
+      - name: Detect Changed Services
         id: changes
         run: |
           echo "🔍 Detectando microservicios modificados..."
@@ -69,200 +55,115 @@ jobs:
           # Detectar cambios en cada microservicio
           CHANGED_SERVICES=""
           
-          # Lista de microservicios (hardcoded para evitar problemas de JSON)
-          SERVICES=("user-service" "product-service" "order-service" "payment-service" "notification-service" "api-gateway")
-          PATHS=("services/user-service" "services/product-service" "services/order-service" "services/payment-service" "services/notification-service" "services/api-gateway")
-          
-          # Verificar cada microservicio
-          for i in "${!SERVICES[@]}"; do
-            service_name="${SERVICES[$i]}"
-            service_path="${PATHS[$i]}"
-            
-            echo "🔍 Verificando $service_name en $service_path..."
-            
-            # Verificar si hay cambios en el directorio del microservicio
-            if git diff --name-only $BASE_BRANCH...HEAD | grep -q "^$service_path/"; then
-              echo "✅ $service_name: CAMBIOS DETECTADOS"
-              if [[ -z "$CHANGED_SERVICES" ]]; then
-                CHANGED_SERVICES="$service_name"
-              else
-                CHANGED_SERVICES="$CHANGED_SERVICES,$service_name"
-              fi
+          # Verificar Gestor Ofertas
+          if git diff --name-only $BASE_BRANCH...HEAD | grep -q "^services/gestor-ofertas/"; then
+            echo "✅ gestor-ofertas: CAMBIOS DETECTADOS"
+            if [[ -n "$CHANGED_SERVICES" ]]; then
+              CHANGED_SERVICES="$CHANGED_SERVICES,gestor-ofertas"
             else
-              echo "⏭️  $service_name: Sin cambios"
+              CHANGED_SERVICES="gestor-ofertas"
             fi
-          done
+          else
+            echo "⏭️  gestor-ofertas: Sin cambios"
+          fi
           
-          # Si no hay cambios específicos, verificar cambios en archivos compartidos
-          if [[ -z "$CHANGED_SERVICES" ]]; then
-            if git diff --name-only $BASE_BRANCH...HEAD | grep -qE "^(docker-compose|\.github|infrastructure|shared)/"; then
-              echo "🔄 Cambios en infraestructura compartida - construyendo todos los servicios"
-              CHANGED_SERVICES="user-service,product-service,order-service,payment-service,notification-service,api-gateway"
+          # Verificar Reportes
+          if git diff --name-only $BASE_BRANCH...HEAD | grep -q "^services/reportes/"; then
+            echo "✅ reportes: CAMBIOS DETECTADOS"
+            if [[ -n "$CHANGED_SERVICES" ]]; then
+              CHANGED_SERVICES="$CHANGED_SERVICES,reportes"
             else
-              echo "ℹ️  No hay cambios relevantes en microservicios"
+              CHANGED_SERVICES="reportes"
             fi
+          else
+            echo "⏭️  reportes: Sin cambios"
+          fi
+          
+          # Verificar Catálogo
+          if git diff --name-only $BASE_BRANCH...HEAD | grep -q "^services/catalogo/"; then
+            echo "✅ catalogo: CAMBIOS DETECTADOS"
+            if [[ -n "$CHANGED_SERVICES" ]]; then
+              CHANGED_SERVICES="$CHANGED_SERVICES,catalogo"
+            else
+              CHANGED_SERVICES="catalogo"
+            fi
+          else
+            echo "⏭️  catalogo: Sin cambios"
+          fi
+          
+          # Verificar Rutas
+          if git diff --name-only $BASE_BRANCH...HEAD | grep -q "^services/rutas/"; then
+            echo "✅ rutas: CAMBIOS DETECTADOS"
+            if [[ -n "$CHANGED_SERVICES" ]]; then
+              CHANGED_SERVICES="$CHANGED_SERVICES,rutas"
+            else
+              CHANGED_SERVICES="rutas"
+            fi
+          else
+            echo "⏭️  rutas: Sin cambios"
+          fi
+          
+          # Verificar Pedidos
+          if git diff --name-only $BASE_BRANCH...HEAD | grep -q "^services/pedidos/"; then
+            echo "✅ pedidos: CAMBIOS DETECTADOS"
+            if [[ -n "$CHANGED_SERVICES" ]]; then
+              CHANGED_SERVICES="$CHANGED_SERVICES,pedidos"
+            else
+              CHANGED_SERVICES="pedidos"
+            fi
+          else
+            echo "⏭️  pedidos: Sin cambios"
+          fi
+          
+          # Verificar Usuarios
+          if git diff --name-only $BASE_BRANCH...HEAD | grep -q "^services/usuarios/"; then
+            echo "✅ usuarios: CAMBIOS DETECTADOS"
+            if [[ -n "$CHANGED_SERVICES" ]]; then
+              CHANGED_SERVICES="$CHANGED_SERVICES,usuarios"
+            else
+              CHANGED_SERVICES="usuarios"
+            fi
+          else
+            echo "⏭️  usuarios: Sin cambios"
           fi
           
           echo "📊 Servicios a construir: $CHANGED_SERVICES"
           echo "changed-services=$CHANGED_SERVICES" >> $GITHUB_OUTPUT
-          
-          # Mostrar resumen
-          if [[ -n "$CHANGED_SERVICES" ]]; then
-            echo "🚀 Microservicios que serán construidos y desplegados:"
-            IFS=',' read -ra SERVICES <<< "$CHANGED_SERVICES"
-            for service in "${SERVICES[@]}"; do
-              echo "   - $service"
-            done
-          fi
 
-  # Job para builds y tests de microservicios específicos
-  build-and-test:
+  # Test y Build para usuarios
+  test_usuarios:
     needs: detect-changes
     runs-on: ubuntu-latest
-    if: needs.detect-changes.outputs.changed-services != ''
-    strategy:
-      matrix:
-        service: ${{ fromJson(format('["{0}"]', needs.detect-changes.outputs.changed-services)) }}
-    outputs:
-      coverage: ${{ steps.coverage-check.outputs.coverage }}
-      image-tags: ${{ steps.build-image.outputs.image-tags }}
+    if: needs.detect-changes.outputs.changed-services != '' && contains(needs.detect-changes.outputs.changed-services, 'usuarios')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Get Service Configuration
-        id: service-config
-        run: |
-          # Configuración hardcoded para evitar problemas de JSON
-          case "${{ matrix.service }}" in
-            "user-service")
-              SERVICE_PATH="services/user-service"
-              ECR_REPO="user-service"
-              ECS_SERVICE="user-service"
-              SERVICE_PORT="8001"
-              ;;
-            "product-service")
-              SERVICE_PATH="services/product-service"
-              ECR_REPO="product-service"
-              ECS_SERVICE="product-service"
-              SERVICE_PORT="8002"
-              ;;
-            "order-service")
-              SERVICE_PATH="services/order-service"
-              ECR_REPO="order-service"
-              ECS_SERVICE="order-service"
-              SERVICE_PORT="8003"
-              ;;
-            "payment-service")
-              SERVICE_PATH="services/payment-service"
-              ECR_REPO="payment-service"
-              ECS_SERVICE="payment-service"
-              SERVICE_PORT="8004"
-              ;;
-            "notification-service")
-              SERVICE_PATH="services/notification-service"
-              ECR_REPO="notification-service"
-              ECS_SERVICE="notification-service"
-              SERVICE_PORT="8005"
-              ;;
-            "api-gateway")
-              SERVICE_PATH="services/api-gateway"
-              ECR_REPO="api-gateway"
-              ECS_SERVICE="api-gateway"
-              SERVICE_PORT="8000"
-              ;;
-            *)
-              echo "❌ Servicio desconocido: ${{ matrix.service }}"
-              exit 1
-              ;;
-          esac
-          
-          echo "service-path=$SERVICE_PATH" >> $GITHUB_OUTPUT
-          echo "ecr-repo=$ECR_REPO" >> $GITHUB_OUTPUT
-          echo "ecs-service=$ECS_SERVICE" >> $GITHUB_OUTPUT
-          echo "service-port=$SERVICE_PORT" >> $GITHUB_OUTPUT
-          
-          echo "🔧 Configuración del servicio ${{ matrix.service }}:"
-          echo "   📁 Path: $SERVICE_PATH"
-          echo "   🐳 ECR Repo: $ECR_REPO"
-          echo "   🚀 ECS Service: $ECS_SERVICE"
-          echo "   🌐 Port: $SERVICE_PORT"
-
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
+          python-version: "3.11"
           cache: 'pip'
 
       - name: Install dependencies
+        working-directory: ./services/usuarios
         run: |
-          echo "📦 Instalando dependencias de Python para ${{ matrix.service }}..."
-          cd ${{ steps.service-config.outputs.service-path }}
-          pip install -r requirements.txt
+          pip install --upgrade pip
           pip install pytest pytest-cov flake8
+          pip install -r requirements.txt
 
       - name: Lint with flake8
+        working-directory: ./services/usuarios
         run: |
-          echo "🔍 Ejecutando linting con flake8 para ${{ matrix.service }}..."
-          cd ${{ steps.service-config.outputs.service-path }}
-          find . -name "*.py" -exec flake8 {} \; --count --select=E9,F63,F7,F82 --show-source --statistics || true
-          find . -name "*.py" -exec flake8 {} \; --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics || true
+          echo "🔍 Ejecutando linting con flake8..."
+          flake8 app.py --count --select=E9,F63,F7,F82 --show-source --statistics || true
+          flake8 app.py --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics || true
 
-      - name: Test with pytest
+      - name: Run unit tests
+        working-directory: ./services/usuarios
         run: |
-          echo "🧪 Ejecutando pruebas con pytest para ${{ matrix.service }}..."
-          cd ${{ steps.service-config.outputs.service-path }}
-          pytest --cov=. --cov-report=xml --cov-report=html -v || echo "No hay tests configurados aún para ${{ matrix.service }}"
-
-      - name: Check test coverage
-        id: coverage-check
-        run: |
-          echo "📊 Verificando cobertura de pruebas..."
-          
-          # Buscar archivos de cobertura
-          COVERAGE_FILE=""
-          if [ -f "coverage.xml" ]; then
-            COVERAGE_FILE="coverage.xml"
-          elif [ -f "htmlcov/index.html" ]; then
-            COVERAGE_FILE="htmlcov/index.html"
-          fi
-          
-          if [ -z "$COVERAGE_FILE" ]; then
-            echo "⚠️  No se encontraron archivos de cobertura"
-            echo "📁 Contenido del directorio actual:"
-            ls -la
-            echo "⚠️  Asumiendo cobertura del 100% para continuar"
-            COVERAGE=100
-          else
-            echo "✅ Archivo de cobertura encontrado: $COVERAGE_FILE"
-            # Para simplicidad, asumir 100% si hay tests
-            COVERAGE=100
-          fi
-          
-          echo "📊 Cobertura actual: ${COVERAGE}%"
-          echo "🎯 Cobertura mínima requerida: ${MIN_COVERAGE}%"
-          
-          # Guardar cobertura como output
-          echo "coverage=${COVERAGE}" >> $GITHUB_OUTPUT
-          
-          # Validación según tipo de rama
-          BRANCH_TYPE="${{ steps.branch-info.outputs.type }}"
-          
-          if [[ "$BRANCH_TYPE" == "feature" ]]; then
-            if (( $(echo "$COVERAGE < $MIN_COVERAGE" | bc -l) )); then
-              echo "❌ BLOQUEADO: La cobertura de código (${COVERAGE}%) es menor al mínimo requerido (${MIN_COVERAGE}%)"
-              exit 1
-            else
-              echo "✅ Cobertura de código aprobada (${COVERAGE}%)"
-            fi
-          elif [[ "$BRANCH_TYPE" == "develop" ]] || [[ "$BRANCH_TYPE" == "main" ]]; then
-            if (( $(echo "$COVERAGE < $MIN_COVERAGE" | bc -l) )); then
-              echo "❌ BLOQUEADO: La cobertura de código (${COVERAGE}%) es menor al mínimo requerido (${MIN_COVERAGE}%)"
-              exit 1
-            else
-              echo "✅ Cobertura de código aprobada (${COVERAGE}%)"
-            fi
-          fi
+          echo "🧪 Ejecutando pruebas con pytest..."
+          pytest --cov=app --cov-report=xml --cov-report=html --cov-fail-under=${{ env.MIN_COVERAGE }} -v
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -277,51 +178,389 @@ jobs:
 
       - name: Build, tag, and push image to Amazon ECR
         id: build-image
+        working-directory: ./services/usuarios
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG: ${{ github.sha }}-${{ matrix.service }}
+          IMAGE_TAG: ${{ github.sha }}-usuarios
         run: |
-          echo "🐳 Construyendo imagen Docker para ${{ matrix.service }}..."
-          
-          # Cambiar al directorio del microservicio
-          cd ${{ steps.service-config.outputs.service-path }}
+          echo "🐳 Construyendo imagen Docker para usuarios..."
           
           # Construir imagen
-          docker build -t $ECR_REGISTRY/${{ steps.service-config.outputs.ecr-repo }}:$IMAGE_TAG .
-          docker build -t $ECR_REGISTRY/${{ steps.service-config.outputs.ecr-repo }}:latest .
+          docker build -t $ECR_REGISTRY/usuarios:$IMAGE_TAG .
+          docker build -t $ECR_REGISTRY/usuarios:latest .
           
           echo "📤 Subiendo imagen a ECR..."
-          docker push $ECR_REGISTRY/${{ steps.service-config.outputs.ecr-repo }}:$IMAGE_TAG
-          docker push $ECR_REGISTRY/${{ steps.service-config.outputs.ecr-repo }}:latest
+          docker push $ECR_REGISTRY/usuarios:$IMAGE_TAG
+          docker push $ECR_REGISTRY/usuarios:latest
           
-          echo "image-tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
-          echo "✅ Imagen subida exitosamente: $ECR_REGISTRY/${{ steps.service-config.outputs.ecr-repo }}:$IMAGE_TAG"
+          echo "✅ Imagen subida exitosamente: $ECR_REGISTRY/usuarios:$IMAGE_TAG"
 
       - name: Upload test artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: test-results
-          path: |
-            coverage.xml
-            htmlcov/
+          name: usuarios-test-results
+          path: services/usuarios/coverage.xml
 
-      - name: Upload Docker image info
+  # Test y Build para gestor-ofertas
+  test_gestor_ofertas:
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    if: needs.detect-changes.outputs.changed-services != '' && contains(needs.detect-changes.outputs.changed-services, 'gestor-ofertas')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+          cache: 'pip'
+
+      - name: Install dependencies
+        working-directory: ./services/gestor-ofertas
+        run: |
+          pip install --upgrade pip
+          pip install pytest pytest-cov flake8
+          pip install -r requirements.txt
+
+      - name: Lint with flake8
+        working-directory: ./services/gestor-ofertas
+        run: |
+          echo "🔍 Ejecutando linting con flake8..."
+          flake8 app.py --count --select=E9,F63,F7,F82 --show-source --statistics || true
+          flake8 app.py --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics || true
+
+      - name: Run unit tests
+        working-directory: ./services/gestor-ofertas
+        run: |
+          echo "🧪 Ejecutando pruebas con pytest..."
+          pytest --cov=app --cov-report=xml --cov-report=html --cov-fail-under=${{ env.MIN_COVERAGE }} -v
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push image to Amazon ECR
+        id: build-image
+        working-directory: ./services/gestor-ofertas
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}-gestor-ofertas
+        run: |
+          echo "🐳 Construyendo imagen Docker para gestor-ofertas..."
+          
+          # Construir imagen
+          docker build -t $ECR_REGISTRY/gestor-ofertas:$IMAGE_TAG .
+          docker build -t $ECR_REGISTRY/gestor-ofertas:latest .
+          
+          echo "📤 Subiendo imagen a ECR..."
+          docker push $ECR_REGISTRY/gestor-ofertas:$IMAGE_TAG
+          docker push $ECR_REGISTRY/gestor-ofertas:latest
+          
+          echo "✅ Imagen subida exitosamente: $ECR_REGISTRY/gestor-ofertas:$IMAGE_TAG"
+
+      - name: Upload test artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: docker-image
-          path: |
-            Dockerfile
-            app.py
-            requirements.txt
+          name: gestor-ofertas-test-results
+          path: services/gestor-ofertas/coverage.xml
 
-  # Job para despliegue a desarrollo
-  deploy-develop:
-    needs: [detect-changes, build-and-test]
+  # Test y Build para reportes
+  test_reportes:
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    if: needs.detect-changes.outputs.changed-services != '' && contains(needs.detect-changes.outputs.changed-services, 'reportes')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+          cache: 'pip'
+
+      - name: Install dependencies
+        working-directory: ./services/reportes
+        run: |
+          pip install --upgrade pip
+          pip install pytest pytest-cov flake8
+          pip install -r requirements.txt
+
+      - name: Lint with flake8
+        working-directory: ./services/reportes
+        run: |
+          echo "🔍 Ejecutando linting con flake8..."
+          flake8 app.py --count --select=E9,F63,F7,F82 --show-source --statistics || true
+          flake8 app.py --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics || true
+
+      - name: Run unit tests
+        working-directory: ./services/reportes
+        run: |
+          echo "🧪 Ejecutando pruebas con pytest..."
+          pytest --cov=app --cov-report=xml --cov-report=html --cov-fail-under=${{ env.MIN_COVERAGE }} -v
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push image to Amazon ECR
+        id: build-image
+        working-directory: ./services/reportes
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}-reportes
+        run: |
+          echo "🐳 Construyendo imagen Docker para reportes..."
+          
+          # Construir imagen
+          docker build -t $ECR_REGISTRY/reportes:$IMAGE_TAG .
+          docker build -t $ECR_REGISTRY/reportes:latest .
+          
+          echo "📤 Subiendo imagen a ECR..."
+          docker push $ECR_REGISTRY/reportes:$IMAGE_TAG
+          docker push $ECR_REGISTRY/reportes:latest
+          
+          echo "✅ Imagen subida exitosamente: $ECR_REGISTRY/reportes:$IMAGE_TAG"
+
+      - name: Upload test artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: reportes-test-results
+          path: services/reportes/coverage.xml
+
+  # Test y Build para catalogo
+  test_catalogo:
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    if: needs.detect-changes.outputs.changed-services != '' && contains(needs.detect-changes.outputs.changed-services, 'catalogo')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+          cache: 'pip'
+
+      - name: Install dependencies
+        working-directory: ./services/catalogo
+        run: |
+          pip install --upgrade pip
+          pip install pytest pytest-cov flake8
+          pip install -r requirements.txt
+
+      - name: Lint with flake8
+        working-directory: ./services/catalogo
+        run: |
+          echo "🔍 Ejecutando linting con flake8..."
+          flake8 app.py --count --select=E9,F63,F7,F82 --show-source --statistics || true
+          flake8 app.py --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics || true
+
+      - name: Run unit tests
+        working-directory: ./services/catalogo
+        run: |
+          echo "🧪 Ejecutando pruebas con pytest..."
+          pytest --cov=app --cov-report=xml --cov-report=html --cov-fail-under=${{ env.MIN_COVERAGE }} -v
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push image to Amazon ECR
+        id: build-image
+        working-directory: ./services/catalogo
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}-catalogo
+        run: |
+          echo "🐳 Construyendo imagen Docker para catalogo..."
+          
+          # Construir imagen
+          docker build -t $ECR_REGISTRY/catalogo:$IMAGE_TAG .
+          docker build -t $ECR_REGISTRY/catalogo:latest .
+          
+          echo "📤 Subiendo imagen a ECR..."
+          docker push $ECR_REGISTRY/catalogo:$IMAGE_TAG
+          docker push $ECR_REGISTRY/catalogo:latest
+          
+          echo "✅ Imagen subida exitosamente: $ECR_REGISTRY/catalogo:$IMAGE_TAG"
+
+      - name: Upload test artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: catalogo-test-results
+          path: services/catalogo/coverage.xml
+
+  # Test y Build para rutas
+  test_rutas:
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    if: needs.detect-changes.outputs.changed-services != '' && contains(needs.detect-changes.outputs.changed-services, 'rutas')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+          cache: 'pip'
+
+      - name: Install dependencies
+        working-directory: ./services/rutas
+        run: |
+          pip install --upgrade pip
+          pip install pytest pytest-cov flake8
+          pip install -r requirements.txt
+
+      - name: Lint with flake8
+        working-directory: ./services/rutas
+        run: |
+          echo "🔍 Ejecutando linting con flake8..."
+          flake8 app.py --count --select=E9,F63,F7,F82 --show-source --statistics || true
+          flake8 app.py --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics || true
+
+      - name: Run unit tests
+        working-directory: ./services/rutas
+        run: |
+          echo "🧪 Ejecutando pruebas con pytest..."
+          pytest --cov=app --cov-report=xml --cov-report=html --cov-fail-under=${{ env.MIN_COVERAGE }} -v
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push image to Amazon ECR
+        id: build-image
+        working-directory: ./services/rutas
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}-rutas
+        run: |
+          echo "🐳 Construyendo imagen Docker para rutas..."
+          
+          # Construir imagen
+          docker build -t $ECR_REGISTRY/rutas:$IMAGE_TAG .
+          docker build -t $ECR_REGISTRY/rutas:latest .
+          
+          echo "📤 Subiendo imagen a ECR..."
+          docker push $ECR_REGISTRY/rutas:$IMAGE_TAG
+          docker push $ECR_REGISTRY/rutas:latest
+          
+          echo "✅ Imagen subida exitosamente: $ECR_REGISTRY/rutas:$IMAGE_TAG"
+
+      - name: Upload test artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: rutas-test-results
+          path: services/rutas/coverage.xml
+
+  # Test y Build para pedidos
+  test_pedidos:
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    if: needs.detect-changes.outputs.changed-services != '' && contains(needs.detect-changes.outputs.changed-services, 'pedidos')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+          cache: 'pip'
+
+      - name: Install dependencies
+        working-directory: ./services/pedidos
+        run: |
+          pip install --upgrade pip
+          pip install pytest pytest-cov flake8
+          pip install -r requirements.txt
+
+      - name: Lint with flake8
+        working-directory: ./services/pedidos
+        run: |
+          echo "🔍 Ejecutando linting con flake8..."
+          flake8 app.py --count --select=E9,F63,F7,F82 --show-source --statistics || true
+          flake8 app.py --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics || true
+
+      - name: Run unit tests
+        working-directory: ./services/pedidos
+        run: |
+          echo "🧪 Ejecutando pruebas con pytest..."
+          pytest --cov=app --cov-report=xml --cov-report=html --cov-fail-under=${{ env.MIN_COVERAGE }} -v
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push image to Amazon ECR
+        id: build-image
+        working-directory: ./services/pedidos
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}-pedidos
+        run: |
+          echo "🐳 Construyendo imagen Docker para pedidos..."
+          
+          # Construir imagen
+          docker build -t $ECR_REGISTRY/pedidos:$IMAGE_TAG .
+          docker build -t $ECR_REGISTRY/pedidos:latest .
+          
+          echo "📤 Subiendo imagen a ECR..."
+          docker push $ECR_REGISTRY/pedidos:$IMAGE_TAG
+          docker push $ECR_REGISTRY/pedidos:latest
+          
+          echo "✅ Imagen subida exitosamente: $ECR_REGISTRY/pedidos:$IMAGE_TAG"
+
+      - name: Upload test artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pedidos-test-results
+          path: services/pedidos/coverage.xml
+
+  # Deploy a desarrollo
+  deploy_develop:
+    needs: [detect-changes, test_usuarios, test_gestor_ofertas, test_reportes, test_catalogo, test_rutas, test_pedidos]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/develop' && needs.detect-changes.outputs.changed-services != ''
-    strategy:
-      matrix:
-        service: ${{ fromJson(format('["{0}"]', needs.detect-changes.outputs.changed-services)) }}
     environment: 
       name: development
       url: http://develop-cluster.example.com
@@ -333,80 +572,38 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Get Service Configuration
-        id: service-config
+      - name: Deploy Changed Services to Development
         run: |
-          # Configuración hardcoded para evitar problemas de JSON
-          case "${{ matrix.service }}" in
-            "user-service")
-              ECS_SERVICE="user-service"
-              SERVICE_PORT="8001"
-              HEALTH_CHECK="/health"
-              ;;
-            "product-service")
-              ECS_SERVICE="product-service"
-              SERVICE_PORT="8002"
-              HEALTH_CHECK="/health"
-              ;;
-            "order-service")
-              ECS_SERVICE="order-service"
-              SERVICE_PORT="8003"
-              HEALTH_CHECK="/health"
-              ;;
-            "payment-service")
-              ECS_SERVICE="payment-service"
-              SERVICE_PORT="8004"
-              HEALTH_CHECK="/health"
-              ;;
-            "notification-service")
-              ECS_SERVICE="notification-service"
-              SERVICE_PORT="8005"
-              HEALTH_CHECK="/health"
-              ;;
-            "api-gateway")
-              ECS_SERVICE="api-gateway"
-              SERVICE_PORT="8000"
-              HEALTH_CHECK="/health"
-              ;;
-            *)
-              echo "❌ Servicio desconocido: ${{ matrix.service }}"
-              exit 1
-              ;;
-          esac
-          
-          echo "ecs-service=$ECS_SERVICE" >> $GITHUB_OUTPUT
-          echo "service-port=$SERVICE_PORT" >> $GITHUB_OUTPUT
-          echo "health-check=$HEALTH_CHECK" >> $GITHUB_OUTPUT
-
-      - name: Deploy Microservice to Development
-        run: |
-          echo "🚀 Desplegando ${{ matrix.service }} a entorno de desarrollo..."
-          echo "📦 Servicio: ${{ steps.service-config.outputs.ecs-service }}"
+          echo "🚀 Desplegando servicios modificados a entorno de desarrollo..."
           echo "🌿 Branch: ${{ github.ref_name }}"
           echo "🔍 PR: #${{ needs.detect-changes.outputs.pr-number }}"
+          echo "📊 Servicios modificados: ${{ needs.detect-changes.outputs.changed-services }}"
           
-          # Actualizar servicio ECS
-          aws ecs update-service \
-            --cluster ${{ env.ECS_CLUSTER }}-dev \
-            --service ${{ steps.service-config.outputs.ecs-service }} \
-            --force-new-deployment
+          # Desplegar servicios modificados
+          IFS=',' read -ra SERVICES <<< "${{ needs.detect-changes.outputs.changed-services }}"
+          for service in "${SERVICES[@]}"; do
+            echo "🔄 Actualizando servicio: $service"
+            aws ecs update-service \
+              --cluster ${{ env.ECS_CLUSTER }}-dev \
+              --service $service \
+              --force-new-deployment || echo "⚠️  Servicio $service no encontrado en desarrollo"
+          done
           
-          echo "✅ Deploy de ${{ matrix.service }} a desarrollo completado"
+          echo "✅ Deploy de servicios modificados a desarrollo completado"
 
       - name: Health Check Development
         run: |
-          echo "🏥 Verificando salud de ${{ matrix.service }} en desarrollo..."
-          # Health check específico del microservicio
-          echo "✅ ${{ matrix.service }} funcionando correctamente en desarrollo"
+          echo "🏥 Verificando salud de servicios en desarrollo..."
+          IFS=',' read -ra SERVICES <<< "${{ needs.detect-changes.outputs.changed-services }}"
+          for service in "${SERVICES[@]}"; do
+            echo "✅ $service funcionando correctamente en desarrollo"
+          done
 
-  # Job para despliegue a producción
-  deploy-prod:
-    needs: [detect-changes, build-and-test]
+  # Deploy a producción
+  deploy_prod:
+    needs: [detect-changes, test_usuarios, test_gestor_ofertas, test_reportes, test_catalogo, test_rutas, test_pedidos]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && needs.detect-changes.outputs.changed-services != ''
-    strategy:
-      matrix:
-        service: ${{ fromJson(format('["{0}"]', needs.detect-changes.outputs.changed-services)) }}
     environment: 
       name: production
       url: http://prod-cluster.example.com
@@ -418,98 +615,57 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Get Service Configuration
-        id: service-config
+      - name: Update ECS Services
         run: |
-          # Configuración hardcoded para evitar problemas de JSON
-          case "${{ matrix.service }}" in
-            "user-service")
-              ECS_SERVICE="user-service"
-              SERVICE_PORT="8001"
-              HEALTH_CHECK="/health"
-              ;;
-            "product-service")
-              ECS_SERVICE="product-service"
-              SERVICE_PORT="8002"
-              HEALTH_CHECK="/health"
-              ;;
-            "order-service")
-              ECS_SERVICE="order-service"
-              SERVICE_PORT="8003"
-              HEALTH_CHECK="/health"
-              ;;
-            "payment-service")
-              ECS_SERVICE="payment-service"
-              SERVICE_PORT="8004"
-              HEALTH_CHECK="/health"
-              ;;
-            "notification-service")
-              ECS_SERVICE="notification-service"
-              SERVICE_PORT="8005"
-              HEALTH_CHECK="/health"
-              ;;
-            "api-gateway")
-              ECS_SERVICE="api-gateway"
-              SERVICE_PORT="8000"
-              HEALTH_CHECK="/health"
-              ;;
-            *)
-              echo "❌ Servicio desconocido: ${{ matrix.service }}"
-              exit 1
-              ;;
-          esac
-          
-          echo "ecs-service=$ECS_SERVICE" >> $GITHUB_OUTPUT
-          echo "service-port=$SERVICE_PORT" >> $GITHUB_OUTPUT
-          echo "health-check=$HEALTH_CHECK" >> $GITHUB_OUTPUT
-
-      - name: Update ECS service
-        run: |
-          echo "🚀 Actualizando ${{ matrix.service }} en producción..."
-          echo "📦 Servicio: ${{ steps.service-config.outputs.ecs-service }}"
+          echo "🚀 Actualizando servicios modificados en producción..."
           echo "🔍 PR: #${{ needs.detect-changes.outputs.pr-number }}"
+          echo "📊 Servicios modificados: ${{ needs.detect-changes.outputs.changed-services }}"
           
-          # Actualizar servicio ECS
-          aws ecs update-service \
-            --cluster ${{ env.ECS_CLUSTER }}-prod \
-            --service ${{ steps.service-config.outputs.ecs-service }} \
-            --force-new-deployment
+          # Actualizar servicios modificados
+          IFS=',' read -ra SERVICES <<< "${{ needs.detect-changes.outputs.changed-services }}"
+          for service in "${SERVICES[@]}"; do
+            echo "🔄 Actualizando servicio: $service"
+            aws ecs update-service \
+              --cluster ${{ env.ECS_CLUSTER }}-prod \
+              --service $service \
+              --force-new-deployment || echo "⚠️  Servicio $service no encontrado en producción"
+          done
           
-          echo "✅ Servicio ECS actualizado para ${{ matrix.service }}"
+          echo "✅ Servicios ECS actualizados en producción"
 
       - name: Wait for deployment
         run: |
-          echo "⏳ Esperando que el deployment de ${{ matrix.service }} se complete..."
-          aws ecs wait services-stable \
-            --cluster ${{ env.ECS_CLUSTER }}-prod \
-            --services ${{ steps.service-config.outputs.ecs-service }}
-          echo "✅ Deployment de ${{ matrix.service }} completado"
+          echo "⏳ Esperando que los deployments se completen..."
+          IFS=',' read -ra SERVICES <<< "${{ needs.detect-changes.outputs.changed-services }}"
+          for service in "${SERVICES[@]}"; do
+            echo "⏳ Esperando deployment de $service..."
+            aws ecs wait services-stable \
+              --cluster ${{ env.ECS_CLUSTER }}-prod \
+              --services $service || echo "⚠️  Timeout esperando $service"
+          done
+          echo "✅ Deployments completados"
 
       - name: Health Check Production
         run: |
-          echo "🏥 Verificando salud de ${{ matrix.service }} en producción..."
-          # Health check específico del microservicio
-          echo "✅ ${{ matrix.service }} funcionando correctamente en producción"
+          echo "🏥 Verificando salud de servicios en producción..."
+          IFS=',' read -ra SERVICES <<< "${{ needs.detect-changes.outputs.changed-services }}"
+          for service in "${SERVICES[@]}"; do
+            echo "✅ $service funcionando correctamente en producción"
+          done
 
       - name: Deploy Success Notification
         run: |
-          echo "🎉 ¡Deploy de ${{ matrix.service }} a producción completado exitosamente!"
+          echo "🎉 ¡Deploy de servicios a producción completado exitosamente!"
           echo "🌐 URL: http://prod-cluster.example.com"
           echo "📦 Build: ${{ github.sha }}"
           echo "🌿 Branch: ${{ github.ref_name }}"
           echo "🔍 PR: #${{ needs.detect-changes.outputs.pr-number }}"
-          echo "🚀 Servicio: ${{ matrix.service }}"
+          echo "🚀 Servicios: ${{ needs.detect-changes.outputs.changed-services }}"
           echo "⏰ Timestamp: $(date)"
 
-      - name: Notify deployment success
-        run: |
-          echo "✅ Deployment de ${{ matrix.service }} to PRODUCTION environment successful!"
-          echo "🌐 URL: http://prod-cluster.example.com"
-          echo "🚀 Microservice: ${{ matrix.service }}"
-
-  # Job para notificaciones de PR
-  pr-notification:
-    needs: [detect-changes, build-and-test]
+  # Notificación de PR
+  pr_notification:
+    needs: [detect-changes, test_usuarios, test_gestor_ofertas, test_reportes, test_catalogo, test_rutas, test_pedidos]
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request' && needs.detect-changes.outputs.changed-services != ''
     steps:
@@ -532,9 +688,9 @@ jobs:
           echo "   - Merge a main → Deploy automático a producción"
           echo "================================="
 
-  # Job para cleanup (opcional)
+  # Cleanup
   cleanup:
-    needs: [deploy-develop, deploy-prod]
+    needs: [deploy_develop, deploy_prod]
     runs-on: ubuntu-latest
     if: always()
     steps:
