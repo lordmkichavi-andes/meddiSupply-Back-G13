@@ -11,53 +11,6 @@ env:
   AWS_REGION: us-east-1
   ECS_CLUSTER: microservices-cluster
   MIN_COVERAGE: 5
-  
-  # Configuración de microservicios
-  MICROSERVICES: |
-    {
-      "user-service": {
-        "path": "services/user-service",
-        "ecr_repo": "user-service",
-        "ecs_service": "user-service",
-        "port": 8001,
-        "health_check": "/health"
-      },
-      "product-service": {
-        "path": "services/product-service", 
-        "ecr_repo": "product-service",
-        "ecs_service": "product-service",
-        "port": 8002,
-        "health_check": "/health"
-      },
-      "order-service": {
-        "path": "services/order-service",
-        "ecr_repo": "order-service", 
-        "ecs_service": "order-service",
-        "port": 8003,
-        "health_check": "/health"
-      },
-      "payment-service": {
-        "path": "services/payment-service",
-        "ecr_repo": "payment-service",
-        "ecs_service": "payment-service", 
-        "port": 8004,
-        "health_check": "/health"
-      },
-      "notification-service": {
-        "path": "services/notification-service",
-        "ecr_repo": "notification-service",
-        "ecs_service": "notification-service",
-        "port": 8005,
-        "health_check": "/health"
-      },
-      "api-gateway": {
-        "path": "services/api-gateway",
-        "ecr_repo": "api-gateway",
-        "ecs_service": "api-gateway",
-        "port": 8000,
-        "health_check": "/health"
-      }
-    }
 
 jobs:
   # Job para detectar cambios en microservicios
@@ -116,12 +69,14 @@ jobs:
           # Detectar cambios en cada microservicio
           CHANGED_SERVICES=""
           
-          # Parsear configuración de microservicios
-          echo "${{ env.MICROSERVICES }}" > microservices.json
+          # Lista de microservicios (hardcoded para evitar problemas de JSON)
+          SERVICES=("user-service" "product-service" "order-service" "payment-service" "notification-service" "api-gateway")
+          PATHS=("services/user-service" "services/product-service" "services/order-service" "services/payment-service" "services/notification-service" "services/api-gateway")
           
           # Verificar cada microservicio
-          for service_name in $(jq -r 'keys[]' microservices.json); do
-            service_path=$(jq -r ".$service_name.path" microservices.json)
+          for i in "${!SERVICES[@]}"; do
+            service_name="${SERVICES[$i]}"
+            service_path="${PATHS[$i]}"
             
             echo "🔍 Verificando $service_name en $service_path..."
             
@@ -142,7 +97,7 @@ jobs:
           if [[ -z "$CHANGED_SERVICES" ]]; then
             if git diff --name-only $BASE_BRANCH...HEAD | grep -qE "^(docker-compose|\.github|infrastructure|shared)/"; then
               echo "🔄 Cambios en infraestructura compartida - construyendo todos los servicios"
-              CHANGED_SERVICES=$(jq -r 'keys | join(",")' microservices.json)
+              CHANGED_SERVICES="user-service,product-service,order-service,payment-service,notification-service,api-gateway"
             else
               echo "ℹ️  No hay cambios relevantes en microservicios"
             fi
@@ -178,11 +133,49 @@ jobs:
       - name: Get Service Configuration
         id: service-config
         run: |
-          echo "${{ env.MICROSERVICES }}" > microservices.json
-          SERVICE_PATH=$(jq -r ".${{ matrix.service }}.path" microservices.json)
-          ECR_REPO=$(jq -r ".${{ matrix.service }}.ecr_repo" microservices.json)
-          ECS_SERVICE=$(jq -r ".${{ matrix.service }}.ecs_service" microservices.json)
-          SERVICE_PORT=$(jq -r ".${{ matrix.service }}.port" microservices.json)
+          # Configuración hardcoded para evitar problemas de JSON
+          case "${{ matrix.service }}" in
+            "user-service")
+              SERVICE_PATH="services/user-service"
+              ECR_REPO="user-service"
+              ECS_SERVICE="user-service"
+              SERVICE_PORT="8001"
+              ;;
+            "product-service")
+              SERVICE_PATH="services/product-service"
+              ECR_REPO="product-service"
+              ECS_SERVICE="product-service"
+              SERVICE_PORT="8002"
+              ;;
+            "order-service")
+              SERVICE_PATH="services/order-service"
+              ECR_REPO="order-service"
+              ECS_SERVICE="order-service"
+              SERVICE_PORT="8003"
+              ;;
+            "payment-service")
+              SERVICE_PATH="services/payment-service"
+              ECR_REPO="payment-service"
+              ECS_SERVICE="payment-service"
+              SERVICE_PORT="8004"
+              ;;
+            "notification-service")
+              SERVICE_PATH="services/notification-service"
+              ECR_REPO="notification-service"
+              ECS_SERVICE="notification-service"
+              SERVICE_PORT="8005"
+              ;;
+            "api-gateway")
+              SERVICE_PATH="services/api-gateway"
+              ECR_REPO="api-gateway"
+              ECS_SERVICE="api-gateway"
+              SERVICE_PORT="8000"
+              ;;
+            *)
+              echo "❌ Servicio desconocido: ${{ matrix.service }}"
+              exit 1
+              ;;
+          esac
           
           echo "service-path=$SERVICE_PATH" >> $GITHUB_OUTPUT
           echo "ecr-repo=$ECR_REPO" >> $GITHUB_OUTPUT
@@ -343,10 +336,43 @@ jobs:
       - name: Get Service Configuration
         id: service-config
         run: |
-          echo "${{ env.MICROSERVICES }}" > microservices.json
-          ECS_SERVICE=$(jq -r ".${{ matrix.service }}.ecs_service" microservices.json)
-          SERVICE_PORT=$(jq -r ".${{ matrix.service }}.port" microservices.json)
-          HEALTH_CHECK=$(jq -r ".${{ matrix.service }}.health_check" microservices.json)
+          # Configuración hardcoded para evitar problemas de JSON
+          case "${{ matrix.service }}" in
+            "user-service")
+              ECS_SERVICE="user-service"
+              SERVICE_PORT="8001"
+              HEALTH_CHECK="/health"
+              ;;
+            "product-service")
+              ECS_SERVICE="product-service"
+              SERVICE_PORT="8002"
+              HEALTH_CHECK="/health"
+              ;;
+            "order-service")
+              ECS_SERVICE="order-service"
+              SERVICE_PORT="8003"
+              HEALTH_CHECK="/health"
+              ;;
+            "payment-service")
+              ECS_SERVICE="payment-service"
+              SERVICE_PORT="8004"
+              HEALTH_CHECK="/health"
+              ;;
+            "notification-service")
+              ECS_SERVICE="notification-service"
+              SERVICE_PORT="8005"
+              HEALTH_CHECK="/health"
+              ;;
+            "api-gateway")
+              ECS_SERVICE="api-gateway"
+              SERVICE_PORT="8000"
+              HEALTH_CHECK="/health"
+              ;;
+            *)
+              echo "❌ Servicio desconocido: ${{ matrix.service }}"
+              exit 1
+              ;;
+          esac
           
           echo "ecs-service=$ECS_SERVICE" >> $GITHUB_OUTPUT
           echo "service-port=$SERVICE_PORT" >> $GITHUB_OUTPUT
@@ -395,10 +421,43 @@ jobs:
       - name: Get Service Configuration
         id: service-config
         run: |
-          echo "${{ env.MICROSERVICES }}" > microservices.json
-          ECS_SERVICE=$(jq -r ".${{ matrix.service }}.ecs_service" microservices.json)
-          SERVICE_PORT=$(jq -r ".${{ matrix.service }}.port" microservices.json)
-          HEALTH_CHECK=$(jq -r ".${{ matrix.service }}.health_check" microservices.json)
+          # Configuración hardcoded para evitar problemas de JSON
+          case "${{ matrix.service }}" in
+            "user-service")
+              ECS_SERVICE="user-service"
+              SERVICE_PORT="8001"
+              HEALTH_CHECK="/health"
+              ;;
+            "product-service")
+              ECS_SERVICE="product-service"
+              SERVICE_PORT="8002"
+              HEALTH_CHECK="/health"
+              ;;
+            "order-service")
+              ECS_SERVICE="order-service"
+              SERVICE_PORT="8003"
+              HEALTH_CHECK="/health"
+              ;;
+            "payment-service")
+              ECS_SERVICE="payment-service"
+              SERVICE_PORT="8004"
+              HEALTH_CHECK="/health"
+              ;;
+            "notification-service")
+              ECS_SERVICE="notification-service"
+              SERVICE_PORT="8005"
+              HEALTH_CHECK="/health"
+              ;;
+            "api-gateway")
+              ECS_SERVICE="api-gateway"
+              SERVICE_PORT="8000"
+              HEALTH_CHECK="/health"
+              ;;
+            *)
+              echo "❌ Servicio desconocido: ${{ matrix.service }}"
+              exit 1
+              ;;
+          esac
           
           echo "ecs-service=$ECS_SERVICE" >> $GITHUB_OUTPUT
           echo "service-port=$SERVICE_PORT" >> $GITHUB_OUTPUT
