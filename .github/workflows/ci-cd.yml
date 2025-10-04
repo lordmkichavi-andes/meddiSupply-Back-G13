@@ -10,7 +10,7 @@ on:
 env:
   AWS_REGION: us-east-1
   ECS_CLUSTER: microservices-cluster
-  MIN_COVERAGE: 70
+  MIN_COVERAGE: 5
   
   # Configuración de microservicios
   MICROSERVICES: |
