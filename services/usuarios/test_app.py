@@ -103,6 +103,45 @@ def test_datos_endpoint_error_handling(client):
     data = json.loads(response.data)
     assert data['success'] == True
 
+def test_health_check_endpoint(client):
+    """Probar endpoint de health check"""
+    response = client.get('/health')
+    assert response.status_code == 200
+    
+    data = json.loads(response.data)
+    assert data['status'] == 'healthy'
+    assert data['service'] == 'usuarios'
+    assert data['version'] == '2.0.0'
+    assert 'timestamp' in data
+    assert 'checks' in data
+    assert 'ci_cd' in data
+    assert data['ci_cd']['pipeline'] == 'active'
+
+def test_health_check_structure(client):
+    """Probar estructura completa del health check"""
+    response = client.get('/health')
+    data = json.loads(response.data)
+    
+    # Verificar estructura de checks
+    assert data['checks']['database'] == 'ok'
+    assert data['checks']['memory'] == 'ok'
+    assert data['checks']['cpu'] == 'ok'
+    
+    # Verificar estructura de ci_cd
+    assert data['ci_cd']['last_deploy'] == 'ci-cd-test'
+    assert data['ci_cd']['environment'] == 'production-ready'
+
+def test_home_endpoint_new_version(client):
+    """Probar que el endpoint home muestra la nueva versión"""
+    response = client.get('/')
+    data = json.loads(response.data)
+    
+    assert data['version'] == '2.0.0'
+    assert 'CI/CD Pipeline Activo' in data['mensaje']
+    assert '/health' in data['endpoints_disponibles']
+    assert data['microservicio'] == 'usuarios'
+    assert data['cluster'] == 'microservices-cluster'
+
 def test_main_execution():
     """Probar que el archivo app.py se puede ejecutar"""
     import app

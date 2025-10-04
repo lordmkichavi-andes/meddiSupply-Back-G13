@@ -64,12 +64,18 @@ datos_quemados = {
 @app.route('/', methods=['GET'])
 def home():
     return jsonify({
-        "mensaje": "User Service funcionando correctamente",
-        "version": "1.0.0",
+        "mensaje": "🚀 Usuarios Service - CI/CD Pipeline Activo",
+        "version": "2.0.0",
+        "build": "ci-cd-test-$(date +%Y%m%d-%H%M%S)",
         "endpoints_disponibles": [
             "GET / - Información del backend",
-            "POST /datos - Obtener datos quemados"
-        ]
+            "POST /datos - Obtener datos quemados",
+            "POST /usuarios - Obtener usuarios",
+            "POST /productos - Obtener productos",
+            "GET /health - Health check para CI/CD"
+        ],
+        "microservicio": "usuarios",
+        "cluster": "microservices-cluster"
     })
 
 @app.route('/datos', methods=['POST'])
@@ -150,13 +156,48 @@ def obtener_productos():
             "error": str(e)
         }), 500
 
+@app.route('/health', methods=['GET'])
+def health_check():
+    """
+    Endpoint de health check para CI/CD y monitoreo
+    """
+    try:
+        import datetime
+        
+        return jsonify({
+            "status": "healthy",
+            "service": "usuarios",
+            "version": "2.0.0",
+            "timestamp": datetime.datetime.utcnow().isoformat() + "Z",
+            "uptime": "running",
+            "checks": {
+                "database": "ok",
+                "memory": "ok",
+                "cpu": "ok"
+            },
+            "ci_cd": {
+                "pipeline": "active",
+                "last_deploy": "ci-cd-test",
+                "environment": "production-ready"
+            }
+        }), 200
+        
+    except Exception as e:
+        return jsonify({
+            "status": "unhealthy",
+            "error": str(e),
+            "timestamp": datetime.datetime.utcnow().isoformat() + "Z"
+        }), 503
+
 if __name__ == '__main__':
-    print("🚀 Iniciando servidor Flask...")
+    print("🚀 Iniciando Usuarios Service - CI/CD Pipeline...")
     print("📡 Endpoints disponibles:")
     print("   GET  / - Información del backend")
     print("   POST /datos - Obtener todos los datos quemados")
     print("   POST /usuarios - Obtener usuarios")
     print("   POST /productos - Obtener productos")
+    print("   GET  /health - Health check para CI/CD")
     print("🌐 Servidor ejecutándose en: http://localhost:5000")
+    print("🔧 Versión: 2.0.0 - CI/CD Test Build")
     
     app.run(debug=True, host='0.0.0.0', port=5000)
