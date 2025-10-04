@@ -64,7 +64,7 @@ datos_quemados = {
 @app.route('/', methods=['GET'])
 def home():
     return jsonify({
-        "mensaje": "Backend Python funcionando correctamente",
+        "mensaje": "User Service funcionando correctamente",
         "version": "1.0.0",
         "endpoints_disponibles": [
             "GET / - Información del backend",
