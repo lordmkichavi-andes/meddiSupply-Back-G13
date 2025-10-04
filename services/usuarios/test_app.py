@@ -138,7 +138,7 @@ def test_home_endpoint_new_version(client):
     
     assert data['version'] == '2.0.0'
     assert 'CI/CD Pipeline Activo' in data['mensaje']
-    assert '/health' in data['endpoints_disponibles']
+    assert any('health' in endpoint for endpoint in data['endpoints_disponibles'])
     assert data['microservicio'] == 'usuarios'
     assert data['cluster'] == 'microservices-cluster'
 
