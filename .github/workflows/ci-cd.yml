@@ -172,22 +172,49 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # - name: Login to Amazon ECR
-      #   id: login-ecr
-      #   uses: aws-actions/amazon-ecr-login@v2
+      - name: Create ECR repository if not exists
+        run: |
+          echo "🔍 Verificando si existe el repositorio ECR 'usuarios'..."
+          aws ecr describe-repositories --repository-names usuarios --region ${{ env.AWS_REGION }} || {
+            echo "📦 Creando repositorio ECR 'usuarios'..."
+            aws ecr create-repository --repository-name usuarios --region ${{ env.AWS_REGION }}
+            echo "✅ Repositorio ECR 'usuarios' creado exitosamente"
+          }
 
-      - name: Build Docker image (test without ECR push)
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push image to Amazon ECR
         id: build-image
         working-directory: ./services/usuarios
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}-usuarios
         run: |
           echo "🐳 Construyendo imagen Docker para usuarios..."
           
-          # Construir imagen localmente para pruebas
-          docker build -t usuarios:${{ github.sha }} .
-          docker build -t usuarios:latest .
+          # Construir imagen
+          docker build -t $ECR_REGISTRY/usuarios:$IMAGE_TAG .
+          docker build -t $ECR_REGISTRY/usuarios:latest .
           
-          echo "✅ Imagen construida exitosamente: usuarios:${{ github.sha }}"
-          echo "ℹ️  Nota: Push a ECR deshabilitado - crear repositorio 'usuarios' en ECR primero"
+          echo "📤 Subiendo imagen a ECR..."
+          docker push $ECR_REGISTRY/usuarios:$IMAGE_TAG
+          docker push $ECR_REGISTRY/usuarios:latest
+          
+          echo "✅ Imagen subida exitosamente: $ECR_REGISTRY/usuarios:$IMAGE_TAG"
+          echo "🕐 Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "📊 Repositorio ECR: $ECR_REGISTRY/usuarios"
+          echo "🏷️  Tags: $IMAGE_TAG, latest"
+
+      - name: Verify ECR Image
+        run: |
+          echo "🔍 Verificando imagen en ECR..."
+          aws ecr describe-images --repository-name usuarios --region ${{ env.AWS_REGION }} --image-ids imageTag=${{ github.sha }}-usuarios
+          echo "✅ Imagen verificada en ECR"
+          
+          echo "📋 Listando todas las imágenes del repositorio:"
+          aws ecr describe-images --repository-name usuarios --region ${{ env.AWS_REGION }} --query 'imageDetails[*].[imageTags[0],imagePushedAt]' --output table
 
       - name: Upload test artifacts
         uses: actions/upload-artifact@v4
@@ -682,9 +709,51 @@ jobs:
           echo "   - Merge a main → Deploy automático a producción"
           echo "================================="
 
+  # Verificación post-merge a main
+  verify_production_image:
+    needs: [detect-changes, test_usuarios, test_gestor_ofertas, test_reportes, test_catalogo, test_rutas, test_pedidos]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && needs.detect-changes.outputs.changed-services != ''
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Verify Production Images in ECR
+        run: |
+          echo "🎯 VERIFICACIÓN POST-MERGE A MAIN"
+          echo "================================="
+          echo "🕐 Timestamp actual: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "📦 Repositorio: usuarios"
+          echo "🏷️  Commit SHA: ${{ github.sha }}"
+          echo "🌿 Branch: ${{ github.ref_name }}"
+          echo ""
+          
+          echo "📋 Imágenes en ECR:"
+          aws ecr describe-images \
+            --repository-name usuarios \
+            --region ${{ env.AWS_REGION }} \
+            --query 'imageDetails[*].[imageTags[0],imagePushedAt,imageSizeInBytes]' \
+            --output table
+          
+          echo ""
+          echo "🔍 Verificando imagen específica del commit:"
+          IMAGE_TAG="${{ github.sha }}-usuarios"
+          aws ecr describe-images \
+            --repository-name usuarios \
+            --region ${{ env.AWS_REGION }} \
+            --image-ids imageTag=$IMAGE_TAG \
+            --query 'imageDetails[0].imagePushedAt' \
+            --output text
+          
+          echo "✅ Verificación completada"
+
   # Cleanup
   cleanup:
-    needs: [deploy_develop, deploy_prod]
+    needs: [deploy_develop, deploy_prod, verify_production_image]
     runs-on: ubuntu-latest
     if: always()
     steps:
