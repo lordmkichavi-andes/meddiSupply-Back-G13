@@ -165,26 +165,35 @@ jobs:
           echo "🧪 Ejecutando pruebas con pytest..."
           pytest --cov=app --cov-report=xml --cov-report=html --cov-fail-under=${{ env.MIN_COVERAGE }} -v
 
-      # - name: Configure AWS credentials
-      #   uses: aws-actions/configure-aws-credentials@v4
-      #   with:
-      #     aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      #     aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      #     aws-region: ${{ env.AWS_REGION }}
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
 
-      # - name: Login to Amazon ECR
-      #   id: login-ecr
-      #   uses: aws-actions/amazon-ecr-login@v2
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build Docker image (local test)
+      - name: Build, tag, and push image to Amazon ECR
+        id: build-image
         working-directory: ./services/usuarios
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}-usuarios
         run: |
-          echo "🐳 Construyendo imagen Docker para usuarios (prueba local)..."
+          echo "🐳 Construyendo imagen Docker para usuarios..."
           
-          # Construir imagen localmente para pruebas
-          docker build -t usuarios:test .
+          # Construir imagen
+          docker build -t $ECR_REGISTRY/usuarios:$IMAGE_TAG .
+          docker build -t $ECR_REGISTRY/usuarios:latest .
           
-          echo "✅ Imagen construida exitosamente: usuarios:test"
+          echo "📤 Subiendo imagen a ECR..."
+          docker push $ECR_REGISTRY/usuarios:$IMAGE_TAG
+          docker push $ECR_REGISTRY/usuarios:latest
+          
+          echo "✅ Imagen subida exitosamente: $ECR_REGISTRY/usuarios:$IMAGE_TAG"
 
       - name: Upload test artifacts
         uses: actions/upload-artifact@v4
@@ -547,48 +556,48 @@ jobs:
           name: pedidos-test-results
           path: services/pedidos/coverage.xml
 
-  # Deploy a desarrollo (comentado para pruebas sin AWS)
-  # deploy_develop:
-  #   needs: [detect-changes, test_usuarios, test_gestor_ofertas, test_reportes, test_catalogo, test_rutas, test_pedidos]
-  #   runs-on: ubuntu-latest
-  #   if: github.ref == 'refs/heads/develop' && needs.detect-changes.outputs.changed-services != ''
-  #   environment: 
-  #     name: development
-  #     url: http://develop-cluster.example.com
-  #   steps:
-  #     - name: Configure AWS credentials
-  #       uses: aws-actions/configure-aws-credentials@v4
-  #       with:
-  #         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-  #         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-  #         aws-region: ${{ env.AWS_REGION }}
+  # Deploy a desarrollo
+  deploy_develop:
+    needs: [detect-changes, test_usuarios, test_gestor_ofertas, test_reportes, test_catalogo, test_rutas, test_pedidos]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/develop' && needs.detect-changes.outputs.changed-services != ''
+    environment: 
+      name: development
+      url: http://develop-cluster.example.com
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
 
-  #     - name: Deploy Changed Services to Development
-  #       run: |
-  #         echo "🚀 Desplegando servicios modificados a entorno de desarrollo..."
-  #         echo "🌿 Branch: ${{ github.ref_name }}"
-  #         echo "🔍 PR: #${{ needs.detect-changes.outputs.pr-number }}"
-  #         echo "📊 Servicios modificados: ${{ needs.detect-changes.outputs.changed-services }}"
-  #         
-  #         # Desplegar servicios modificados
-  #         IFS=',' read -ra SERVICES <<< "${{ needs.detect-changes.outputs.changed-services }}"
-  #         for service in "${SERVICES[@]}"; do
-  #           echo "🔄 Actualizando servicio: $service"
-  #           aws ecs update-service \
-  #             --cluster ${{ env.ECS_CLUSTER }}-dev \
-  #             --service $service \
-  #             --force-new-deployment || echo "⚠️  Servicio $service no encontrado en desarrollo"
-  #         done
-  #         
-  #         echo "✅ Deploy de servicios modificados a desarrollo completado"
+      - name: Deploy Changed Services to Development
+        run: |
+          echo "🚀 Desplegando servicios modificados a entorno de desarrollo..."
+          echo "🌿 Branch: ${{ github.ref_name }}"
+          echo "🔍 PR: #${{ needs.detect-changes.outputs.pr-number }}"
+          echo "📊 Servicios modificados: ${{ needs.detect-changes.outputs.changed-services }}"
+          
+          # Desplegar servicios modificados
+          IFS=',' read -ra SERVICES <<< "${{ needs.detect-changes.outputs.changed-services }}"
+          for service in "${SERVICES[@]}"; do
+            echo "🔄 Actualizando servicio: $service"
+            aws ecs update-service \
+              --cluster ${{ env.ECS_CLUSTER }}-dev \
+              --service $service \
+              --force-new-deployment || echo "⚠️  Servicio $service no encontrado en desarrollo"
+          done
+          
+          echo "✅ Deploy de servicios modificados a desarrollo completado"
 
-  #     - name: Health Check Development
-  #       run: |
-  #         echo "🏥 Verificando salud de servicios en desarrollo..."
-  #         IFS=',' read -ra SERVICES <<< "${{ needs.detect-changes.outputs.changed-services }}"
-  #         for service in "${SERVICES[@]}"; do
-  #           echo "✅ $service funcionando correctamente en desarrollo"
-  #         done
+      - name: Health Check Development
+        run: |
+          echo "🏥 Verificando salud de servicios en desarrollo..."
+          IFS=',' read -ra SERVICES <<< "${{ needs.detect-changes.outputs.changed-services }}"
+          for service in "${SERVICES[@]}"; do
+            echo "✅ $service funcionando correctamente en desarrollo"
+          done
 
   # Deploy a producción
   deploy_prod:
