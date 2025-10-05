@@ -64,7 +64,7 @@ datos_quemados = {
 @app.route('/', methods=['GET'])
 def home():
     return jsonify({
-        "mensaje": "🚀 Usuarios Service - Workflow Optimizado - Prueba Final",
+        "mensaje": "🚀 Usuarios Service - Validación Workflow Final",
         "version": "2.1.4",
         "build": "ci-cd-test-$(date +%Y%m%d-%H%M%S)",
         "endpoints_disponibles": [
