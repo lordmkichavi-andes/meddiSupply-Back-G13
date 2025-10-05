@@ -65,7 +65,7 @@ datos_quemados = {
 def home():
     return jsonify({
         "mensaje": "🚀 Usuarios Service - CI/CD Pipeline Activo",
-        "version": "2.0.5",
+        "version": "2.0.6",
         "build": "ci-cd-test-$(date +%Y%m%d-%H%M%S)",
         "endpoints_disponibles": [
             "GET / - Información del backend",
@@ -167,7 +167,7 @@ def health_check():
         return jsonify({
             "status": "healthy",
             "service": "usuarios",
-            "version": "2.0.5",
+            "version": "2.0.6",
             "timestamp": datetime.datetime.utcnow().isoformat() + "Z",
             "uptime": "running",
             "checks": {
@@ -198,6 +198,6 @@ if __name__ == '__main__':
     print("   POST /productos - Obtener productos")
     print("   GET  /health - Health check para CI/CD")
     print("🌐 Servidor ejecutándose en: http://localhost:5000")
-    print("🔧 Versión: 2.0.5 - Ultimate Test")
+    print("🔧 Versión: 2.0.6 - AWS CLI Fix Test")
     
     app.run(debug=True, host='0.0.0.0', port=5000)
