@@ -185,10 +185,10 @@ jobs:
       - name: Build & Push image (immutable tag)
         id: build-image
         working-directory: ./services/${{ matrix.service }}
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          REPO: ${{ matrix.service }}
-          IMAGE_TAG: ${{ github.sha }}-${{ matrix.service }}
+         env:
+           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+           REPO: ${{ matrix.service }}
+           IMAGE_TAG: ${{ github.sha }}-${{ github.run_number }}-${{ matrix.service }}
         run: |
           set -euo pipefail
           echo "🐳 Build $ECR_REGISTRY/$REPO:$IMAGE_TAG"
