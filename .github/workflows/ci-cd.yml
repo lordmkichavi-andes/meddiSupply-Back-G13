@@ -235,28 +235,26 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}-usuarios
-          VERSION_TAG: v2.1.1-${{ github.run_number }}
+          VERSION_TAG: v2.1.2-${{ github.run_number }}
           BUILD_DATE: $(date -u +%Y%m%d-%H%M%S)
         run: |
           echo "🐳 Construyendo imagen Docker inmutable para usuarios..."
           
-          # Construir imagen con tags inmutables
+          # Construir imagen con tags inmutables (sin latest para repositorio INMUTABLE)
           docker build -t $ECR_REGISTRY/usuarios:$IMAGE_TAG .
           docker build -t $ECR_REGISTRY/usuarios:$VERSION_TAG .
-          docker build -t $ECR_REGISTRY/usuarios:latest .
           
           # Agregar labels inmutables a la imagen
           docker tag $ECR_REGISTRY/usuarios:$IMAGE_TAG $ECR_REGISTRY/usuarios:$IMAGE_TAG
           
           echo "📤 Subiendo imágenes inmutables a ECR..."
+          # Push de imágenes inmutables (sin latest para repositorio INMUTABLE)
           docker push $ECR_REGISTRY/usuarios:$IMAGE_TAG
           docker push $ECR_REGISTRY/usuarios:$VERSION_TAG
-          docker push $ECR_REGISTRY/usuarios:latest
           
           echo "✅ Imágenes inmutables subidas exitosamente:"
           echo "   📦 $ECR_REGISTRY/usuarios:$IMAGE_TAG"
           echo "   📦 $ECR_REGISTRY/usuarios:$VERSION_TAG"
-          echo "   📦 $ECR_REGISTRY/usuarios:latest"
           echo "🕐 Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
           echo "📊 Repositorio ECR: $ECR_REGISTRY/usuarios"
           echo "🔒 Política: Inmutable con scan automático"
@@ -279,7 +277,7 @@ jobs:
           aws ecr describe-images \
             --repository-name usuarios \
             --region ${{ env.AWS_REGION }} \
-            --image-ids imageTag=v2.1.1-${{ github.run_number }} \
+            --image-ids imageTag=v2.1.2-${{ github.run_number }} \
             --query 'imageDetails[0].[imageTags[0],imagePushedAt,imageSizeInBytes,imageDigest]' \
             --output table
           
