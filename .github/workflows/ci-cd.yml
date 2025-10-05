@@ -203,8 +203,7 @@ jobs:
           fi
 
           echo "🐳 Build $IMAGE"
-          docker build -t "$IMAGE" |
-            sed -e 's/^/DOCKER: /'
+          docker build -t "$IMAGE" .
           docker push "$IMAGE"
           echo "image=$IMAGE" >> $GITHUB_OUTPUT
 
