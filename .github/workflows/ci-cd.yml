@@ -172,17 +172,32 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Create ECR repository if not exists (Immutable)
+      - name: Create ECR repository (Force Immutable)
         run: |
-          echo "🔍 Verificando si existe el repositorio ECR 'usuarios'..."
-          aws ecr describe-repositories --repository-names usuarios --region ${{ env.AWS_REGION }} || {
-            echo "📦 Creando repositorio ECR 'usuarios' INMUTABLE..."
-            aws ecr create-repository \
-              --repository-name usuarios \
-              --region ${{ env.AWS_REGION }} \
-              --image-tag-mutability IMMUTABLE \
-              --image-scanning-configuration scanOnPush=true \
-              --encryption-configuration encryptionType=AES256
+          echo "🔍 Verificando repositorio ECR 'usuarios'..."
+          
+          # Verificar si existe y si es MUTABLE
+          if aws ecr describe-repositories --repository-names usuarios --region ${{ env.AWS_REGION }} >/dev/null 2>&1; then
+            MUTABILITY=$(aws ecr describe-repositories --repository-names usuarios --region ${{ env.AWS_REGION }} --query 'repositories[0].imageTagMutability' --output text)
+            echo "📋 Repositorio existe con mutabilidad: $MUTABILITY"
+            
+            if [ "$MUTABILITY" = "MUTABLE" ]; then
+              echo "🗑️  Eliminando repositorio MUTABLE para recrearlo como INMUTABLE..."
+              aws ecr delete-repository --repository-name usuarios --region ${{ env.AWS_REGION }} --force
+              echo "✅ Repositorio MUTABLE eliminado"
+            else
+              echo "✅ Repositorio ya es INMUTABLE, no necesita recrearse"
+            fi
+          fi
+          
+          # Crear o recrear como INMUTABLE
+          echo "📦 Creando repositorio ECR 'usuarios' INMUTABLE..."
+          aws ecr create-repository \
+            --repository-name usuarios \
+            --region ${{ env.AWS_REGION }} \
+            --image-tag-mutability IMMUTABLE \
+            --image-scanning-configuration scanOnPush=true \
+            --encryption-configuration encryptionType=AES256
             
             # Configurar política de lifecycle
             aws ecr put-lifecycle-policy \
@@ -210,7 +225,7 @@ jobs:
                       "tagStatus": "tagged",
                       "countType": "imageCountMoreThan",
                       "countNumber": 20,
-                      "tagPrefixList": ["v2.0.7-"]
+                      "tagPrefixList": ["v2.0.8-"]
                     },
                     "action": {
                       "type": "expire"
@@ -270,7 +285,7 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}-usuarios
-          VERSION_TAG: v2.0.7-${{ github.run_number }}
+          VERSION_TAG: v2.0.8-${{ github.run_number }}
           BUILD_DATE: $(date -u +%Y%m%d-%H%M%S)
         run: |
           echo "🐳 Construyendo imagen Docker inmutable para usuarios..."
@@ -314,7 +329,7 @@ jobs:
           aws ecr describe-images \
             --repository-name usuarios \
             --region ${{ env.AWS_REGION }} \
-            --image-ids imageTag=v2.0.7-${{ github.run_number }} \
+            --image-ids imageTag=v2.0.8-${{ github.run_number }} \
             --query 'imageDetails[0].[imageTags[0],imagePushedAt,imageSizeInBytes,imageDigest]' \
             --output table
           
