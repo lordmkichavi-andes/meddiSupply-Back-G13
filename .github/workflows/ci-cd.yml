@@ -36,47 +36,51 @@ jobs:
           echo "title=${{ github.event.pull_request.title }}" >> $GITHUB_OUTPUT
           echo "🔍 PR #${{ github.event.number }}: ${{ github.event.pull_request.title }}"
 
-      - name: Detect Changed Services
-        id: changes
-        shell: bash
-        run: |
-          echo "🔍 Detectando microservicios modificados..."
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            BASE="${{ github.base_ref }}"
-            echo "📋 Comparando contra base branch: $BASE"
-          else
-            BASE="HEAD~1"
-            echo "📋 Comparando contra commit anterior"
-          fi
-
-          # Reúne archivos cambiados
-          CHANGED_FILES=$(git diff --name-only "$BASE"...HEAD || true)
-
-          # Busca servicios bajo services/*/
-          SERVICES_JSON="[]"
-          for dir in services/*/; do
-            [[ -d "$dir" ]] || continue
-            s=$(basename "$dir")
-            if echo "$CHANGED_FILES" | grep -q "^services/$s/"; then
-              echo "✅ $s: CAMBIOS DETECTADOS"
-              SERVICES_JSON=$(jq --arg svc "$s" '. + [$svc]' <<<"$SERVICES_JSON")
+        - name: Detect Changed Services
+          id: changes
+          shell: bash
+          run: |
+            echo "🔍 Detectando microservicios modificados..."
+            if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+              BASE="${{ github.base_ref }}"
+              echo "📋 Comparando contra base branch: $BASE"
             else
-              echo "⏭️  $s: Sin cambios"
+              BASE="HEAD~1"
+              echo "📋 Comparando contra commit anterior"
             fi
-          done
 
-          echo "📊 Servicios a procesar (JSON): $SERVICES_JSON"
-          echo "changed-services=$SERVICES_JSON" >> $GITHUB_OUTPUT
+            # Reúne archivos cambiados
+            CHANGED_FILES=$(git diff --name-only "$BASE"...HEAD || true)
+
+            # Busca servicios bajo services/*/
+            CHANGED_SERVICES=""
+            for dir in services/*/; do
+              [[ -d "$dir" ]] || continue
+              s=$(basename "$dir")
+              if echo "$CHANGED_FILES" | grep -q "^services/$s/"; then
+                echo "✅ $s: CAMBIOS DETECTADOS"
+                if [[ -n "$CHANGED_SERVICES" ]]; then
+                  CHANGED_SERVICES="$CHANGED_SERVICES,$s"
+                else
+                  CHANGED_SERVICES="$s"
+                fi
+              else
+                echo "⏭️  $s: Sin cambios"
+              fi
+            done
+
+            echo "📊 Servicios a procesar: $CHANGED_SERVICES"
+            echo "changed-services=$CHANGED_SERVICES" >> $GITHUB_OUTPUT
 
   # 2) Test + Build + Push ECR para cada servicio cambiado (matriz)
   test_build_push:
     needs: detect-changes
-    if: needs.detect-changes.outputs.changed-services != '[]'
+    if: needs.detect-changes.outputs.changed-services != ''
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        service: ${{ fromJSON(needs.detect-changes.outputs.changed-services) }}
+        service: ${{ fromJSON(format('["{0}"]', join('","', split(needs.detect-changes.outputs.changed-services, ',')))) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -198,12 +202,12 @@ jobs:
   # 3) Deploy a Desarrollo (matrix)
   deploy_develop:
     needs: [detect-changes, test_build_push]
-    if: github.ref == 'refs/heads/develop' && needs.detect-changes.outputs.changed-services != '[]'
+    if: github.ref == 'refs/heads/develop' && needs.detect-changes.outputs.changed-services != ''
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        service: ${{ fromJSON(needs.detect-changes.outputs.changed-services) }}
+        service: ${{ fromJSON(format('["{0}"]', join('","', split(needs.detect-changes.outputs.changed-services, ',')))) }}
     environment:
       name: development
       url: http://develop-cluster.example.com
@@ -264,12 +268,12 @@ jobs:
   # 4) Deploy a Producción (matrix)
   deploy_prod:
     needs: [detect-changes, test_build_push]
-    if: github.ref == 'refs/heads/main' && needs.detect-changes.outputs.changed-services != '[]'
+    if: github.ref == 'refs/heads/main' && needs.detect-changes.outputs.changed-services != ''
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        service: ${{ fromJSON(needs.detect-changes.outputs.changed-services) }}
+        service: ${{ fromJSON(format('["{0}"]', join('","', split(needs.detect-changes.outputs.changed-services, ',')))) }}
     environment:
       name: production
       url: http://prod-cluster.example.com
@@ -326,7 +330,7 @@ jobs:
   pr_notification:
     needs: [detect-changes, test_build_push]
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' && needs.detect-changes.outputs.changed-services != '[]'
+    if: github.event_name == 'pull_request' && needs.detect-changes.outputs.changed-services != ''
     steps:
       - name: PR Summary
         run: |
@@ -335,7 +339,7 @@ jobs:
           echo "🔍 PR #${{ needs.detect-changes.outputs.pr-number }}: ${{ needs.detect-changes.outputs.pr-title }}"
           echo "🌿 Branch: ${{ github.head_ref }} → ${{ github.base_ref }}"
           echo "📊 Microservicios afectados:"
-          for s in $(jq -r '.[]' <<< '${{ needs.detect-changes.outputs.changed-services }}'); do
+          for s in $(echo '${{ needs.detect-changes.outputs.changed-services }}' | tr ',' ' '); do
             echo "   ✅ $s - Tests OK, imagen construida"
           done
           echo "================================="
