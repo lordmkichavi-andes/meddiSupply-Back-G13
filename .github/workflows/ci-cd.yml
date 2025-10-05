@@ -232,7 +232,7 @@ jobs:
               }'
             
             # Configurar política de repositorio inmutable
-            aws ecr put-repository-policy \
+            aws ecr set-repository-policy \
               --repository-name usuarios \
               --region ${{ env.AWS_REGION }} \
               --policy-text '{
