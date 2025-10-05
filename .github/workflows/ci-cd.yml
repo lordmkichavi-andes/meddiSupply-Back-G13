@@ -16,7 +16,7 @@ env:
   MIN_COVERAGE: 5
 
 jobs:
-  # 1) Detecta microservicios modificados y expone salida JSON
+  # 1) Detecta microservicios modificados y expone salida JSON (una sola línea)
   detect-changes:
     runs-on: ubuntu-latest
     outputs:
@@ -28,6 +28,13 @@ jobs:
         uses: actions/checkout@v4
         with: { fetch-depth: 0 }
 
+      - name: Ensure jq
+        run: |
+          if ! command -v jq >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y jq
+          fi
+
       - name: PR Information
         id: pr-info
         if: github.event_name == 'pull_request'
@@ -36,51 +43,49 @@ jobs:
           echo "title=${{ github.event.pull_request.title }}" >> $GITHUB_OUTPUT
           echo "🔍 PR #${{ github.event.number }}: ${{ github.event.pull_request.title }}"
 
-        - name: Detect Changed Services
-          id: changes
-          shell: bash
-          run: |
-            echo "🔍 Detectando microservicios modificados..."
-            if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-              BASE="${{ github.base_ref }}"
-              echo "📋 Comparando contra base branch: $BASE"
+      - name: Detect Changed Services
+        id: changes
+        shell: bash
+        run: |
+          echo "🔍 Detectando microservicios modificados..."
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            BASE="${{ github.base_ref }}"
+            echo "📋 Comparando con base branch: $BASE"
+            # Asegura que exista la rama base localmente
+            git fetch origin "$BASE:$BASE" --depth=1
+          else
+            BASE="HEAD~1"
+            echo "📋 Comparando contra commit anterior"
+          fi
+
+          CHANGED_FILES=$(git diff --name-only "$BASE"...HEAD || true)
+
+          SERVICES_JSON='[]'
+          for dir in services/*/; do
+            [[ -d "$dir" ]] || continue
+            s=$(basename "$dir")
+            if echo "$CHANGED_FILES" | grep -q "^services/$s/"; then
+              echo "✅ $s: CAMBIOS DETECTADOS"
+              # -c = salida compacta en una sola línea
+              SERVICES_JSON=$(jq -c --arg svc "$s" '. + [$svc]' <<<"$SERVICES_JSON")
             else
-              BASE="HEAD~1"
-              echo "📋 Comparando contra commit anterior"
+              echo "⏭️  $s: Sin cambios"
             fi
+          done
 
-            # Reúne archivos cambiados
-            CHANGED_FILES=$(git diff --name-only "$BASE"...HEAD || true)
-
-            # Busca servicios bajo services/*/
-            CHANGED_SERVICES=""
-            for dir in services/*/; do
-              [[ -d "$dir" ]] || continue
-              s=$(basename "$dir")
-              if echo "$CHANGED_FILES" | grep -q "^services/$s/"; then
-                echo "✅ $s: CAMBIOS DETECTADOS"
-                if [[ -n "$CHANGED_SERVICES" ]]; then
-                  CHANGED_SERVICES="$CHANGED_SERVICES,$s"
-                else
-                  CHANGED_SERVICES="$s"
-                fi
-              else
-                echo "⏭️  $s: Sin cambios"
-              fi
-            done
-
-            echo "📊 Servicios a procesar: $CHANGED_SERVICES"
-            echo "changed-services=$CHANGED_SERVICES" >> $GITHUB_OUTPUT
+          echo "📊 Servicios a procesar (JSON): $SERVICES_JSON"
+          # Escribir output en UNA sola línea evita el error "Invalid format"
+          echo "changed-services=$SERVICES_JSON" >> "$GITHUB_OUTPUT"
 
   # 2) Test + Build + Push ECR para cada servicio cambiado (matriz)
   test_build_push:
     needs: detect-changes
-    if: needs.detect-changes.outputs.changed-services != ''
+    if: needs.detect-changes.outputs.changed-services != '[]'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        service: ${{ fromJSON(format('["{0}"]', join('","', split(needs.detect-changes.outputs.changed-services, ',')))) }}
+        service: ${{ fromJSON(needs.detect-changes.outputs.changed-services) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -132,7 +137,6 @@ jobs:
 
           if aws ecr describe-repositories --repository-names "$REPO" --region "$AWS_REGION" >/dev/null 2>&1; then
             echo "📦 Repo existe"
-            # Fuerza inmutabilidad si fuera mutable
             aws ecr put-image-tag-mutability --repository-name "$REPO" --image-tag-mutability IMMUTABLE --region "$AWS_REGION" || true
           else
             echo "📦 Creando repo '$REPO' (IMMUTABLE, scanOnPush, AES256)"
@@ -144,7 +148,6 @@ jobs:
               --region "$AWS_REGION" >/dev/null
           fi
 
-          # Política de lifecycle: mantener 30 tags por commit (*-servicio) y 10 tags versionados (v*)
           cat > lifecycle.json <<JSON
           {
             "rules": [
@@ -202,12 +205,12 @@ jobs:
   # 3) Deploy a Desarrollo (matrix)
   deploy_develop:
     needs: [detect-changes, test_build_push]
-    if: github.ref == 'refs/heads/develop' && needs.detect-changes.outputs.changed-services != ''
+    if: github.ref == 'refs/heads/develop' && needs.detect-changes.outputs.changed-services != '[]'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        service: ${{ fromJSON(format('["{0}"]', join('","', split(needs.detect-changes.outputs.changed-services, ',')))) }}
+        service: ${{ fromJSON(needs.detect-changes.outputs.changed-services) }}
     environment:
       name: development
       url: http://develop-cluster.example.com
@@ -238,27 +241,22 @@ jobs:
           IMAGE="$ECR_REGISTRY/$SERVICE:$COMMIT_SHA-$SERVICE"
           echo "🚀 Deploy $SERVICE → $CLUSTER con imagen $IMAGE"
 
-          # 1) Tomar TaskDefinition actual
           TD_ARN=$(aws ecs describe-services --cluster "$CLUSTER" --services "$SERVICE" --query 'services[0].taskDefinition' --output text --region "$AWS_REGION")
           aws ecs describe-task-definition --task-definition "$TD_ARN" --query 'taskDefinition' --region "$AWS_REGION" > base.json
 
-          # 2) Dejar solo campos registrables y actualizar imagen
           jq 'del(.status,.taskDefinitionArn,.requiresAttributes,.revision,.compatibilities,.registeredAt,.registeredBy)' base.json > stripped.json
 
-          # ¿Existe contenedor con nombre == servicio?
           if jq -e --arg S "$SERVICE" 'any(.containerDefinitions[].name; . == $S)' stripped.json >/dev/null; then
             jq --arg S "$SERVICE" --arg IMG "$IMAGE" '
               .containerDefinitions |= map(if .name == $S then .image = $IMG else . end)
             ' stripped.json > rendered.json
           else
-            # Fallback: actualiza el primer contenedor y los que ya apunten a este repo
             jq --arg S "$SERVICE" --arg IMG "$IMAGE" '
               .containerDefinitions |=
               (.[0].image = $IMG) as $x | map(if (.image|test("/"+$S+"(:|@|$)")) then (.image = $IMG) else . end)
             ' stripped.json > rendered.json
           fi
 
-          # 3) Registrar nueva revisión y actualizar el servicio
           NEW_TD_ARN=$(aws ecs register-task-definition --cli-input-json file://rendered.json --query 'taskDefinition.taskDefinitionArn' --output text --region "$AWS_REGION")
           aws ecs update-service --cluster "$CLUSTER" --service "$SERVICE" --task-definition "$NEW_TD_ARN" --region "$AWS_REGION" >/dev/null
           echo "⏳ Esperando estabilidad..."
@@ -268,12 +266,12 @@ jobs:
   # 4) Deploy a Producción (matrix)
   deploy_prod:
     needs: [detect-changes, test_build_push]
-    if: github.ref == 'refs/heads/main' && needs.detect-changes.outputs.changed-services != ''
+    if: github.ref == 'refs/heads/main' && needs.detect-changes.outputs.changed-services != '[]'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        service: ${{ fromJSON(format('["{0}"]', join('","', split(needs.detect-changes.outputs.changed-services, ',')))) }}
+        service: ${{ fromJSON(needs.detect-changes.outputs.changed-services) }}
     environment:
       name: production
       url: http://prod-cluster.example.com
@@ -330,7 +328,7 @@ jobs:
   pr_notification:
     needs: [detect-changes, test_build_push]
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' && needs.detect-changes.outputs.changed-services != ''
+    if: github.event_name == 'pull_request' && needs.detect-changes.outputs.changed-services != '[]'
     steps:
       - name: PR Summary
         run: |
@@ -339,7 +337,7 @@ jobs:
           echo "🔍 PR #${{ needs.detect-changes.outputs.pr-number }}: ${{ needs.detect-changes.outputs.pr-title }}"
           echo "🌿 Branch: ${{ github.head_ref }} → ${{ github.base_ref }}"
           echo "📊 Microservicios afectados:"
-          for s in $(echo '${{ needs.detect-changes.outputs.changed-services }}' | tr ',' ' '); do
+          for s in $(jq -r '.[]' <<< '${{ needs.detect-changes.outputs.changed-services }}'); do
             echo "   ✅ $s - Tests OK, imagen construida"
           done
           echo "================================="
