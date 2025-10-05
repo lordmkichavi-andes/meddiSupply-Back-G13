@@ -209,7 +209,7 @@ jobs:
                       "tagStatus": "tagged",
                       "countType": "imageCountMoreThan",
                       "countNumber": 20,
-                      "tagPrefixList": ["v2.0.4-"]
+                      "tagPrefixList": ["v2.0.5-"]
                     },
                     "action": {
                       "type": "expire"
@@ -269,7 +269,7 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}-usuarios
-          VERSION_TAG: v2.0.4-${{ github.run_number }}
+          VERSION_TAG: v2.0.5-${{ github.run_number }}
           BUILD_DATE: $(date -u +%Y%m%d-%H%M%S)
         run: |
           echo "🐳 Construyendo imagen Docker inmutable para usuarios..."
@@ -313,7 +313,7 @@ jobs:
           aws ecr describe-images \
             --repository-name usuarios \
             --region ${{ env.AWS_REGION }} \
-            --image-ids imageTag=v2.0.4-${{ github.run_number }} \
+            --image-ids imageTag=v2.0.5-${{ github.run_number }} \
             --query 'imageDetails[0].[imageTags[0],imagePushedAt,imageSizeInBytes,imageDigest]' \
             --output table
           
