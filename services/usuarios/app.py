@@ -2,9 +2,14 @@ name: CI/CD Microservices
 
 on:
   push:
-    branches: [ main, develop, 'feature/*' ]
+    branches:
+      - main
+      - develop
+      - 'feature/*'
   pull_request:
-    branches: [ main, develop ]
+    branches:
+      - main
+      - develop
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -16,7 +21,6 @@ env:
   MIN_COVERAGE: 5
 
 jobs:
-  # 1) Detecta microservicios modificados y expone salida JSON (una sola línea)
   detect-changes:
     runs-on: ubuntu-latest
     outputs:
@@ -26,7 +30,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
+        with:
+          fetch-depth: 0
 
       - name: Ensure jq
         run: |
@@ -74,7 +79,6 @@ jobs:
           echo "📊 Servicios a procesar (JSON): $SERVICES_JSON"
           echo "changed-services=$SERVICES_JSON" >> "$GITHUB_OUTPUT"
 
-  # 2) Test + Build + (Skip if exists) Push ECR para cada servicio cambiado (matriz)
   test_build_push:
     needs: detect-changes
     if: needs.detect-changes.outputs.changed-services != '[]'
@@ -145,7 +149,7 @@ jobs:
               --region "$AWS_REGION" >/dev/null
           fi
 
-          cat > lifecycle.json <<JSON
+          cat > lifecycle.json <<'JSON'
           {
             "rules": [
               {
@@ -155,7 +159,7 @@ jobs:
                   "tagStatus": "tagged",
                   "countType": "imageCountMoreThan",
                   "countNumber": 30,
-                  "tagPatternList": ["*-$REPO"]
+                  "tagPatternList": ["*-${REPO}"]
                 },
                 "action": { "type": "expire" }
               },
@@ -192,7 +196,6 @@ jobs:
           IMAGE="$ECR_REGISTRY/$REPO:$IMAGE_TAG"
 
           echo "🔎 Verificando si ya existe la imagen en ECR: $IMAGE"
-          # Si el tag ya existe (inmutable), reutilizamos y NO pusheamos
           if aws ecr describe-images \
               --repository-name "$REPO" \
               --image-ids imageTag="$IMAGE_TAG" \
@@ -213,9 +216,10 @@ jobs:
           name: ${{ matrix.service }}-coverage
           path: services/${{ matrix.service }}/coverage.xml
 
-  # 3) Deploy a Desarrollo (matrix)
   deploy_develop:
-    needs: [detect-changes, test_build_push]
+    needs:
+      - detect-changes
+      - test_build_push
     if: github.ref == 'refs/heads/develop' && needs.detect-changes.outputs.changed-services != '[]'
     runs-on: ubuntu-latest
     strategy:
@@ -224,7 +228,7 @@ jobs:
         service: ${{ fromJSON(needs.detect-changes.outputs.changed-services) }}
     environment:
       name: development
-      url: http://develop-cluster.example.com
+      url: "https://develop-cluster.example.com"
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -274,9 +278,10 @@ jobs:
           aws ecs wait services-stable --cluster "$CLUSTER" --services "$SERVICE" --region "$AWS_REGION"
           echo "✅ $SERVICE desplegado en desarrollo con $NEW_TD_ARN"
 
-  # 4) Deploy a Producción (matrix)
   deploy_prod:
-    needs: [detect-changes, test_build_push]
+    needs:
+      - detect-changes
+      - test_build_push
     if: github.ref == 'refs/heads/main' && needs.detect-changes.outputs.changed-services != '[]'
     runs-on: ubuntu-latest
     strategy:
@@ -285,7 +290,7 @@ jobs:
         service: ${{ fromJSON(needs.detect-changes.outputs.changed-services) }}
     environment:
       name: production
-      url: http://prod-cluster.example.com
+      url: "https://prod-cluster.example.com"
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -335,27 +340,10 @@ jobs:
           aws ecs wait services-stable --cluster "$CLUSTER" --services "$SERVICE" --region "$AWS_REGION"
           echo "✅ $SERVICE desplegado en producción con $NEW_TD_ARN"
 
-  # 5) Notificación de PR (si aplica)
-  pr_notification:
-    needs: [detect-changes, test_build_push]
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' && needs.detect-changes.outputs.changed-services != '[]'
-    steps:
-      - name: PR Summary
-        run: |
-          echo "📋 RESUMEN DEL PULL REQUEST"
-          echo "================================="
-          echo "🔍 PR #${{ needs.detect-changes.outputs.pr-number }}: ${{ needs.detect-changes.outputs.pr-title }}"
-          echo "🌿 Branch: ${{ github.head_ref }} → ${{ github.base_ref }}"
-          echo "📊 Microservicios afectados:"
-          for s in $(jq -r '.[]' <<< '${{ needs.detect-changes.outputs.changed-services }}'); do
-            echo "   ✅ $s - Tests OK, imagen construida"
-          done
-          echo "================================="
-
-  # 6) Cleanup local del runner
   cleanup:
-    needs: [deploy_develop, deploy_prod]
+    needs:
+      - deploy_develop
+      - deploy_prod
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -364,4 +352,4 @@ jobs:
           echo "🧹 Limpiando capas locales de Docker..."
           docker system prune -af || true
           echo "✅ Cleanup completado"
-Cambio pequeño para probar workflow
+# Test change Sat Oct  4 21:59:51 -05 2025
