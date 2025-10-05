@@ -64,7 +64,7 @@ datos_quemados = {
 @app.route('/', methods=['GET'])
 def home():
     return jsonify({
-        "mensaje": "🚀 Usuarios Service - CI/CD Pipeline Activo",
+        "mensaje": "🚀 Usuarios Service - Workflow Optimizado - Prueba Final",
         "version": "2.1.1",
         "build": "ci-cd-test-$(date +%Y%m%d-%H%M%S)",
         "endpoints_disponibles": [
@@ -198,6 +198,6 @@ if __name__ == '__main__':
     print("   POST /productos - Obtener productos")
     print("   GET  /health - Health check para CI/CD")
     print("🌐 Servidor ejecutándose en: http://localhost:5000")
-    print("🔧 Versión: 2.1.1 - Optimized Workflow Test")
+    print("🔧 Versión: 2.1.1 - Prueba Final del Workflow Optimizado")
     
     app.run(debug=True, host='0.0.0.0', port=5000)
