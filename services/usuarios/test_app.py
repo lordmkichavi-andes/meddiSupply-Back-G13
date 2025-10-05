@@ -137,7 +137,7 @@ def test_home_endpoint_new_version(client):
     data = json.loads(response.data)
     
     assert data['version'] == '2.1.4'
-    assert 'Validación Workflow Final' in data['mensaje']
+    assert 'Deploy Test en Develop' in data['mensaje']
     assert any('health' in endpoint for endpoint in data['endpoints_disponibles'])
     assert data['microservicio'] == 'usuarios'
     assert data['cluster'] == 'microservices-cluster'
