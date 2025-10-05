@@ -176,10 +176,11 @@ jobs:
         run: |
           echo "🔍 Verificando si existe el repositorio ECR 'usuarios'..."
           aws ecr describe-repositories --repository-names usuarios --region ${{ env.AWS_REGION }} || {
-            echo "📦 Creando repositorio ECR 'usuarios' con política inmutable..."
+            echo "📦 Creando repositorio ECR 'usuarios' INMUTABLE..."
             aws ecr create-repository \
               --repository-name usuarios \
               --region ${{ env.AWS_REGION }} \
+              --image-tag-mutability IMMUTABLE \
               --image-scanning-configuration scanOnPush=true \
               --encryption-configuration encryptionType=AES256
             
@@ -209,7 +210,7 @@ jobs:
                       "tagStatus": "tagged",
                       "countType": "imageCountMoreThan",
                       "countNumber": 20,
-                      "tagPrefixList": ["v2.0.6-"]
+                      "tagPrefixList": ["v2.0.7-"]
                     },
                     "action": {
                       "type": "expire"
@@ -269,7 +270,7 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}-usuarios
-          VERSION_TAG: v2.0.6-${{ github.run_number }}
+          VERSION_TAG: v2.0.7-${{ github.run_number }}
           BUILD_DATE: $(date -u +%Y%m%d-%H%M%S)
         run: |
           echo "🐳 Construyendo imagen Docker inmutable para usuarios..."
@@ -313,7 +314,7 @@ jobs:
           aws ecr describe-images \
             --repository-name usuarios \
             --region ${{ env.AWS_REGION }} \
-            --image-ids imageTag=v2.0.6-${{ github.run_number }} \
+            --image-ids imageTag=v2.0.7-${{ github.run_number }} \
             --query 'imageDetails[0].[imageTags[0],imagePushedAt,imageSizeInBytes,imageDigest]' \
             --output table
           
