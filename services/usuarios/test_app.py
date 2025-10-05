@@ -111,7 +111,7 @@ def test_health_check_endpoint(client):
     data = json.loads(response.data)
     assert data['status'] == 'healthy'
     assert data['service'] == 'usuarios'
-    assert data['version'] == '2.0.9'
+    assert data['version'] == '2.1.0'
     assert 'timestamp' in data
     assert 'checks' in data
     assert 'ci_cd' in data
@@ -136,7 +136,7 @@ def test_home_endpoint_new_version(client):
     response = client.get('/')
     data = json.loads(response.data)
     
-    assert data['version'] == '2.0.9'
+    assert data['version'] == '2.1.0'
     assert 'CI/CD Pipeline Activo' in data['mensaje']
     assert any('health' in endpoint for endpoint in data['endpoints_disponibles'])
     assert data['microservicio'] == 'usuarios'
