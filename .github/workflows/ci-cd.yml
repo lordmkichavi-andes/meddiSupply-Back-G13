@@ -235,7 +235,7 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}-usuarios
-          VERSION_TAG: v2.1.0-${{ github.run_number }}
+          VERSION_TAG: v2.1.1-${{ github.run_number }}
           BUILD_DATE: $(date -u +%Y%m%d-%H%M%S)
         run: |
           echo "🐳 Construyendo imagen Docker inmutable para usuarios..."
@@ -279,7 +279,7 @@ jobs:
           aws ecr describe-images \
             --repository-name usuarios \
             --region ${{ env.AWS_REGION }} \
-            --image-ids imageTag=v2.1.0-${{ github.run_number }} \
+            --image-ids imageTag=v2.1.1-${{ github.run_number }} \
             --query 'imageDetails[0].[imageTags[0],imagePushedAt,imageSizeInBytes,imageDigest]' \
             --output table
           
@@ -787,64 +787,9 @@ jobs:
           echo "   - Merge a main → Deploy automático a producción"
           echo "================================="
 
-  # Verificación post-merge a main
-  verify_production_image:
-    needs: [detect-changes, test_usuarios, test_gestor_ofertas, test_reportes, test_catalogo, test_rutas, test_pedidos]
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && needs.detect-changes.outputs.changed-services != ''
-    steps:
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Verify Production Immutable Images in ECR
-        run: |
-          echo "🎯 VERIFICACIÓN POST-MERGE A MAIN - IMÁGENES INMUTABLES"
-          echo "======================================================"
-          echo "🕐 Timestamp actual: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          echo "📦 Repositorio: usuarios (INMUTABLE)"
-          echo "🏷️  Commit SHA: ${{ github.sha }}"
-          echo "🌿 Branch: ${{ github.ref_name }}"
-          echo "🔒 Política: Inmutable con scan automático"
-          echo ""
-          
-          echo "📋 Todas las imágenes inmutables en ECR:"
-          aws ecr describe-images \
-            --repository-name usuarios \
-            --region ${{ env.AWS_REGION }} \
-            --query 'imageDetails[*].[imageTags[0],imagePushedAt,imageSizeInBytes,imageDigest]' \
-            --output table
-          
-          echo ""
-          echo "🔍 Verificando imagen específica del commit (INMUTABLE):"
-          IMAGE_TAG="${{ github.sha }}-usuarios"
-          IMAGE_INFO=$(aws ecr describe-images \
-            --repository-name usuarios \
-            --region ${{ env.AWS_REGION }} \
-            --image-ids imageTag=$IMAGE_TAG \
-            --query 'imageDetails[0].[imageTags[0],imagePushedAt,imageSizeInBytes,imageDigest]' \
-            --output table)
-          
-          echo "$IMAGE_INFO"
-          
-          echo ""
-          echo "🛡️  Información de seguridad:"
-          aws ecr describe-repositories \
-            --repository-names usuarios \
-            --region ${{ env.AWS_REGION }} \
-            --query 'repositories[0].[repositoryName,imageScanningConfiguration.scanOnPush,encryptionConfiguration.encryptionType]' \
-            --output table
-          
-          echo ""
-          echo "✅ Verificación de imágenes inmutables completada"
-          echo "🔒 Las imágenes están protegidas contra sobrescritura"
-
   # Cleanup
   cleanup:
-    needs: [deploy_develop, deploy_prod, verify_production_image]
+    needs: [deploy_develop, deploy_prod]
     runs-on: ubuntu-latest
     if: always()
     steps:
