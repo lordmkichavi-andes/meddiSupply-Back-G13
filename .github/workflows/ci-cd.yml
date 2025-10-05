@@ -183,7 +183,7 @@ jobs:
               --image-scanning-configuration scanOnPush=true \
               --encryption-configuration encryptionType=AES256
             
-            # Configurar política inmutable
+            # Configurar política de lifecycle
             aws ecr put-lifecycle-policy \
               --repository-name usuarios \
               --region ${{ env.AWS_REGION }} \
@@ -191,7 +191,7 @@ jobs:
                 "rules": [
                   {
                     "rulePriority": 1,
-                    "description": "Keep last 10 production images",
+                    "description": "Keep last 10 production images with latest tag",
                     "selection": {
                       "tagStatus": "tagged",
                       "countType": "imageCountMoreThan",
@@ -204,11 +204,25 @@ jobs:
                   },
                   {
                     "rulePriority": 2,
-                    "description": "Keep last 20 commit-based images",
+                    "description": "Keep last 20 versioned images",
                     "selection": {
                       "tagStatus": "tagged",
                       "countType": "imageCountMoreThan",
-                      "countNumber": 20
+                      "countNumber": 20,
+                      "tagPrefixList": ["v2.0.3-"]
+                    },
+                    "action": {
+                      "type": "expire"
+                    }
+                  },
+                  {
+                    "rulePriority": 3,
+                    "description": "Keep last 50 commit-based images",
+                    "selection": {
+                      "tagStatus": "tagged",
+                      "countType": "imageCountMoreThan",
+                      "countNumber": 50,
+                      "tagPatternList": ["*-usuarios"]
                     },
                     "action": {
                       "type": "expire"
