@@ -203,49 +203,7 @@ jobs:
             aws ecr put-lifecycle-policy \
               --repository-name usuarios \
               --region ${{ env.AWS_REGION }} \
-              --lifecycle-policy-text '{
-                "rules": [
-                  {
-                    "rulePriority": 1,
-                    "description": "Keep last 10 production images with latest tag",
-                    "selection": {
-                      "tagStatus": "tagged",
-                      "countType": "imageCountMoreThan",
-                      "countNumber": 10,
-                      "tagPrefixList": ["latest"]
-                    },
-                    "action": {
-                      "type": "expire"
-                    }
-                  },
-                  {
-                    "rulePriority": 2,
-                    "description": "Keep last 20 versioned images",
-                    "selection": {
-                      "tagStatus": "tagged",
-                      "countType": "imageCountMoreThan",
-                      "countNumber": 20,
-                      "tagPrefixList": ["v2.0.8-"]
-                    },
-                    "action": {
-                      "type": "expire"
-                    }
-                  },
-                  {
-                    "rulePriority": 3,
-                    "description": "Keep last 50 commit-based images",
-                    "selection": {
-                      "tagStatus": "tagged",
-                      "countType": "imageCountMoreThan",
-                      "countNumber": 50,
-                      "tagPatternList": ["*-usuarios"]
-                    },
-                    "action": {
-                      "type": "expire"
-                    }
-                  }
-                ]
-              }'
+              --lifecycle-policy-text '{"rules":[{"rulePriority":1,"description":"Keep last 10 production images with latest tag","selection":{"tagStatus":"tagged","countType":"imageCountMoreThan","countNumber":10,"tagPrefixList":["latest"]},"action":{"type":"expire"}},{"rulePriority":2,"description":"Keep last 20 versioned images","selection":{"tagStatus":"tagged","countType":"imageCountMoreThan","countNumber":20,"tagPrefixList":["v2.0.8-"]},"action":{"type":"expire"}},{"rulePriority":3,"description":"Keep last 50 commit-based images","selection":{"tagStatus":"tagged","countType":"imageCountMoreThan","countNumber":50,"tagPatternList":["*-usuarios"]},"action":{"type":"expire"}}]}'
             
             # Configurar política de repositorio inmutable
             aws ecr set-repository-policy \
@@ -285,7 +243,7 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}-usuarios
-          VERSION_TAG: v2.0.8-${{ github.run_number }}
+          VERSION_TAG: v2.0.9-${{ github.run_number }}
           BUILD_DATE: $(date -u +%Y%m%d-%H%M%S)
         run: |
           echo "🐳 Construyendo imagen Docker inmutable para usuarios..."
@@ -329,7 +287,7 @@ jobs:
           aws ecr describe-images \
             --repository-name usuarios \
             --region ${{ env.AWS_REGION }} \
-            --image-ids imageTag=v2.0.8-${{ github.run_number }} \
+            --image-ids imageTag=v2.0.9-${{ github.run_number }} \
             --query 'imageDetails[0].[imageTags[0],imagePushedAt,imageSizeInBytes,imageDigest]' \
             --output table
           
