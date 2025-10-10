@@ -12,7 +12,7 @@ concurrency:
 
 env:
   AWS_REGION: us-east-1
-  ECS_CLUSTER: 120569610818.dkr.ecr.us-east-1.amazonaws.com
+  ECS_CLUSTER: medi-supply-cluster
   MIN_COVERAGE: 0
 
 jobs:
@@ -135,7 +135,7 @@ jobs:
 
       - name: Deploy to ECS (Fargate) - Producción
         env:
-          CLUSTER: ${{ env.ECS_CLUSTER }}-prod
+          CLUSTER: ${{ env.ECS_CLUSTER }}
           SERVICE: ${{ matrix.service }}
           AWS_REGION: ${{ env.AWS_REGION }}
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
