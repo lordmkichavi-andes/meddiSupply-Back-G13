@@ -98,6 +98,25 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+
+      - name: Build and Push Docker image
+        id: build-image
+        env:
+            ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+            COMMIT_SHA: ${{ github.sha }}
+            # Usamos el nombre del servicio de la matriz
+            SERVICE: ${{ matrix.service }}
+          run: |
+            IMAGE_TAG="$COMMIT_SHA-$SERVICE"
+            FULL_IMAGE_NAME="$ECR_REGISTRY/$SERVICE:$IMAGE_TAG"
+            
+            echo "Building image for $SERVICE with tag $IMAGE_TAG"
+            # 🚨 Ajusta la ruta a tu Dockerfile según la estructura de tu monorepo 🚨
+            docker build -t "$FULL_IMAGE_NAME" ./$SERVICE # Asumiendo que el Dockerfile está en un directorio llamado como el servicio
+            
+            echo "Pushing image $FULL_IMAGE_NAME to ECR"
+            docker push "$FULL_IMAGE_NAME"
+
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
@@ -110,7 +129,8 @@ jobs:
           COMMIT_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
-          IMAGE="$ECR_REGISTRY/$SERVICE:$COMMIT_SHA-$SERVICE"
+          # 🚀 Corrección: Usar la misma etiqueta definida en el paso de Build/Push
+          IMAGE="$ECR_REGISTRY/$SERVICE:$COMMIT_SHA-$SERVICE" 
           echo "🚀 Deploy $SERVICE → $CLUSTER con imagen $IMAGE"
           TD_ARN=$(aws ecs describe-services --cluster "$CLUSTER" --services "$SERVICE" --query 'services[0].taskDefinition' --output text --region "$AWS_REGION")
           aws ecs describe-task-definition --task-definition "$TD_ARN" --query 'taskDefinition' --region "$AWS_REGION" > base.json
