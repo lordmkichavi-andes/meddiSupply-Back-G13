@@ -113,7 +113,7 @@ jobs:
             
             echo "Building image for $SERVICE with tag $IMAGE_TAG"
             # 🚀 RUTA CORREGIDA/VERIFICADA: El contexto es la carpeta del servicio.
-            docker build -t "$FULL_IMAGE_NAME" ../services/$SERVICE 
+            docker build -t "$FULL_IMAGE_NAME" ./services/$SERVICE 
             
             echo "Pushing image $FULL_IMAGE_NAME to ECR"
             docker push "$FULL_IMAGE_NAME"
