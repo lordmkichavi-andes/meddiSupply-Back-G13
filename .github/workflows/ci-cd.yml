@@ -101,8 +101,8 @@ jobs:
       - name: Build and Push Docker image (Optimized)
         uses: docker/build-push-action@v5
         with:
-            context: ./services/${{ matrix.service }} # Ruta al contexto del Dockerfile
-            file: ./services/${{ matrix.service }}/Dockerfile # Asumiendo este path
+            context: ../services/${{ matrix.service }} # Ruta al contexto del Dockerfile
+            file: ../services/${{ matrix.service }}/Dockerfile # Asumiendo este path
             push: true
             tags: ${{ steps.login-ecr.outputs.registry }}/${{ matrix.service }}:${{ github.sha }}-${{ matrix.service }}
             # Opcional: Configurar cacheo
