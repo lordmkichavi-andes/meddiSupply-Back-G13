@@ -85,7 +85,7 @@ jobs:
         service: ${{ fromJSON(needs.detect-changes.outputs.changed-services) }}
     environment:
       name: production
-      url: 120569610818.dkr.ecr.us-east-1.amazonaws.com
+      url: https://120569610818.dkr.ecr.us-east-1.amazonaws.com
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
