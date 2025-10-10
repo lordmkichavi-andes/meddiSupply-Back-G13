@@ -97,23 +97,17 @@ jobs:
       - name: Login to ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
-      - name: Build and Push Docker image
-        id: build-image
-        env:
-            ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-            COMMIT_SHA: ${{ github.sha }}
-            # Usamos el nombre del servicio de la matriz
-            SERVICE: ${{ matrix.service }}
-          run: |
-            IMAGE_TAG="$COMMIT_SHA-$SERVICE"
-            FULL_IMAGE_NAME="$ECR_REGISTRY/$SERVICE:$IMAGE_TAG"
-            
-            echo "Building image for $SERVICE with tag $IMAGE_TAG"
-            # 🚨 Ajusta la ruta a tu Dockerfile según la estructura de tu monorepo 🚨
-            docker build -t "$FULL_IMAGE_NAME" ./$SERVICE # Asumiendo que el Dockerfile está en un directorio llamado como el servicio
-            
-            echo "Pushing image $FULL_IMAGE_NAME to ECR"
-            docker push "$FULL_IMAGE_NAME"
+
+      - name: Build and Push Docker image (Optimized)
+        uses: docker/build-push-action@v5
+        with:
+            context: ./services/${{ matrix.service }} # Ruta al contexto del Dockerfile
+            file: ./services/${{ matrix.service }}/Dockerfile # Asumiendo este path
+            push: true
+            tags: ${{ steps.login-ecr.outputs.registry }}/${{ matrix.service }}:${{ github.sha }}-${{ matrix.service }}
+            # Opcional: Configurar cacheo
+            cache-from: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ matrix.service }}:latest
+            cache-to: type=inline
 
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
