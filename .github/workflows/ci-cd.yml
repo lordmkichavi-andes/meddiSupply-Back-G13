@@ -85,7 +85,7 @@ jobs:
         service: ${{ fromJSON(needs.detect-changes.outputs.changed-services) }}
     environment:
       name: production
-      url: https://120569610818.dkr.ecr.us-east-1.amazonaws.com
+      url: https://cdk-exp-container-assets-120569610818-us-east-1
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
