@@ -93,18 +93,6 @@ def update_product(product_id):
     return jsonify({"status": "Product updated and cache invalidated"}), 200
 
 
-@app.route('/products/<product_id>', methods=['GET'])
-@cache_control_header(timeout=180)
-def get_product_by_id(product_id):
-    """
-    Endpoint para obtener un producto por su ID.
-    """
-    product = product_service.get_product_by_id(product_id)
-    if product:
-        return jsonify(product.__dict__)
-    else:
-        return jsonify({"error": "Product not found"}), 404
-
 
 @app.route('/health', methods=['GET'])
 def health():

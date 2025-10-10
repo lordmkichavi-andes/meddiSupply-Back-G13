@@ -135,7 +135,7 @@ jobs:
 
       - name: Deploy to ECS (Fargate) - Producción
         env:
-           CLUSTER: ${{ env.ECS_CLUSTER }}-prod
+           CLUSTER: ${{ env.ECS_CLUSTER }}
            SERVICE_SLUG: ${{ matrix.service }}
            AWS_REGION: ${{ env.AWS_REGION }}
            ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
