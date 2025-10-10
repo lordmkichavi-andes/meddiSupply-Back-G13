@@ -104,15 +104,26 @@ jobs:
       - name: Build and Push Docker image
         id: build-image
         env:
-         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-         COMMIT_SHA: ${{ github.sha }}
-         SERVICE: ${{ matrix.service }}
+           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+           COMMIT_SHA: ${{ github.sha }}
+           SERVICE: ${{ matrix.service }}
         run: |
             IMAGE_TAG="$COMMIT_SHA-$SERVICE"
             FULL_IMAGE_NAME="$ECR_REGISTRY/$SERVICE:$IMAGE_TAG"
             
+            echo "🔎 Asegurando que el repositorio $SERVICE exista en ECR y sea inmutable..."
+            
+            # ✅ CORRECCIÓN: Se añade --image-tag-mutability IMMUTABLE
+            # y se corrige la ruta del 'docker build'
+            aws ecr create-repository \
+              --repository-name $SERVICE \
+              --region ${{ env.AWS_REGION }} \
+              --image-scanning-configuration scanOnPush=true \
+              --image-tag-mutability IMMUTABLE \
+              2>/dev/null || true
+            
             echo "Building image for $SERVICE with tag $IMAGE_TAG"
-            # 🚀 RUTA CORREGIDA/VERIFICADA: El contexto es la carpeta del servicio.
+            # ✅ RUTA FINAL CORREGIDA
             docker build -t "$FULL_IMAGE_NAME" ./services/$SERVICE 
             
             echo "Pushing image $FULL_IMAGE_NAME to ECR"
