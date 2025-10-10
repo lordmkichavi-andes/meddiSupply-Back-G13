@@ -224,7 +224,7 @@ jobs:
         service: ${{ fromJSON(needs.detect-changes.outputs.changed-services) }}
     environment:
       name: production
-      url: 120569610818.dkr.ecr.us-east-1.amazonaws.com
+      url: http://prod-cluster.example.com
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
