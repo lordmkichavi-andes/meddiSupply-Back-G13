@@ -136,33 +136,79 @@ jobs:
       - name: Deploy to ECS (Fargate) - Producción
         env:
           CLUSTER: ${{ env.ECS_CLUSTER }}
-          SERVICE: ${{ matrix.service }}
+          SERVICE_SLUG: ${{ matrix.service }}
           AWS_REGION: ${{ env.AWS_REGION }}
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           COMMIT_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
-          # 🚀 Corrección: Usar la misma etiqueta definida en el paso de Build/Push
-          IMAGE="$ECR_REGISTRY/$SERVICE:$COMMIT_SHA-$SERVICE" 
-          echo "🚀 Deploy $SERVICE → $CLUSTER con imagen $IMAGE"
-          TD_ARN=$(aws ecs describe-services --cluster "$CLUSTER" --services "$SERVICE" --query 'services[0].taskDefinition' --output text --region "$AWS_REGION")
+          
+          # 1. Asume que el nombre del servicio ECS contiene el slug capitalizado + 'Service'
+          # Ej: products -> ProductsService
+          # Esto es un truco simple para capitalizar la primera letra y añadir 'Service'
+          SERVICE_SLUG_CAPITALIZED_PREFIX="$(echo "$SERVICE_SLUG" | sed 's/\(.\)/\U\1/')"Service
+
+          echo "🔍 Buscando servicio ECS que contenga: $SERVICE_SLUG_CAPITALIZED_PREFIX"
+          
+          # 2. Listar ARNs de servicios y usar 'grep' para encontrar la coincidencia (insensitive)
+          # Se espera que esto devuelva el ARN completo: arn:aws:ecs:us-east-1:123.../MediSupplyStack-ProductsService740A68BF-xPfs958XBUXN
+          FULL_SERVICE_ARN=$(aws ecs list-services --cluster "$CLUSTER" --region "$AWS_REGION" --query "serviceArns[]" --output text | \
+              grep -i "$SERVICE_SLUG_CAPITALIZED_PREFIX" || true)
+
+          # 3. Extraer solo el nombre de la última parte del ARN (el nombre largo de CloudFormation)
+          FULL_SERVICE_NAME=$(echo "$FULL_SERVICE_ARN" | awk -F/ '{print $2}')
+          
+          # 4. Manejo de errores: Si no se encuentra el servicio
+          if [ -z "$FULL_SERVICE_NAME" ]; then
+             echo "❌ ERROR FATAL: No se encontró ningún servicio ECS que coincida con '$SERVICE_SLUG_CAPITALIZED_PREFIX' en el cluster '$CLUSTER'."
+             exit 1
+          fi
+
+          # 5. Continuar el despliegue usando el nombre completo
+          
+          # La imagen en ECR usa el nombre CORTO (products:sha-products)
+          IMAGE="$ECR_REGISTRY/$SERVICE_SLUG:$COMMIT_SHA-$SERVICE_SLUG" 
+          
+          echo "🚀 Deploy $SERVICE_SLUG → $FULL_SERVICE_NAME con imagen $IMAGE"
+          
+          # Usar el nombre de servicio completo para la descripción:
+          TD_ARN=$(aws ecs describe-services --cluster "$CLUSTER" --services "$FULL_SERVICE_NAME" --query 'services[0].taskDefinition' --output text --region "$AWS_REGION")
+          
+          # Asegurar que el TD_ARN se haya resuelto
+          if [ -z "$TD_ARN" ]; then
+             echo "❌ ERROR: El servicio '$FULL_SERVICE_NAME' existe, pero no tiene una Definición de Tarea activa. Revisar ECS."
+             exit 1
+          fi
+
+          # 6. El resto de la lógica de actualización con jq es la misma, usando $FULL_SERVICE_NAME para el update
           aws ecs describe-task-definition --task-definition "$TD_ARN" --query 'taskDefinition' --region "$AWS_REGION" > base.json
           jq 'del(.status,.taskDefinitionArn,.requiresAttributes,.revision,.compatibilities,.registeredAt,.registeredBy)' base.json > stripped.json
-          if jq -e --arg S "$SERVICE" 'any(.containerDefinitions[].name; . == $S)' stripped.json >/dev/null; then
-            jq --arg S "$SERVICE" --arg IMG "$IMAGE" '
+          
+          # ... (resto de tu script jq) ...
+          
+          # Aquí usamos $SERVICE_SLUG para que jq busque el contenedor cuyo nombre COINCIDA con el SLUG (products)
+          if jq -e --arg S "$SERVICE_SLUG" 'any(.containerDefinitions[].name; . == $S)' stripped.json >/dev/null; then
+            # ... (Lógica de jq para cuando el nombre del contenedor coincide con el slug) ...
+            jq --arg S "$SERVICE_SLUG" --arg IMG "$IMAGE" '
               .containerDefinitions |= map(if .name == $S then .image = $IMG else . end)
             ' stripped.json > rendered.json
           else
-            jq --arg S "$SERVICE" --arg IMG "$IMAGE" '
+            # ... (Lógica de jq alternativa) ...
+            jq --arg S "$SERVICE_SLUG" --arg IMG "$IMAGE" '
               .containerDefinitions |=
               (.[0].image = $IMG) as $x | map(if (.image|test("/"+$S+"(:|@|$)")) then (.image = $IMG) else . end)
             ' stripped.json > rendered.json
           fi
+          
           NEW_TD_ARN=$(aws ecs register-task-definition --cli-input-json file://rendered.json --query 'taskDefinition.taskDefinitionArn' --output text --region "$AWS_REGION")
-          aws ecs update-service --cluster "$CLUSTER" --service "$SERVICE" --task-definition "$NEW_TD_ARN" --region "$AWS_REGION" >/dev/null
+          # Usamos $FULL_SERVICE_NAME aquí
+          aws ecs update-service --cluster "$CLUSTER" --service "$FULL_SERVICE_NAME" --task-definition "$NEW_TD_ARN" --region "$AWS_REGION" >/dev/null
+          
           echo "⏳ Esperando estabilidad..."
-          aws ecs wait services-stable --cluster "$CLUSTER" --services "$SERVICE" --region "$AWS_REGION"
-          echo "✅ $SERVICE desplegado en producción con $NEW_TD_ARN"
+          # Usamos $FULL_SERVICE_NAME aquí
+          aws ecs wait services-stable --cluster "$CLUSTER" --services "$FULL_SERVICE_NAME" --region "$AWS_REGION"
+          
+          echo "✅ $SERVICE_SLUG desplegado en producción con $NEW_TD_ARN"
 
   # 4) Notificación de PR (si aplica)
   pr_notification:
