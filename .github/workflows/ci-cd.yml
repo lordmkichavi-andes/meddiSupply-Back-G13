@@ -102,8 +102,8 @@ jobs:
         working-directory: ./services/${{ matrix.service }}
         run: |
           echo "🔍 flake8..."
-          flake8 app.py --count --select=E9,F63,F7,F82 --show-source --statistics || true
-          flake8 app.py --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics || true
+          flake8 app.py --count --select=E9,F63,F7,F82 --show-source --statistics 
+          flake8 app.py --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
       - name: Unit tests
         working-directory: ./services/${{ matrix.service }}
@@ -111,107 +111,6 @@ jobs:
           echo "🧪 pytest..."
           pytest --cov=app --cov-report=xml --cov-report=html --cov-fail-under=${{ env.MIN_COVERAGE }} -v
 
-      # --- ECR/AWS SOLO en push a main ---
-      - name: Configure AWS credentials
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Login to ECR
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Ensure ECR repository (immutable + lifecycle)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        env:
-          REPO: ${{ matrix.service }}
-          AWS_REGION: ${{ env.AWS_REGION }}
-        run: |
-          set -euo pipefail
-          echo "🔐 Asegurando ECR repo '$REPO' (IMMUTABLE + lifecycle)"
-          if aws ecr describe-repositories --repository-names "$REPO" --region "$AWS_REGION" >/dev/null 2>&1; then
-            echo "📦 Repo existe"
-            aws ecr put-image-tag-mutability --repository-name "$REPO" --image-tag-mutability IMMUTABLE --region "$AWS_REGION" || true
-          else
-            echo "📦 Creando repo '$REPO' (IMMUTABLE, scanOnPush, AES256)"
-            aws ecr create-repository \
-              --repository-name "$REPO" \
-              --image-tag-mutability IMMUTABLE \
-              --image-scanning-configuration scanOnPush=true \
-              --encryption-configuration encryptionType=AES256 \
-              --region "$AWS_REGION" >/dev/null
-          fi
-          cat > lifecycle.json <<JSON
-          {
-            "rules": [
-              {
-                "rulePriority": 1,
-                "description": "Keep last 30 commit images",
-                "selection": {
-                  "tagStatus": "tagged",
-                  "countType": "imageCountMoreThan",
-                  "countNumber": 30,
-                  "tagPatternList": ["*-$REPO"]
-                },
-                "action": { "type": "expire" }
-              },
-              {
-                "rulePriority": 2,
-                "description": "Keep last 10 versioned images v*",
-                "selection": {
-                  "tagStatus": "tagged",
-                  "countType": "imageCountMoreThan",
-                  "countNumber": 10,
-                  "tagPrefixList": ["v"]
-                },
-                "action": { "type": "expire" }
-              }
-            ]
-          }
-          JSON
-          aws ecr put-lifecycle-policy \
-            --repository-name "$REPO" \
-            --lifecycle-policy-text file://lifecycle.json \
-            --region "$AWS_REGION" >/dev/null
-          echo "✅ Repo y lifecycle ok"
-
-      - name: Build & Push image (immutable tag, skip if exists)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        id: build-image
-        working-directory: ./services/${{ matrix.service }}
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          REPO: ${{ matrix.service }}
-          IMAGE_TAG: ${{ github.sha }}-${{ matrix.service }}
-          AWS_REGION: ${{ env.AWS_REGION }}
-        run: |
-          set -euo pipefail
-          IMAGE="$ECR_REGISTRY/$REPO:$IMAGE_TAG"
-
-          echo "🔎 Verificando si ya existe la imagen en ECR: $IMAGE"
-          if aws ecr describe-images \
-                --repository-name "$REPO" \
-                --image-ids imageTag="$IMAGE_TAG" \
-                --region "$AWS_REGION" >/dev/null 2>&1; then
-            echo "♻️  Tag ya existe (inmutable). Reutilizando imagen: $IMAGE"
-            echo "image=$IMAGE" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-
-          echo "🐳 Build $IMAGE"
-          docker build -t "$IMAGE" .
-          docker push "$IMAGE"
-          echo "image=$IMAGE" >> $GITHUB_OUTPUT
-
-      - name: Upload test artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.service }}-coverage
-          path: services/${{ matrix.service }}/coverage.xml
 
   # 3) Deploy a Producción (matrix)
   deploy_prod:
