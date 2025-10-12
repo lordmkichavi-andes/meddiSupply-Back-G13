@@ -1,3 +1,4 @@
 Flask
 psycopg2-binary # Driver para PostgreSQL
 python-dotenv   # Para cargar variables de entorno (opcional pero recomendado)
+Flask-CORS

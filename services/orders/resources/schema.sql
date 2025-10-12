@@ -72,7 +72,7 @@
 );
 
 
-CREATE INDEX idx_order_state ON "Order"(current_state_id);
-CREATE INDEX idx_line_order ON OrderLine(order_id);
-CREATE INDEX idx_line_product ON OrderLine(product_id);
+CREATE INDEX IF NOT EXISTS idx_order_state ON "Order"(current_state_id);
+CREATE INDEX IF NOT EXISTS idx_line_order ON OrderLine(order_id);
+CREATE INDEX IF NOT EXISTS idx_line_product ON OrderLine(product_id);
 -- ******************************************************

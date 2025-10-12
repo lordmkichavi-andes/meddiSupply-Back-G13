@@ -12,7 +12,11 @@ def create_api_blueprint(use_case: TrackOrdersUseCase):
     Esto permite que el controlador (Web) dependa del Caso de Uso (Application).
     """
 
-    @api_bp.route('/orders/track/<client_id>', methods=['GET'])
+    @api_bp.route('/health', methods=['GET'])
+    def health():
+        return jsonify({'status': 'ok'})
+
+    @api_bp.route('/track/<client_id>', methods=['GET'])
     def track_orders(client_id):
         """
         Maneja la solicitud HTTP, llama al Caso de Uso y retorna la respuesta.

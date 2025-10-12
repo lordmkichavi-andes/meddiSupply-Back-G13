@@ -7,6 +7,8 @@ from src.infrastructure.persistence.pg_repository import PgOrderRepository
 from src.infrastructure.persistence.db_connector import init_db_pool
 from src.infrastructure.persistence.db_initializer import initialize_database
 from config import Config
+from flask_cors import CORS
+
 
 # Cargar variables de entorno del archivo .env (si existe)
 load_dotenv()
@@ -21,9 +23,12 @@ def create_app():
     # --- INICIALIZACIÓN DE LA BASE DE DATOS (REQUISITO) ---
     # 1. Inicializa el pool de conexiones.
     try:
-        init_db_pool()
-        # 2. Crea tablas e inserta datos de prueba si la configuración lo permite.
-        initialize_database()
+        try:
+            init_db_pool()
+            initialize_database()
+        except Exception as e:
+            print(f"CRITICAL ERROR: Fallo al inicializar la BD. {e}")
+            pass  # <--- ¡El problema! El pool está roto, pero la app sigue.
     except Exception as e:
         # En un entorno de producción, esto debería ser un error fatal que detiene el servicio
         print(f"CRITICAL ERROR: Fallo al inicializar la BD. {e}")
@@ -39,16 +44,24 @@ def create_app():
     track_orders_use_case = TrackOrdersUseCase(
         order_repository=order_repository
     )
+    # Configurar CORS
+    CORS(app, resources={
+        r"/*": {
+            "origins": "*",
+            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            "allow_headers": ["Content-Type", "Authorization", "X-Requested-With"]
+        }
+    })
 
     # 3. Capa de Presentación (Web)
     api_bp = create_api_blueprint(track_orders_use_case)
 
     # --- REGISTRO DE RUTAS ---
-    app.register_blueprint(api_bp, url_prefix='/api/v1')
+    app.register_blueprint(api_bp, url_prefix='/orders')
 
     return app
 
 
 if __name__ == '__main__':
     app = create_app()
-    app.run(debug=True, port=5000)
+    app.run(host='0.0.0.0', port=8080, debug=False)

@@ -10,6 +10,7 @@ ORDER_STATUS_MAP = {
     6: {"name": "Pendiente de aprobación", "color": "amarillo"},
     5: {"name": "Procesando", "color": "azul"},
     1: {"name": "En camino", "color": "morado"},
+    2: {"name": "Demorado", "color": "naranja"},
     3: {"name": "Entregado", "color": "verde"},
     4: {"name": "Cancelado", "color": "rojo"},
 }
