@@ -215,7 +215,7 @@ jobs:
 
   # 3) Deploy a Producción (matrix)
   deploy_prod:
-    needs: [detect-changes]
+    needs: [detect-changes, test_build_push]
     if: github.ref == 'refs/heads/main' && needs.detect-changes.outputs.changed-services != '[]'
     runs-on: ubuntu-latest
     strategy:
@@ -334,7 +334,7 @@ jobs:
 
   # 4) Notificación de PR (si aplica)
   pr_notification:
-    needs: [detect-changes]
+    needs: [detect-changes, test_build_push]
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request' && needs.detect-changes.outputs.changed-services != '[]'
     steps:
