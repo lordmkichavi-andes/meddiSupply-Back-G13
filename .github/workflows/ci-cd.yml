@@ -73,6 +73,44 @@ jobs:
           echo "changed-services=$SERVICES_JSON" >> "$GITHUB_OUTPUT"
 
   # 2) Test + Build; Push a ECR SOLO en push a main (matriz)
+  test_build_push:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.changed-services != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: ${{ fromJSON(needs.detect-changes.outputs.changed-services) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install deps
+        working-directory: ./services/${{ matrix.service }}
+        run: |
+          pip install --upgrade pip
+          pip install pytest pytest-cov flake8
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Lint
+        working-directory: ./services/${{ matrix.service }}
+        run: |
+          echo "🔍 flake8..."
+          flake8 app.py --count --select=E9,F63,F7,F82 --show-source --statistics 
+          flake8 app.py --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+      - name: Unit tests
+        working-directory: ./services/${{ matrix.service }}
+        run: |
+          echo "🧪 pytest..."
+          pytest --cov=app --cov-report=xml --cov-report=html --cov-fail-under=${{ env.MIN_COVERAGE }} -v
+
 
   # 3) Deploy a Producción (matrix)
   deploy_prod:
