@@ -7,12 +7,12 @@ from typing import Optional
 # Utilizamos constantes para los IDs para mantener el dominio limpio.
 # Los IDs se mapean a los de tu script SQL de inserción: 1, 3, 4, 5, y 6 (Nuevo)
 ORDER_STATUS_MAP = {
-    6: {"name": "Pendiente de aprobación", "color": "amarillo"},
-    5: {"name": "Procesando", "color": "azul"},
-    1: {"name": "En camino", "color": "morado"},
-    2: {"name": "Demorado", "color": "naranja"},
-    3: {"name": "Entregado", "color": "verde"},
-    4: {"name": "Cancelado", "color": "rojo"},
+    1: {"name": "En camino"},
+    2: {"name": "Demorado"},
+    3: {"name": "Entregado"},
+    4: {"name": "Cancelado"},
+    5: {"name": "Procesando"},
+    6: {"name": "Pendiente de aprobación"},
 }
 
 @dataclass
@@ -20,7 +20,6 @@ class OrderStatus:
     """Entidad para el estado de un pedido."""
     id: int
     name: str
-    color: str
 
 @dataclass
 class Order:
@@ -36,6 +35,6 @@ class Order:
         """Devuelve el objeto Status mapeado."""
         status_info = ORDER_STATUS_MAP.get(
             self.status_id,
-            {"name": "Desconocido", "color": "gris"}
+            {"name": "Desconocido"}
         )
-        return OrderStatus(self.status_id, status_info["name"], status_info["color"])
+        return OrderStatus(self.status_id, status_info["name"])

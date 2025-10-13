@@ -46,7 +46,6 @@ class TrackOrdersUseCase:
                 "fecha_creacion": order.creation_date.strftime('%Y-%m-%d'),
                 "fecha_ultima_actualizacion": order.last_updated_date.strftime('%Y-%m-%d %H:%M:%S'),
                 "estado_nombre": order.status.name,
-                "estado_color": order.status.color,
                 "fecha_entrega_estimada": estimated_delivery
             })
 
