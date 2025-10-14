@@ -102,17 +102,25 @@ jobs:
         working-directory: ./services/${{ matrix.service }}
         run: |
           echo "🔍 flake8..."
+          # Eliminé el '|| true' para que el linting falle si encuentra errores E9, F63, etc.
           flake8 app.py --count --select=E9,F63,F7,F82 --show-source --statistics 
-          flake8 app.py --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+          flake8 app.py --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics 
 
       - name: Unit tests
         working-directory: ./services/${{ matrix.service }}
         run: |
           echo "🧪 pytest..."
-          pytest --cov=app --cov-report=xml --cov-report=html --cov-fail-under=${{ env.MIN_COVERAGE }} -v
+          
+          # 1. Ajuste de PYTHONPATH: Añade el directorio actual (donde reside 'src') al path.
+          #    Esto permite importar 'src' como un módulo de nivel superior dentro del servicio,
+          #    solucionando el conflicto entre Docker y los tests.
+          export PYTHONPATH=$PYTHONPATH:$(pwd)
+          
+          # 2. FIX DE COBERTURA: Cambiamos --cov=app a --cov=src para medir el directorio principal.
+          pytest --cov=src --cov-report=xml --cov-report=html --cov-fail-under=${{ env.MIN_COVERAGE }} -v
+    
 
-
-  # 3) Deploy a Producción (matrix)
+    # 3) Deploy a Producción (matrix)
   deploy_prod:
     needs: [detect-changes, test_build_push]
     if: github.ref == 'refs/heads/main' && needs.detect-changes.outputs.changed-services != '[]'
