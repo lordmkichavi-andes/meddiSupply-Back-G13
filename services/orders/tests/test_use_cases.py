@@ -8,7 +8,7 @@ from typing import List, Dict, Any
 sys.path.append('src')
 
 # Importamos las clases a probar y sus dependencias (interfaces/entidades)
-from src.application.use_cases import TrackOrdersUseCase
+from orders.src.application.use_cases import TrackOrdersUseCase
 
 
 # Asumimos que OrderRepository y Order son interfaces/entidades, y las simulamos

@@ -1,12 +1,12 @@
 # app.py
 from flask import Flask
 from dotenv import load_dotenv  # Necesario para cargar variables de entorno
-from src.infrastructure.web.flask_routes import create_api_blueprint
-from src.application.use_cases import TrackOrdersUseCase
-from src.infrastructure.persistence.pg_repository import PgOrderRepository
-from src.infrastructure.persistence.db_connector import init_db_pool
-from src.infrastructure.persistence.db_initializer import initialize_database
-from config import Config
+from orders.src.infrastructure.web.flask_routes import create_api_blueprint
+from orders.src.application.use_cases import TrackOrdersUseCase
+from orders.src.infrastructure.persistence.pg_repository import PgOrderRepository
+from orders.src.infrastructure.persistence.db_connector import init_db_pool
+from orders.src.infrastructure.persistence.db_initializer import initialize_database
+from orders.config import Config
 from flask_cors import CORS
 
 

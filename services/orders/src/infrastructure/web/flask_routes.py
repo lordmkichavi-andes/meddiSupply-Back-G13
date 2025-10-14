@@ -1,16 +1,17 @@
-# src/infrastructure/web/flask_routes.py
 from flask import Blueprint, jsonify
-from src.application.use_cases import TrackOrdersUseCase
+from orders.src.application.use_cases import TrackOrdersUseCase
 
-# El caso de uso se inyectará en la función de fábrica de Blueprint (ver app.py)
-api_bp = Blueprint('api', __name__)
-
+# ELIMINAMOS la declaración global de api_bp.
+# Ya no necesitamos el comentario sobre la inyección de dependencias aquí,
+# ya que la crearemos dentro de la función de fábrica.
 
 def create_api_blueprint(use_case: TrackOrdersUseCase):
     """
     Función de fábrica para inyectar el Caso de Uso en el Blueprint.
-    Esto permite que el controlador (Web) dependa del Caso de Uso (Application).
+    Crea y registra un nuevo Blueprint en cada llamada para evitar conflictos en tests.
     """
+    # MOVER LA CREACIÓN DEL BLUEPRINT AQUÍ
+    api_bp = Blueprint('api', __name__)
 
     @api_bp.route('/health', methods=['GET'])
     def health():

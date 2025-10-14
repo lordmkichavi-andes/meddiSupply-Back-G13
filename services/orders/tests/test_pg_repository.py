@@ -5,11 +5,11 @@ from datetime import datetime, date
 from psycopg2 import Error as Psycopg2Error
 
 # Aseguramos que los módulos de src se pueden importar
-sys.path.append('src')
+sys.path.append('orders.src.')
 
 # Importamos las clases a probar y sus dependencias
-from src.infrastructure.persistence.pg_repository import PgOrderRepository
-from src.domain.entities import Order
+from orders.src.infrastructure.persistence.pg_repository import PgOrderRepository
+from orders.src.domain.entities import Order
 
 # Datos de prueba para simular la respuesta de la base de datos
 CLIENT_ID_TEST = "client_abc_789"
@@ -46,8 +46,8 @@ class TestPgOrderRepository(unittest.TestCase):
 
     # --- Test de Escenario de Éxito ---
 
-    @patch('src.infrastructure.persistence.pg_repository.release_connection')
-    @patch('src.infrastructure.persistence.pg_repository.get_connection')
+    @patch('orders.src.infrastructure.persistence.pg_repository.release_connection')
+    @patch('orders.src.infrastructure.persistence.pg_repository.get_connection')
     def test_get_orders_by_client_id_success(self, mock_get_conn, mock_release_conn):
         """
         Verifica que se recuperan los datos, se mapean a entidades Order
@@ -61,9 +61,9 @@ class TestPgOrderRepository(unittest.TestCase):
 
         # 1. Verificar la llamada a execute con la consulta y los parámetros
         expected_query_call = mock_cursor.execute.call_args[0][0].strip().replace('\n', ' ').replace(' ', '')
-        expected_query_start = "SELECTo.order_id,o.creation_date,o.estimated_delivery_date,o.current_state_id,o.total_value,MAX(o.creation_date)ASlast_updated_dateFROM\"Order\"oWHEREo.user_id=%sGROUPBYo.order_id,o.creation_date,o.estimated_delivery_date,o.current_state_id,o.total_valueORDERBYlast_updated_dateDESC;"
+        expected_query_start = "SELECTo.order_id,o.creation_date,o.estimated_delivery_date,o.current_state_id,o.total_value,MAX(o.creation_date)ASlast_updated_date--Usamoscreation_datecomoproxydelast_updated_date--Enunsistemareal,necesitaríasunatabladehistóricoouncampodedicadoFROM\"Order\"oWHEREo.user_id=%sGROUPBYo.order_id,o.creation_date,o.estimated_delivery_date,o.current_state_id,o.total_valueORDERBYlast_updated_dateDESC;"
         self.assertTrue(expected_query_call.startswith(expected_query_start),
-                        f"La consulta ejecutada no coincide con el inicio esperado. Ejecutada: {expected_query_call[:100]}...")
+                        f"La consulta ejecutada no coincide con el inicio esperado. Ejecutada: {expected_query_call[:500]}...")
         self.assertEqual(mock_cursor.execute.call_args[0][1], (CLIENT_ID_TEST,))
 
         # 2. Verificar el resultado (que se mapee a la entidad Order)
@@ -78,8 +78,8 @@ class TestPgOrderRepository(unittest.TestCase):
 
     # --- Test de Datos No Encontrados ---
 
-    @patch('src.infrastructure.persistence.pg_repository.release_connection')
-    @patch('src.infrastructure.persistence.pg_repository.get_connection')
+    @patch('orders.src.infrastructure.persistence.pg_repository.release_connection')
+    @patch('orders.src.infrastructure.persistence.pg_repository.get_connection')
     def test_get_orders_by_client_id_no_results(self, mock_get_conn, mock_release_conn):
         """
         Verifica que retorna una lista vacía si la BD no devuelve filas.
@@ -98,8 +98,8 @@ class TestPgOrderRepository(unittest.TestCase):
 
     # --- Test de Error de Base de Datos ---
 
-    @patch('src.infrastructure.persistence.pg_repository.release_connection')
-    @patch('src.infrastructure.persistence.pg_repository.get_connection')
+    @patch('orders.src.infrastructure.persistence.pg_repository.release_connection')
+    @patch('orders.src.infrastructure.persistence.pg_repository.get_connection')
     @patch('builtins.print')
     def test_get_orders_by_client_id_db_error(self, mock_print, mock_get_conn, mock_release_conn):
         """
@@ -126,8 +126,8 @@ class TestPgOrderRepository(unittest.TestCase):
 
     # --- Test de Error al Obtener Conexión ---
 
-    @patch('src.infrastructure.persistence.pg_repository.release_connection')
-    @patch('src.infrastructure.persistence.pg_repository.get_connection', side_effect=Exception("Pool error"))
+    @patch('orders.src.infrastructure.persistence.pg_repository.release_connection')
+    @patch('orders.src.infrastructure.persistence.pg_repository.get_connection', side_effect=Exception("Pool error"))
     @patch('builtins.print')
     def test_get_orders_by_client_id_connection_error(self, mock_print, mock_get_conn, mock_release_conn):
         """
