@@ -30,7 +30,7 @@ def create_api_blueprint(use_case: TrackOrdersUseCase):
                 return jsonify({
                     "message": "¡Ups! Aún no tienes pedidos registrados.",
                     "orders": []
-                }), 200
+                }), 404
 
             # 3. Retornar la respuesta exitosa
             return jsonify(orders), 200
