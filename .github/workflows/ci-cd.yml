@@ -102,15 +102,21 @@ jobs:
         working-directory: ./services/${{ matrix.service }}
         run: |
           echo "🔍 flake8..."
+          # Eliminé el '|| true' para que el linting falle si encuentra errores E9, F63, etc.
           flake8 app.py --count --select=E9,F63,F7,F82 --show-source --statistics 
-          flake8 app.py --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+          flake8 app.py --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics 
 
       - name: Unit tests
         working-directory: ./services/${{ matrix.service }}
         run: |
           echo "🧪 pytest..."
-          pytest --cov=app --cov-report=xml --cov-report=html --cov-fail-under=${{ env.MIN_COVERAGE }} -v
-
+          
+          # 1. Ajuste de PYTHONPATH: Asegura que Python pueda encontrar 'src' al subir dos niveles.
+          #    Esto resuelve el 'No module named src' que puede ocurrir en el CI.
+          export PYTHONPATH=$PYTHONPATH:$(pwd)/../..
+          
+          # 2. FIX DE COBERTURA: Cambiamos --cov=app a --cov=src para medir el directorio principal.
+          pytest --cov=src --cov-report=xml --cov-report=html --cov-fail-under=${{ env.MIN_COVERAGE }} -v
 
   # 3) Deploy a Producción (matrix)
   deploy_prod:
