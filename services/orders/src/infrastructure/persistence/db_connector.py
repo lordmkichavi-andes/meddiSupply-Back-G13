@@ -1,7 +1,7 @@
 # src/infrastructure/persistence/db_connector.py
 import psycopg2
 from psycopg2 import pool
-from orders.config import Config
+from config import Config
 
 # Se usa un pool de conexiones para manejo eficiente en un entorno web
 db_pool = None

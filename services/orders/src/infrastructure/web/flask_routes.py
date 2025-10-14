@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify
-from orders.src.application.use_cases import TrackOrdersUseCase
+from src.application.use_cases import TrackOrdersUseCase
 
 # ELIMINAMOS la declaración global de api_bp.
 # Ya no necesitamos el comentario sobre la inyección de dependencias aquí,

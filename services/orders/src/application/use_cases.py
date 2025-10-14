@@ -1,7 +1,7 @@
 # src/application/use_cases.py
 from typing import List, Dict, Any
-from orders.src.domain.interfaces import OrderRepository
-from orders.src.domain.entities import Order
+from src.domain.interfaces import OrderRepository
+from src.domain.entities import Order
 
 
 class TrackOrdersUseCase:

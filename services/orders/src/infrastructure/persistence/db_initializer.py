@@ -2,7 +2,7 @@
 import os
 import psycopg2
 from .db_connector import get_connection, release_connection
-from orders.config import Config
+from config import Config
 
 # Rutas a los archivos SQL
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
