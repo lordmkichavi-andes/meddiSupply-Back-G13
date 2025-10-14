@@ -1,6 +1,8 @@
 from flask import Flask, jsonify
 from flask_cors import CORS
 
+# Updated for CI/CD pipeline testing
+
 
 def create_app() -> Flask:
     app = Flask(__name__)
