@@ -269,21 +269,29 @@ class TestGetSalesReportData:
     def test_get_sales_report_data_success(self):
         """Test obtener datos de reporte de ventas exitoso."""
         with patch.object(db_module, 'execute_query') as mock_execute:
-            mock_execute.return_value = {
-                'ventas_totales': 150000.0,
-                'pedidos': 10,
-                'period_start': '2024-01-01',
-                'period_end': '2024-03-31',
-                'productos': [
-                    {'nombre': 'Producto A', 'ventas': 75000.0, 'cantidad': 50},
-                    {'nombre': 'Producto B', 'ventas': 75000.0, 'cantidad': 25}
-                ],
-                'grafico': [
-                    {'idx': 1, 'value': 50000},
-                    {'idx': 2, 'value': 100000},
-                    {'idx': 3, 'value': 150000}
-                ]
-            }
+            # Configurar mock para las 3 consultas separadas
+            def mock_execute_side_effect(query, params=None, fetch_one=False, fetch_all=False):
+                if 'LIMIT 1' in query:  # Consulta de ventas básicas
+                    return {
+                        'ventas_totales': 150000.0,
+                        'pedidos': 10,
+                        'period_start': '2024-01-01',
+                        'period_end': '2024-03-31'
+                    }
+                elif 'GROUP BY p.name' in query:  # Consulta de productos
+                    return [
+                        {'nombre': 'Producto A', 'ventas': 75000.0, 'cantidad': 50},
+                        {'nombre': 'Producto B', 'ventas': 75000.0, 'cantidad': 25}
+                    ]
+                elif 'DISTINCT' in query:  # Consulta del gráfico
+                    return [
+                        {'idx': 1, 'value': 50000},
+                        {'idx': 2, 'value': 100000},
+                        {'idx': 3, 'value': 150000}
+                    ]
+                return None
+            
+            mock_execute.side_effect = mock_execute_side_effect
             
             result = db_module.get_sales_report_data('v1', 'trimestral')
             
@@ -293,6 +301,9 @@ class TestGetSalesReportData:
             assert result['periodo'] == '2024-01-01 - 2024-03-31'
             assert len(result['grafico']) == 3
             assert result['grafico'] == [50000, 100000, 150000]
+            assert len(result['productos']) == 2
+            assert result['productos'][0]['nombre'] == 'Producto A'
+            assert result['productos'][1]['nombre'] == 'Producto B'
     
     def test_get_sales_report_data_no_data(self):
         """Test obtener datos de reporte de ventas sin datos."""
@@ -306,14 +317,22 @@ class TestGetSalesReportData:
     def test_get_sales_report_data_different_periods(self):
         """Test obtener datos de reporte con diferentes períodos."""
         with patch.object(db_module, 'execute_query') as mock_execute:
-            mock_execute.return_value = {
-                'ventas_totales': 100000.0,
-                'pedidos': 5,
-                'period_start': '2024-01-01',
-                'period_end': '2024-02-29',
-                'productos': [],
-                'grafico': []
-            }
+            # Configurar mock para las 3 consultas separadas
+            def mock_execute_side_effect(query, params=None, fetch_one=False, fetch_all=False):
+                if 'LIMIT 1' in query:  # Consulta de ventas básicas
+                    return {
+                        'ventas_totales': 100000.0,
+                        'pedidos': 5,
+                        'period_start': '2024-01-01',
+                        'period_end': '2024-02-29'
+                    }
+                elif 'GROUP BY p.name' in query:  # Consulta de productos
+                    return []  # Sin productos
+                elif 'DISTINCT' in query:  # Consulta del gráfico
+                    return []  # Sin datos del gráfico
+                return None
+            
+            mock_execute.side_effect = mock_execute_side_effect
             
             # Probar diferentes períodos
             result1 = db_module.get_sales_report_data('v1', 'bimestral')

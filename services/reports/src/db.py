@@ -99,44 +99,71 @@ def get_sales_report_data(vendor_id: str, period: str) -> Optional[Dict[str, Any
     }
     db_period = period_mapping.get(period, period)
     
-    query = """
+    # Consulta principal para datos básicos de ventas
+    sales_query = """
     SELECT 
-        s.total_sales as ventas_totales,
-        s.total_orders as pedidos,
-        s.period_start,
-        s.period_end,
-        json_agg(
-            json_build_object(
-                'nombre', p.name,
-                'ventas', sd.line_amount,
-                'cantidad', sd.quantity
-            ) ORDER BY p.name
-        ) as productos,
-        json_agg(
-            json_build_object(
-                'idx', scp.idx,
-                'value', scp.value
-            ) ORDER BY scp.idx
-        ) as grafico
+        total_sales as ventas_totales,
+        total_orders as pedidos,
+        period_start,
+        period_end
+    FROM reportes.sales 
+    WHERE vendor_id = %s AND period_type = %s
+    LIMIT 1
+    """
+    
+    # Consulta para productos (separada para evitar duplicados)
+    products_query = """
+    SELECT 
+        p.name as nombre,
+        SUM(sd.line_amount) as ventas,
+        SUM(sd.quantity) as cantidad
     FROM reportes.sales s
     JOIN reportes.sale_details sd ON s.id = sd.sale_id
     JOIN reportes.products p ON sd.product_id = p.id
-    JOIN reportes.sales_chart_points scp ON s.id = scp.sale_id
     WHERE s.vendor_id = %s AND s.period_type = %s
-    GROUP BY s.id, s.total_sales, s.total_orders, s.period_start, s.period_end
+    GROUP BY p.name
+    ORDER BY p.name
     """
     
-    result = execute_query(query, (vendor_id, db_period), fetch_one=True)
-    if result:
-        # Transformar el resultado para que coincida con el formato esperado
-        data = dict(result)
-        # Convertir grafico de objetos a array simple
-        if data.get('grafico'):
-            data['grafico'] = [point['value'] for point in data['grafico']]
+    # Consulta para datos del gráfico (separada)
+    chart_query = """
+    SELECT DISTINCT
+        scp.idx,
+        scp.value
+    FROM reportes.sales s
+    JOIN reportes.sales_chart_points scp ON s.id = scp.sale_id
+    WHERE s.vendor_id = %s AND s.period_type = %s
+    ORDER BY scp.idx
+    """
+    
+    # Ejecutar consultas
+    sales_result = execute_query(sales_query, (vendor_id, db_period), fetch_one=True)
+    products_result = execute_query(products_query, (vendor_id, db_period), fetch_all=True)
+    chart_result = execute_query(chart_query, (vendor_id, db_period), fetch_all=True)
+    
+    if sales_result:
+        # Construir resultado combinando las consultas separadas
+        data = dict(sales_result)
+        
+        # Agregar productos (convertir a formato esperado)
+        data['productos'] = [
+            {
+                'nombre': row['nombre'],
+                'ventas': float(row['ventas']),
+                'cantidad': int(row['cantidad'])
+            }
+            for row in (products_result or [])
+        ]
+        
+        # Agregar gráfico (convertir a array simple)
+        data['grafico'] = [row['value'] for row in (chart_result or [])]
+        
         # Crear periodo string
         data['periodo'] = f"{data['period_start']} - {data['period_end']}"
+        
         # Mapear campos a camelCase para el modelo
         data['ventasTotales'] = data['ventas_totales']
+        
         return data
     return None
 
