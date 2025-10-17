@@ -153,7 +153,7 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           COMMIT_SHA: ${{ github.sha }}
           SERVICE: ${{ matrix.service }}
-          ECR_REPOSITORY: cdk-exp-container-assets-120569610818-us-east-1 # Valor corregido (solo el nombre)
+          ECR_REPOSITORY: cdk-exp-container-assets-120569610818-us-east-1
         run: |
           IMAGE_TAG="$COMMIT_SHA-$SERVICE"
 
@@ -184,6 +184,7 @@ jobs:
            AWS_REGION: ${{ env.AWS_REGION }}
            ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
            COMMIT_SHA: ${{ github.sha }}
+           ECR_REPOSITORY: cdk-exp-container-assets-120569610818-us-east-1
         run: |
             set -euo pipefail
             
@@ -232,7 +233,7 @@ jobs:
             fi
             
             # 5. Continuar el proceso de despliegue
-            IMAGE="$ECR_REGISTRY/$SERVICE_SLUG:$COMMIT_SHA-$SERVICE_SLUG" 
+            IMAGE="$ECR_REGISTRY/$ECR_REPOSITORY:$COMMIT_SHA-$SERVICE_SLUG"
             echo "🚀 Deploy $SERVICE_SLUG → $FULL_SERVICE_NAME (TD: $TD_ARN) con imagen $IMAGE"
             
             # 6. Describir la Definición de Tarea
@@ -241,7 +242,6 @@ jobs:
             # 7. Manipulación y Despliegue con JQ
             jq 'del(.status,.taskDefinitionArn,.requiresAttributes,.revision,.compatibilities,.registeredAt,.registeredBy)' base.json > stripped.json
             
-            # El resto del script es correcto
             if jq -e --arg S "$SERVICE_SLUG" 'any(.containerDefinitions[].name; . == $S)' stripped.json >/dev/null; then
               jq --arg S "$SERVICE_SLUG" --arg IMG "$IMAGE" '
                 .containerDefinitions |= map(if .name == $S then .image = $IMG else . end)

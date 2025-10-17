@@ -13,9 +13,6 @@ def create_api_blueprint(use_case: TrackOrdersUseCase):
     # MOVER LA CREACIÓN DEL BLUEPRINT AQUÍ
     api_bp = Blueprint('api', __name__)
 
-    @api_bp.route('/health', methods=['GET'])
-    def health():
-        return jsonify({'status': 'ok'})
 
     @api_bp.route('/track/<client_id>', methods=['GET'])
     def track_orders(client_id):
