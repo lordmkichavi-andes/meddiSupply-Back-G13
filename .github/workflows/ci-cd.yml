@@ -131,7 +131,7 @@ jobs:
         service: ${{ fromJSON(needs.detect-changes.outputs.changed-services) }}
     environment:
       name: production
-      url: https://cdk-exp-container-assets-120569610818-us-east-1
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -150,31 +150,29 @@ jobs:
       - name: Build and Push Docker image
         id: build-image
         env:
-           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-           COMMIT_SHA: ${{ github.sha }}
-           SERVICE: ${{ matrix.service }}
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          COMMIT_SHA: ${{ github.sha }}
+          SERVICE: ${{ matrix.service }}
+          ECR_REPOSITORY: cdk-exp-container-assets-120569610818-us-east-1 # Valor corregido (solo el nombre)
         run: |
-            IMAGE_TAG="$COMMIT_SHA-$SERVICE"
-            FULL_IMAGE_NAME="$ECR_REGISTRY/$SERVICE:$IMAGE_TAG"
-            
-            echo "🔎 Asegurando que el repositorio $SERVICE exista en ECR y sea inmutable..."
-            
-            # ✅ CORRECCIÓN: Se añade --image-tag-mutability IMMUTABLE
-            # y se corrige la ruta del 'docker build'
-            aws ecr create-repository \
-              --repository-name $SERVICE \
+          IMAGE_TAG="$COMMIT_SHA-$SERVICE"
+
+          # FULL_IMAGE_NAME = REGISTRY/REPOSITORY:TAG
+          FULL_IMAGE_NAME="$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          
+          echo "⚙️  Obteniendo token de autenticación de ECR para $ECR_REGISTRY..."
+          aws ecr get-login-password \
               --region ${{ env.AWS_REGION }} \
-              --image-scanning-configuration scanOnPush=true \
-              --image-tag-mutability IMMUTABLE \
-              2>/dev/null || true
-            
-            echo "Building image for $SERVICE with tag $IMAGE_TAG"
-            # ✅ RUTA FINAL CORREGIDA
-            docker build -t "$FULL_IMAGE_NAME" ./services/$SERVICE 
-            
-            echo "Pushing image $FULL_IMAGE_NAME to ECR"
-            docker push "$FULL_IMAGE_NAME"
-      
+          | docker login \
+              --username AWS \
+              --password-stdin $ECR_REGISTRY
+          
+          
+          echo "Building image for $SERVICE with full name $FULL_IMAGE_NAME"
+          docker build -t "$FULL_IMAGE_NAME" ./services/$SERVICE 
+          
+          echo "Pushing image $FULL_IMAGE_NAME to ECR"
+          docker push "$FULL_IMAGE_NAME"
 
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
