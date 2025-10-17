@@ -1,5 +1,5 @@
 # app.py
-from flask import Flask
+from flask import Flask, jsonify
 from dotenv import load_dotenv  # Necesario para cargar variables de entorno
 from src.infrastructure.web.flask_routes import create_api_blueprint
 from src.application.use_cases import TrackOrdersUseCase
