@@ -59,6 +59,7 @@ def create_app():
     # --- REGISTRO DE RUTAS ---
     app.register_blueprint(api_bp, url_prefix='/orders')
 
+    # --- Ruta de control ---
     @app.route('/health', methods=['GET'])
     def health():
         return jsonify({'status': 'ok'})
