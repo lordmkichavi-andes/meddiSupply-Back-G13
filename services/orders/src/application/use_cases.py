@@ -37,6 +37,7 @@ class TrackOrdersUseCase:
                 if order.estimated_delivery_date:
                     estimated_delivery = order.estimated_delivery_date.strftime('%Y-%m-%d %H:%M')
                 else:
+                    # Requisito: Mensaje si no existe fecha programada
                     estimated_delivery = "Entrega pendiente de programación"
 
             formatted_orders.append({
