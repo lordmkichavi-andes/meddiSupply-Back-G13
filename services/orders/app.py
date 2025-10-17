@@ -41,14 +41,12 @@ def create_app():
     api_bp = create_api_blueprint(track_orders_use_case, create_order_use_case)
     app.register_blueprint(api_bp, url_prefix='/orders')
 
-    return app
-
-if __name__ == '__main__':
-    app = create_app()
-
-
     # --- Ruta de control ---
     @app.route('/health', methods=['GET'])
     def health():
         return jsonify({'status': 'ok'})
+    return app
+
+if __name__ == '__main__':
+    app = create_app()
     app.run(host='0.0.0.0', port=8080, debug=False)
