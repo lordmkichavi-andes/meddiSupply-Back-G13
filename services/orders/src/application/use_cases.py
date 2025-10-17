@@ -32,7 +32,6 @@ class TrackOrdersUseCase:
         for order in orders:
 
             estimated_delivery = None
-
             # Requisito: Solo Procesando (5) y En camino (1) necesitan fecha estimada
             if order.status_id in [5, 1]:
                 if order.estimated_delivery_date:
