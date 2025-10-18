@@ -9,6 +9,7 @@ from ..db import (
 )
 from ..models.vendor import Vendor
 from ..models.sales_report import SalesReport
+from ..auth import require_supervisor_role, log_report_generation
 
 reports_bp = Blueprint('reports', __name__)
 
@@ -64,6 +65,8 @@ def generate_sales_report():
         
         # Validar campos obligatorios
         if not vendor_id or not period:
+            log_report_generation('api-gateway-user', vendor_id, period, success=False, 
+                                error_message='Missing required fields')
             return jsonify({
                 'success': False,
                 'message': 'Campo obligatorio',
@@ -74,6 +77,8 @@ def generate_sales_report():
         report_data = get_sales_report_data(vendor_id, period)
         
         if not report_data:
+            log_report_generation('api-gateway-user', vendor_id, period, success=False, 
+                                error_message='No data found for period')
             return jsonify({
                 'success': False,
                 'message': '¡Ups! No se encontraron datos para este período',
@@ -83,12 +88,19 @@ def generate_sales_report():
         # Crear modelo de reporte
         sales_report = SalesReport.from_dict(report_data, vendor_id, period)
         
+        # Log exitoso de generación de reporte
+        log_report_generation('api-gateway-user', vendor_id, period, success=True)
+        
         return jsonify({
             'success': True,
             'data': sales_report.to_dict()
         })
         
     except Exception as e:
+        # Log de error en generación de reporte
+        log_report_generation('api-gateway-user', vendor_id, period, success=False, 
+                            error_message=str(e))
+        
         return jsonify({
             'success': False,
             'message': '¡Ups! Hubo un error al generar el reporte. Intenta nuevamente',
@@ -137,3 +149,4 @@ def health_check():
         'message': 'Servidor funcionando correctamente',
         'timestamp': datetime.now().isoformat()
     })
+
