@@ -1,0 +1,66 @@
+{
+    "family": "MediSupplyStackReportsServiceReportsServiceTaskDefinition610234AB",
+    "networkMode": "awsvpc",
+    "requiresCompatibilities": [
+        "FARGATE"
+    ],
+    "cpu": "256",
+    "memory": "512",
+    "executionRoleArn": "arn:aws:iam::120569610818:role/MediSupplyStack-ReportsServiceReportsServiceTaskDef-Sn7FVTjOrGdD",
+    "taskRoleArn": "arn:aws:iam::120569610818:role/MediSupplyStack-ReportsServiceReportsServiceTaskRol-iYnBNwk5M2It",
+    "containerDefinitions": [
+        {
+            "name": "ReportsServiceContainer",
+            "image": "120569610818.dkr.ecr.us-east-1.amazonaws.com/cdk-exp-container-assets-120569610818-us-east-1:reports-service-20251015-171228",
+            "cpu": 0,
+            "portMappings": [
+                {
+                    "containerPort": 8080,
+                    "hostPort": 8080,
+                    "protocol": "tcp"
+                }
+            ],
+            "essential": true,
+            "environment": [
+                {
+                    "name": "SERVICE_NAME",
+                    "value": "reports-service"
+                },
+                {
+                    "name": "DB_PORT",
+                    "value": "5432"
+                },
+                {
+                    "name": "DB_USER",
+                    "value": "postgres"
+                },
+                {
+                    "name": "DB_NAME",
+                    "value": "postgres"
+                },
+                {
+                    "name": "DB_HOST",
+                    "value": "medisupplystack-medisupplytransactionaldba98534ad-harejtuqayc1.c67kuumsib0c.us-east-1.rds.amazonaws.com"
+                },
+                {
+                    "name": "LOG_LEVEL",
+                    "value": "INFO"
+                },
+                {
+                    "name": "DB_PASSWORD",
+                    "value": "Jc-uWV2a-DP=qySXlO3aKVuS52hWmz"
+                }
+            ],
+            "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                    "awslogs-group": "/ecs/reports-service",
+                    "awslogs-region": "us-east-1",
+                    "awslogs-stream-prefix": "reports-service"
+                }
+            }
+        }
+    ]
+}
+
+

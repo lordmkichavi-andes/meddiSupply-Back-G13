@@ -1,0 +1,121 @@
+{
+    "taskDefinitionArn": "arn:aws:ecs:us-east-1:120569610818:task-definition/MediSupplyStackReportsServiceReportsServiceTaskDefinition610234AB:11",
+    "containerDefinitions": [
+        {
+            "name": "ReportsServiceContainer",
+            "image": "120569610818.dkr.ecr.us-east-1.amazonaws.com/reports:latest",
+            "cpu": 0,
+            "links": [],
+            "portMappings": [
+                {
+                    "containerPort": 8080,
+                    "hostPort": 8080,
+                    "protocol": "tcp"
+                }
+            ],
+            "essential": true,
+            "entryPoint": [],
+            "command": [],
+            "environment": [
+                {
+                    "name": "SERVICE_NAME",
+                    "value": "reports-service"
+                },
+                {
+                    "name": "DB_PORT",
+                    "value": "5432"
+                },
+                {
+                    "name": "DB_USER",
+                    "value": "postgres"
+                },
+                {
+                    "name": "DB_NAME",
+                    "value": "postgres"
+                },
+                {
+                    "name": "DB_HOST",
+                    "value": "medisupplystack-medisupplytransactionaldba98534ad-harejtuqayc1.c67kuumsib0c.us-east-1.rds.amazonaws.com"
+                },
+                {
+                    "name": "LOG_LEVEL",
+                    "value": "INFO"
+                },
+                {
+                    "name": "DB_PASSWORD",
+                    "value": "Jc-uWV2a-DP=qySXlO3aKVuS52hWmz"
+                }
+            ],
+            "environmentFiles": [],
+            "mountPoints": [],
+            "volumesFrom": [],
+            "secrets": [],
+            "dnsServers": [],
+            "dnsSearchDomains": [],
+            "extraHosts": [],
+            "dockerSecurityOptions": [],
+            "dockerLabels": {},
+            "ulimits": [],
+            "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                    "awslogs-group": "/ecs/reports-service",
+                    "awslogs-region": "us-east-1",
+                    "awslogs-stream-prefix": "reports-service"
+                },
+                "secretOptions": []
+            },
+            "systemControls": [],
+            "credentialSpecs": []
+        }
+    ],
+    "family": "MediSupplyStackReportsServiceReportsServiceTaskDefinition610234AB",
+    "taskRoleArn": "arn:aws:iam::120569610818:role/MediSupplyStack-ReportsServiceReportsServiceTaskRol-iYnBNwk5M2It",
+    "executionRoleArn": "arn:aws:iam::120569610818:role/MediSupplyStack-ReportsServiceReportsServiceTaskDef-Sn7FVTjOrGdD",
+    "networkMode": "awsvpc",
+    "revision": 11,
+    "volumes": [],
+    "status": "ACTIVE",
+    "requiresAttributes": [
+        {
+            "name": "com.amazonaws.ecs.capability.logging-driver.awslogs"
+        },
+        {
+            "name": "ecs.capability.execution-role-awslogs"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.ecr-auth"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.docker-remote-api.1.19"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.docker-remote-api.1.17"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.task-iam-role"
+        },
+        {
+            "name": "ecs.capability.execution-role-ecr-pull"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.docker-remote-api.1.18"
+        },
+        {
+            "name": "ecs.capability.task-eni"
+        }
+    ],
+    "placementConstraints": [],
+    "compatibilities": [
+        "EC2",
+        "FARGATE",
+        "MANAGED_INSTANCES"
+    ],
+    "requiresCompatibilities": [
+        "FARGATE"
+    ],
+    "cpu": "256",
+    "memory": "512",
+    "registeredAt": "2025-10-13T15:27:40.929000-05:00",
+    "registeredBy": "arn:aws:iam::120569610818:user/cli-admin-user"
+}
