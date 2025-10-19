@@ -2,7 +2,7 @@ import unittest
 import json
 from unittest.mock import Mock
 from flask import Flask
-from users.src.infrastructure.web.flask_routes import create_user_api_blueprint
+from users.src.infrastructure.web.flask_user_routes import create_user_api_blueprint
 
 # Datos simulados
 MOCK_USER_DATA = [
