@@ -4,7 +4,7 @@ import sys
 from psycopg2 import Error as Psycopg2Error, ProgrammingError
 
 # Aseguramos que el módulo 'users/src' se puede importar
-sys.path.append('users/src')
+sys.path.append('users.src')
 import users.src.infrastructure.persistence.db_initializer as db_initializer
 
 
