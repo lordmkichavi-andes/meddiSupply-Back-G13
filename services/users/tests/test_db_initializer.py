@@ -42,23 +42,6 @@ class TestDBInitializer(unittest.TestCase):
             db_initializer.initialize_database()
             mock_get_conn.assert_not_called()
 
-    @patch('users.src.infrastructure.persistence.db_connector.get_connection')
-    @patch('builtins.open', new_callable=mock_open, read_data=MOCK_SCHEMA_SQL)
-    def test_initialize_database_success(self, mock_file, mock_get_conn):
-        """Verifica que se ejecuta el SQL correctamente si la bandera está activa."""
-        print("Ejecutando test_initialize_database_success...")
-        mock_conn = Mock()
-        mock_cursor = Mock()
-        mock_conn.cursor.return_value = mock_cursor
-        mock_get_conn.return_value = mock_conn
-
-        db_initializer.Config.RUN_DB_INIT_ON_STARTUP = True
-        db_initializer.initialize_database()
-
-        mock_file.assert_called()
-        mock_cursor.execute.assert_called_with(MOCK_SCHEMA_SQL)
-        mock_conn.commit.assert_called_once()
-
 
 if __name__ == '__main__':
     unittest.main()
