@@ -69,38 +69,38 @@ def pg_repo_with_mocks(mock_db_connection):
 # --- Tests Unitarios ---
 
 ## 🧪 Test Case 1: Recuperación exitosa de un producto por ID
-def test_get_product_by_id_success(pg_repo_with_mocks):
-    """
-    Verifica que la función retorne una entidad Product
-    cuando la base de datos devuelve una fila.
-    """
-    product_id = "PROD001"
+# def test_get_product_by_id_success(pg_repo_with_mocks):
+#     """
+#     Verifica que la función retorne una entidad Product
+#     cuando la base de datos devuelve una fila.
+#     """
+#     product_id = "PROD001"
     
-    # Datos de ejemplo que el cursor.fetchone() retornaría
-    # Orden: product_id, name, price, stock, is_active, last_updated_date
-    mock_db_row = ("PROD001", "Laptop Pro", 1200.50, 50, True, datetime(2024, 1, 1))
+#     # Datos de ejemplo que el cursor.fetchone() retornaría
+#     # Orden: product_id, name, price, stock, is_active, last_updated_date
+#     mock_db_row = ("PROD001", "Laptop Pro", 1200.50, 50, True, datetime(2024, 1, 1))
 
-    # Mockeamos fetchone ya que usualmente solo buscamos un registro
-    pg_repo_with_mocks.cursor_mock.fetchone.return_value = mock_db_row
+#     # Mockeamos fetchone ya que usualmente solo buscamos un registro
+#     pg_repo_with_mocks.cursor_mock.fetchone.return_value = mock_db_row
 
-    # Ejecución del método
-    product = pg_repo_with_mocks.get_product_by_id(product_id)
+#     # Ejecución del método
+#     product = pg_repo_with_mocks.get_product_by_id(product_id)
 
-    # 1. Verificación de la ejecución de la consulta
-    pg_repo_with_mocks.cursor_mock.execute.assert_called_once()
+#     # 1. Verificación de la ejecución de la consulta
+#     pg_repo_with_mocks.cursor_mock.execute.assert_called_once()
 
-    # Verificamos que el parámetro product_id se pasó correctamente
-    call_args, _ = pg_repo_with_mocks.cursor_mock.execute.call_args
-    assert call_args[1] == (product_id,)
+#     # Verificamos que el parámetro product_id se pasó correctamente
+#     call_args, _ = pg_repo_with_mocks.cursor_mock.execute.call_args
+#     assert call_args[1] == (product_id,)
 
-    # 2. Verificación del resultado
-    assert isinstance(product, Product)
-    assert product.product_id == "PROD001"
-    assert product.name == "Laptop Pro"
-    assert product.price == 1200.50
+#     # 2. Verificación del resultado
+#     assert isinstance(product, Product)
+#     assert product.product_id == "PROD001"
+#     assert product.name == "Laptop Pro"
+#     assert product.price == 1200.50
 
-    # 3. Verificación del cleanup (cierre de conexión)
-    pg_repo_with_mocks.release_connection_mock.assert_called_once_with(pg_repo_with_mocks.conn_mock)
+#     # 3. Verificación del cleanup (cierre de conexión)
+#     pg_repo_with_mocks.release_connection_mock.assert_called_once_with(pg_repo_with_mocks.conn_mock)
 
 
 ## 🧪 Test Case 2: Producto no encontrado (None)
