@@ -149,4 +149,3 @@ def health_check():
         'message': 'Servidor funcionando correctamente',
         'timestamp': datetime.now().isoformat()
     })
-
