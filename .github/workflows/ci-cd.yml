@@ -320,16 +320,15 @@ jobs:
             # 7. Manipulación y Despliegue con JQ
             jq 'del(.status,.taskDefinitionArn,.requiresAttributes,.revision,.compatibilities,.registeredAt,.registeredBy)' base.json > stripped.json
             
-            if jq -e --arg S "$SERVICE_SLUG" 'any(.containerDefinitions[].name; . == $S)' stripped.json >/dev/null; then
-              jq --arg S "$SERVICE_SLUG" --arg IMG "$IMAGE" '
-                .containerDefinitions |= map(if .name == $S then .image = $IMG else . end)
-              ' stripped.json > rendered.json
-            else
-              jq --arg S "$SERVICE_SLUG" --arg IMG "$IMAGE" '
-                .containerDefinitions |=
-                (.[0].image = $IMG) as $x | map(if (.image|test("/"+$S+"(:|@|$)")) then (.image = $IMG) else . end)
-              ' stripped.json > rendered.json
-            fi
+            jq --arg S "$SERVICE_SLUG" --arg IMG "$IMAGE" '
+              .containerDefinitions |= map(
+                  # 🟢 MODIFICACIÓN CLAVE: Usamos 'test' con el flag 'i' para una coincidencia flexible
+                  if (.name | test($S; "i")) then 
+                      .image = $IMG 
+                  else 
+                      . 
+                  end
+              )' stripped.json > rendered.json
             
             NEW_TD_ARN=$(aws ecs register-task-definition --cli-input-json file://rendered.json --query 'taskDefinition.taskDefinitionArn' --output text --region "$AWS_REGION")
             
