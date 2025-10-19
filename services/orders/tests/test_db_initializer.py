@@ -150,7 +150,8 @@ def test_initialization_data_error_handled(mock_read_sql, mock_print, mock_db_co
 @patch('src.infrastructure.persistence.db_initializer.print')
 @patch('src.infrastructure.persistence.db_initializer._read_sql_file',
        side_effect=["CREATE TABLE;", "INSERT INTO data;"])
-def test_initialization_db_error_rollback(mock_read_sql, mock_print, mock_db_connector, mock_db_connection):
+def test_initialization_db_error_rollback(mock_read_sql, mock_print, mock_db_connector, mock_db_connection,
+                                          mock_config):
     """
     Prueba el manejo de errores graves de psycopg2 (ej. error de conexión después de get_connection
     o error de sintaxis en el esquema) que fuerzan un rollback.
