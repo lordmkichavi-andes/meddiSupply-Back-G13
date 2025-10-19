@@ -122,3 +122,4 @@ INSERT INTO OrderLine (order_line_id, order_id, product_id, quantity, value_at_t
 SELECT 'LINE_002B', 'ORD_2024_002', 'PROD003', 2, 1.20
 WHERE NOT EXISTS (SELECT 1 FROM OrderLine WHERE order_line_id = 'LINE_002B');
 
+
