@@ -1,44 +1,25 @@
 import unittest
-from unittest.mock import patch, MagicMock
-import psycopg2
-from typing import List
-import os
-import sys
 from dataclasses import dataclass
+from typing import Dict, Any
 
-# ==============================================================================
-# FIJO PARA SOLUCIONAR ModuleNotFoundError en dependencias:
-# Añade el directorio padre de 'tests' (e.g., 'users') al path.
-# Esto es necesario si las dependencias (como src.domain.entities) no están
-# accesibles en el path de prueba.
-# ==============================================================================
-current_dir = os.path.dirname(os.path.abspath(__file__))
-# Directorio que contiene el código principal
-module_container_dir = os.path.dirname(current_dir)
-# Si las entidades y interfaces están en 'src/domain', necesitamos agregar el
-# path raíz del proyecto, pero aquí asumimos que ya está configurado para
-# acceder a 'src'. Mantendremos la inyección para el directorio local.
-sys.path.insert(0, module_container_dir)
-# ==============================================================================
+# Importar las clases y el mapa del archivo original
+# Asume que las clases están en un archivo llamado 'entities.py'
+# Si las clases están en el mismo archivo de prueba, puedes omitir la línea de importación
+# from entities import USER_ROLE_MAP, Role, User, Client
 
-# ==============================================================================
-# 1. ENTIDADES Y MOCKS DE CONEXIÓN (Entidades de Dominio Reales)
-# ==============================================================================
-
-USER_ROLE_MAP = {
+# --- Copia las definiciones de tu código aquí si no quieres importarlas ---
+USER_ROLE_MAP: Dict[str, Dict[str, Any]] = {
     "ADMIN": {"name": "Administrador"},
     "SUPERVISOR": {"name": "Supervisor"},
     "SELLER": {"name": "Vendedor"},
     "CLIENT": {"name": "Cliente"},
 }
 
-
 @dataclass
 class Role:
     """Entidad para el rol de usuario."""
     value: str
     name: str
-
 
 @dataclass
 class User:
@@ -66,223 +47,121 @@ class User:
         """
         return self.role
 
-
 @dataclass
 class Client(User):
     """Entidad de Cliente con atributos específicos."""
     nit: str
     balance: float
     perfil: str
-
-    # Sobreescribir __eq__ para asegurar que el test de repositorio funcione
-    # correctamente al comparar instancias de Client.
-    def __eq__(self, other):
-        """Define igualdad para la verificación del test."""
-        if not isinstance(other, Client):
-            return NotImplemented
-        # Compara las propiedades heredadas y específicas
-        return (self.user_id == other.user_id and
-                self.name == other.name and
-                self.nit == other.nit)
+# --------------------------------------------------------------------------
 
 
-# Simulación de la Interfaz UserRepository (src.domain.interfaces)
-class UserRepository:
-    def get_users_by_role(self, role: str) -> List[Client]:
-        raise NotImplementedError
+class TestRole(unittest.TestCase):
+    """Pruebas para la entidad Role."""
 
+    def test_role_initialization(self):
+        """Verifica que un objeto Role se inicialice correctamente."""
+        role = Role(value="ADMIN", name="Administrador")
+        self.assertEqual(role.value, "ADMIN")
+        self.assertEqual(role.name, "Administrador")
 
-# Mocks de las funciones de conexión (.db_connector)
-# Estas serán parcheadas en la clase de test para simular su comportamiento
-def get_connection():
-    pass
+---
 
-
-def release_connection(conn):
-    pass
-
-
-# ==============================================================================
-# 2. REPOSITORIO A TESTEAR (Copiado para ser self-contained)
-# ==============================================================================
-
-class PgUserRepository(UserRepository):
-    """
-    Implementación concreta que se conecta a PostgreSQL
-    para obtener los datos de usuarios.
-    """
-
-    def get_users_by_role(self, role: str) -> List[Client]:
-        conn = None
-        users = []
-        try:
-            # Esta llamada a get_connection será interceptada por el mock
-            conn = get_connection()
-            cursor = conn.cursor()
-
-            query = """
-                SELECT
-                    u.user_id,
-                    u.name,
-                    u.last_name,
-                    u.password,
-                    u.identification,
-                    u.phone,
-                    u.role,
-                    c.nit,
-                    c.balance,
-                    c.perfil
-                FROM "User" u
-                INNER JOIN "Client" c ON u.user_id = c.user_id
-                WHERE u.role = %s
-                ORDER BY u.name ASC;
-            """
-
-            # Ejecutamos la consulta
-            cursor.execute(query, (role,))
-
-            for row in cursor.fetchall():
-                (
-                    user_id,
-                    name,
-                    last_name,
-                    password,
-                    identification,
-                    phone,
-                    role_value,
-                    nit,
-                    balance,
-                    perfil
-                ) = row
-
-                # Mapeo a la entidad del dominio
-                users.append(Client(
-                    user_id=user_id,
-                    name=name,
-                    last_name=last_name,
-                    password=password,
-                    identification=identification,
-                    phone=phone,
-                    role_value=role_value,
-                    nit=nit,
-                    balance=balance,
-                    perfil=perfil
-                ))
-
-            return users
-
-        except psycopg2.Error as e:
-            # Aquí manejamos el error
-            print(f"ERROR de base de datos al recuperar usuarios: {e}")
-            raise Exception("Database error during user retrieval.")
-        finally:
-            if conn:
-                # Esta llamada a release_connection será interceptada por el mock
-                release_connection(conn)
-
-
-# ==============================================================================
-# 3. TESTS
-# ==============================================================================
-
-class TestPgUserRepository(unittest.TestCase):
-    # Datos simulados que retorna la DB
-    MOCK_DB_ROW_1 = (
-        'C001', 'Juan', 'Perez', 'hashed_pass_1', '123456', '555-1234', 'client',
-        'NIT-987', 1500.50, 'Comprador Mayorista'
-    )
-    MOCK_DB_ROW_2 = (
-        'C002', 'Maria', 'Gomez', 'hashed_pass_2', '654321', '555-4321', 'client',
-        'NIT-111', 50.00, 'Comprador Minorista'
-    )
-
-    # Entidades esperadas para verificación (solo para referencia)
-    # Note: Ahora se usa el constructor de la clase Client real.
-    EXPECTED_CLIENT_1 = Client('C001', 'Juan', 'Perez', 'hashed_pass_1', '123456', '555-1234', 'client', 'NIT-987',
-                               1500.50, 'Comprador Mayorista')
-    EXPECTED_CLIENT_2 = Client('C002', 'Maria', 'Gomez', 'hashed_pass_2', '654321', '555-4321', 'client', 'NIT-111',
-                               50.00, 'Comprador Minorista')
-
-    # La ruta del módulo para parchar (esto depende del nombre del archivo de prueba)
-    # Ya que los mocks están en este archivo, el path de parcheo es el mismo nombre del archivo.
-    MODULE_PATH = 'tests.test_pg_user_repository'
+class TestUser(unittest.TestCase):
+    """Pruebas para la entidad User."""
 
     def setUp(self):
-        """Configuración de mocks de conexión y cursor."""
-        self.repo = PgUserRepository()
+        """Configura un objeto User base para las pruebas."""
+        self.user_data = {
+            "user_id": "u123",
+            "name": "Juan",
+            "last_name": "Pérez",
+            "password": "hashed_password",
+            "identification": "100000000",
+            "phone": "3000000000",
+            "role_value": "SELLER",
+        }
+        self.user = User(**self.user_data)
 
-        # Mocks para la conexión y cursor
-        self.mock_conn = MagicMock()
-        self.mock_cursor = MagicMock()
-        self.mock_conn.cursor.return_value = self.mock_cursor
+    def test_user_initialization(self):
+        """Verifica que un objeto User se inicialice con todos sus atributos."""
+        self.assertEqual(self.user.user_id, "u123")
+        self.assertEqual(self.user.name, "Juan")
+        self.assertEqual(self.user.role_value, "SELLER")
 
-        # Parcheo de las funciones de conexión que están en este módulo (para que el test sea aislado)
-        self.patcher_get = patch(f'{self.MODULE_PATH}.get_connection', return_value=self.mock_conn)
-        self.patcher_release = patch(f'{self.MODULE_PATH}.release_connection')
+    def test_user_role_property(self):
+        """Verifica que la propiedad 'role' devuelva el objeto Role correcto."""
+        role = self.user.role
+        self.assertIsInstance(role, Role)
+        self.assertEqual(role.value, "SELLER")
+        self.assertEqual(role.name, "Vendedor") # Mapeado desde USER_ROLE_MAP
 
-        self.mock_get_conn = self.patcher_get.start()
-        self.mock_release_conn = self.patcher_release.start()
+    def test_user_role_property_for_admin(self):
+        """Verifica el mapeo correcto para el rol ADMIN."""
+        admin_user = User(**{**self.user_data, "role_value": "ADMIN"})
+        role = admin_user.role
+        self.assertEqual(role.value, "ADMIN")
+        self.assertEqual(role.name, "Administrador")
 
-    def tearDown(self):
-        """Limpieza después de cada prueba."""
-        self.patcher_get.stop()
-        self.patcher_release.stop()
+    def test_user_role_unknown(self):
+        """Verifica el mapeo a 'Desconocido' para un rol no definido."""
+        unknown_user = User(**{**self.user_data, "role_value": "DEV"})
+        role = unknown_user.role
+        self.assertEqual(role.value, "DEV") # Mantiene el valor original
+        self.assertEqual(role.name, "Desconocido") # Usa el nombre por defecto
 
-    # --- CASOS DE ÉXITO ---
+    def test_get_user_role_method(self):
+        """Verifica que el método get_user_role() retorne el rol correcto."""
+        role = self.user.get_user_role()
+        self.assertIsInstance(role, Role)
+        self.assertEqual(role.value, "SELLER")
+        self.assertEqual(role.name, "Vendedor")
 
-    def test_get_users_by_role_success(self):
-        """Debe retornar una lista de clientes mapeados correctamente para el rol 'client'."""
+---
 
-        role_to_fetch = 'client'
-        self.mock_cursor.fetchall.return_value = [self.MOCK_DB_ROW_1, self.MOCK_DB_ROW_2]
+class TestClient(unittest.TestCase):
+    """Pruebas para la entidad Client."""
 
-        # Ejecutar la función
-        users = self.repo.get_users_by_role(role_to_fetch)
+    def setUp(self):
+        """Configura un objeto Client base para las pruebas."""
+        self.client_data = {
+            "user_id": "c456",
+            "name": "Ana",
+            "last_name": "Gómez",
+            "password": "client_password",
+            "identification": "200000000",
+            "phone": "3100000000",
+            "role_value": "CLIENT",
+            "nit": "900123456-7",
+            "balance": 1500.50,
+            "perfil": "Premium",
+        }
+        self.client = Client(**self.client_data)
 
-        # 1. Verificación de la consulta (Verifica que se llamó con el rol correcto)
-        self.mock_cursor.execute.assert_called_once_with(unittest.mock.ANY, (role_to_fetch,))
+    def test_client_initialization(self):
+        """Verifica que un objeto Client se inicialice con sus atributos propios."""
+        self.assertEqual(self.client.nit, "900123456-7")
+        self.assertEqual(self.client.balance, 1500.50)
+        self.assertEqual(self.client.perfil, "Premium")
 
-        # 2. Verificación del mapeo
-        self.assertEqual(len(users), 2)
-        self.assertIsInstance(users[0], Client)
-        # Usamos __eq__ para comparar la igualdad de las propiedades clave
-        self.assertEqual(users[0], self.EXPECTED_CLIENT_1)
-        self.assertEqual(users[1], self.EXPECTED_CLIENT_2)
+    def test_client_inherits_user_attributes(self):
+        """Verifica que Client herede y se inicialice correctamente con los atributos de User."""
+        self.assertEqual(self.client.user_id, "c456")
+        self.assertEqual(self.client.name, "Ana")
 
-        # 3. Verificación de la limpieza
-        self.mock_release_conn.assert_called_once_with(self.mock_conn)
+    def test_client_role_property(self):
+        """Verifica que Client use correctamente la propiedad de rol heredada."""
+        role = self.client.role
+        self.assertIsInstance(role, Role)
+        self.assertEqual(role.value, "CLIENT")
+        self.assertEqual(role.name, "Cliente")
 
-    def test_get_users_by_role_no_results(self):
-        """Debe retornar una lista vacía cuando no hay coincidencias."""
-
-        role_to_fetch = 'non_existent_role'
-        self.mock_cursor.fetchall.return_value = []
-
-        users = self.repo.get_users_by_role(role_to_fetch)
-
-        self.assertEqual(len(users), 0)
-        self.mock_cursor.execute.assert_called_once()
-        self.mock_release_conn.assert_called_once_with(self.mock_conn)
-
-    # --- CASOS DE ERROR ---
-
-    @patch('tests.test_pg_user_repository.psycopg2.Error', new=psycopg2.Error)
-    def test_get_users_by_role_database_error(self):
-        """Debe manejar psycopg2.Error y relanzar una excepción genérica, asegurando el cleanup."""
-
-        # Simular un error durante la ejecución de la consulta
-        self.mock_cursor.execute.side_effect = psycopg2.Error("Error de permiso o sintaxis SQL")
-
-        # Verificar que se lance la excepción esperada
-        with self.assertRaisesRegex(Exception, "Database error during user retrieval."):
-            self.repo.get_users_by_role('admin')
-
-        # Verificar que la conexión se haya intentado obtener
-        self.mock_get_conn.assert_called_once()
-
-        # Verificar que release_connection se llame en el finally
-        self.mock_release_conn.assert_called_once_with(self.mock_conn)
-
+    def test_client_get_user_role_method(self):
+        """Verifica que Client use correctamente el método get_user_role() heredado."""
+        role = self.client.get_user_role()
+        self.assertIsInstance(role, Role)
+        self.assertEqual(role.value, "CLIENT")
+        self.assertEqual(role.name, "Cliente")
 
 if __name__ == '__main__':
     unittest.main()
