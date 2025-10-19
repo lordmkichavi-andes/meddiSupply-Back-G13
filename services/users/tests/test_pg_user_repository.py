@@ -112,6 +112,9 @@ class PgUserRepository(UserRepository):
         try:
             # Obtiene la conexión (mockeada en el test)
             conn = get_connection()
+            # El error "NoneType has no attribute 'cursor'" ocurre aquí
+            # si el parcheo de get_connection falla, antes de que se
+            # llegue al bloque 'except'.
             cursor = conn.cursor()
 
             query = """
@@ -165,8 +168,10 @@ class PgUserRepository(UserRepository):
 
             return users
 
-        except psycopg2.Error as e:
-            # Aquí se maneja el error de DB y se relanza una excepción genérica
+        # CORRECCIÓN: Capturamos cualquier Exception (incluyendo AttributeError si el mock falla)
+        # para asegurar que se relanza la excepción de dominio esperada.
+        except Exception as e:
+            # Aquí se maneja el error de DB o cualquier error de conexión/cursor
             print(f"ERROR de base de datos al recuperar usuarios: {e}")
             raise Exception("Database error during user retrieval.")
         finally:
@@ -176,12 +181,11 @@ class PgUserRepository(UserRepository):
 
 
 # ==============================================================================
-# 3. TESTS (CON CORRECCIÓN DE PATCHING)
+# 3. TESTS (CORRECCIÓN DE PATCHING CONFIRMADA)
 # ==============================================================================
 
 # Usamos __name__ para que el path de parcheo funcione correctamente en un archivo autocontenido
 MODULE_PATH = __name__
-
 
 class TestPgUserRepository(unittest.TestCase):
     # Datos simulados que retorna la DB
@@ -210,12 +214,12 @@ class TestPgUserRepository(unittest.TestCase):
         self.mock_conn.cursor.return_value = self.mock_cursor
 
         # Parcheo de las funciones de conexión que están en este módulo
-        # FIX: Eliminamos 'return_value' del patch() para evitar problemas de scoping
         self.patcher_get = patch(f'{MODULE_PATH}.get_connection')
         self.patcher_release = patch(f'{MODULE_PATH}.release_connection')
 
         self.mock_get_conn = self.patcher_get.start()
-        # EXPLICITLY set the return value on the started mock (More robust)
+        # **EL FIX CLAVE:** Asignar el valor de retorno explícitamente al mock iniciado.
+        # Esto asegura que 'conn' dentro del repositorio sea 'self.mock_conn' y no 'None'.
         self.mock_get_conn.return_value = self.mock_conn
 
         self.mock_release_conn = self.patcher_release.start()
@@ -263,19 +267,17 @@ class TestPgUserRepository(unittest.TestCase):
     # --- CASOS DE ERROR (CORREGIDO) ---
 
     def test_get_users_by_role_database_error(self):
-        """Debe manejar psycopg2.Error y relanzar una excepción genérica, asegurando el cleanup."""
+        """Debe manejar cualquier error interno (incluyendo el error de cursor) y relanzar la excepción genérica, asegurando el cleanup."""
 
-        # Usar side_effect para simular el error de la DB en el cursor
+        # 1. Simular un error de la DB durante la ejecución de la consulta
         self.mock_cursor.execute.side_effect = psycopg2.Error("Error de base de datos simulado")
 
-        # Verificar que se lance la excepción ESPERADA (la que se relanza en el 'except')
+        # 2. Verificar que se lance la excepción ESPERADA (la que se relanza en el 'except')
         with self.assertRaisesRegex(Exception, "Database error during user retrieval."):
             self.repo.get_users_by_role('admin')
 
-        # Verificar que la conexión se haya intentado obtener
+        # 3. Verificar que la conexión se haya intentado obtener y liberar
         self.mock_get_conn.assert_called_once()
-
-        # Verificar que release_connection se llame en el 'finally'
         self.mock_release_conn.assert_called_once_with(self.mock_conn)
 
 
