@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, jsonify
 from dotenv import load_dotenv
 from src.infrastructure.web.flask_routes import create_api_blueprint
 from src.application.use_cases import TrackOrdersUseCase, CreateOrderUseCase
