@@ -74,9 +74,6 @@ WHERE NOT EXISTS (SELECT 1 FROM ProductStock WHERE stock_id = 'STK_002');
 INSERT INTO ProductStock (stock_id, product_id, quantity, lote, warehouse_id, country)
 SELECT 'STK_003', 'PROD003', 500, 'LOTE-FR-09', 'WH-SP', 'ESP'
 WHERE NOT EXISTS (SELECT 1 FROM ProductStock WHERE stock_id = 'STK_003');
-
-
-
 -- 2. Tablas de Pedidos
 ------------------------------------------------------
 

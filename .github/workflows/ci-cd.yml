@@ -15,6 +15,7 @@ env:
   ECS_CLUSTER: medi-supply-cluster
   MIN_COVERAGE: 80
 
+
 jobs:
   # 1) Detecta microservicios modificados y expone salida JSON (una sola línea)
   detect-changes:
