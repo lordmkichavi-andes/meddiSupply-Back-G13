@@ -15,6 +15,7 @@ env:
   ECS_CLUSTER: medi-supply-cluster
   MIN_COVERAGE: 80
 
+
 jobs:
   # 1) Detecta microservicios modificados y expone salida JSON (una sola línea)
   detect-changes:
@@ -342,7 +343,7 @@ jobs:
 
   # 4) Notificación de PR (si aplica)
   pr_notification:
-    needs: [detect-changes, test_build_push]
+    needs: [detect-changes]
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request' && needs.detect-changes.outputs.changed-services != '[]'
     steps:
