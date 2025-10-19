@@ -3,12 +3,6 @@ import pytest
 import psycopg2
 from unittest.mock import MagicMock, patch
 
-import sys
-import os
-# El directorio padre de 'tests/' es la raíz del microservicio
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-# =========================================================================
-
 # Asegúrate de que estas importaciones reflejen la estructura de tu microservicio 'products'
 try:
     from src.infrastructure.persistence.pg_product_repository import PgProductRepository
