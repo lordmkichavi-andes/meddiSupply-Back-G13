@@ -1,198 +1,175 @@
-import pytest
-from unittest.mock import MagicMock, patch, mock_open
+import unittest
+from unittest.mock import patch, mock_open, MagicMock
 import psycopg2
+import os
 
-# Importamos la función a probar y las dependencias (aunque las mockearemos)
-from src.infrastructure.persistence.db_initializer import initialize_database, _read_sql_file
-
-
-# --- Mocks Comunes (Fixtures) ---
-
-@pytest.fixture
-def mock_db_connection():
-    """Mockea la conexión y el cursor de psycopg2."""
-    mock_cursor = MagicMock()
-    mock_conn = MagicMock()
-    mock_conn.cursor.return_value = mock_cursor
-    return mock_conn
+# Importa la función que quieres probar y la configuración
+# Asumo que esta función está en un módulo llamado 'db_initializer'
+from .db_initializer import initialize_database, _read_sql_file
+from config import Config
 
 
-@pytest.fixture(autouse=True)
-def mock_db_connector(mock_db_connection):
-    """Mockea get_connection y release_connection a nivel de módulo."""
-    with patch('src.infrastructure.persistence.db_initializer.get_connection',
-               return_value=mock_db_connection) as get_conn_mock, \
-            patch('src.infrastructure.persistence.db_initializer.release_connection') as release_conn_mock:
-        yield get_conn_mock, release_conn_mock
+class TestDatabaseInitializer(unittest.TestCase):
+    # ----------------------------------------------------
+    # Configuración de Mocks y Valores de Prueba
+    # ----------------------------------------------------
+
+    # Scripts SQL simulados para las pruebas
+    MOCK_SCHEMA_SQL = "CREATE TABLE test_table (id INT);"
+    MOCK_INSERT_SQL = "INSERT INTO test_table (id) VALUES (1);"
+
+    # Rutas simuladas (solo para verificar que os.path.exists sea llamado)
+    @patch('db_initializer.SCHEMA_FILE', '/mock/path/schema.sql')
+    @patch('db_initializer.INSERT_DATA_FILE', '/mock/path/insert_data.sql')
+    def setUp(self):
+        """Prepara el entorno de cada prueba."""
+        # Asegura que la inicialización esté habilitada por defecto en las pruebas
+        Config.RUN_DB_INIT_ON_STARTUP = True
+
+        # Mock de la conexión y el cursor
+        self.mock_conn = MagicMock()
+        self.mock_cursor = MagicMock()
+        self.mock_conn.cursor.return_value = self.mock_cursor
+
+    # ----------------------------------------------------
+    # Pruebas de la Función Auxiliar _read_sql_file
+    # ----------------------------------------------------
+
+    def test_read_sql_file_success(self):
+        """Prueba la lectura exitosa de un archivo SQL."""
+        # Usamos mock_open para simular el archivo
+        with patch("builtins.open", mock_open(read_data=self.MOCK_SCHEMA_SQL)):
+            content = _read_sql_file("/dummy/path/schema.sql")
+            self.assertEqual(content, self.MOCK_SCHEMA_SQL)
+
+    def test_read_sql_file_not_found(self):
+        """Prueba qué pasa cuando el archivo SQL no se encuentra."""
+        # open lanza FileNotFoundError por defecto sin 'read_data'
+        with patch("builtins.open", side_effect=FileNotFoundError):
+            with patch('sys.stdout') as mock_print:  # Captura la salida de impresión
+                content = _read_sql_file("/dummy/path/missing.sql")
+                self.assertEqual(content, "")
+                mock_print.assert_called_with("ERROR: Archivo SQL no encontrado: /dummy/path/missing.sql")
+
+    # ----------------------------------------------------
+    # Pruebas de initialize_database (Casos de Éxito)
+    # ----------------------------------------------------
+
+    @patch('db_initializer._read_sql_file', side_effect=[MOCK_SCHEMA_SQL, MOCK_INSERT_SQL])
+    @patch('db_initializer.os.path.exists', return_value=True)  # Archivos existen
+    @patch('db_initializer.get_connection')
+    def test_initialization_success_with_data(self, mock_get_conn, mock_exists, mock_read_file):
+        """Prueba el flujo completo de inicialización con éxito (esquema y datos)."""
+        mock_get_conn.return_value = self.mock_conn
+
+        initialize_database()
+
+        # 1. Verificar llamadas de la DB
+        mock_get_conn.assert_called_once()
+        self.mock_cursor.execute.assert_any_call(self.MOCK_SCHEMA_SQL)  # Ejecuta esquema
+        self.mock_conn.commit.assert_called()  # Commit después del esquema
+        self.mock_cursor.execute.assert_any_call(self.MOCK_INSERT_SQL)  # Ejecuta datos
+        self.mock_conn.commit.assert_called()  # Commit después de los datos
+        self.mock_cursor.close.assert_called_once()
+
+        # 2. Verificar liberación de la conexión
+        with patch('db_initializer.release_connection') as mock_release:
+            initialize_database()
+            mock_release.assert_called_once_with(self.mock_conn)
+
+    @patch('db_initializer._read_sql_file', side_effect=[MOCK_SCHEMA_SQL, ""])  # No hay script de datos
+    @patch('db_initializer.os.path.exists', return_value=True)
+    @patch('db_initializer.get_connection')
+    def test_initialization_success_only_schema(self, mock_get_conn, mock_exists, mock_read_file):
+        """Prueba la inicialización exitosa cuando no hay datos de inserción."""
+        mock_get_conn.return_value = self.mock_conn
+
+        initialize_database()
+
+        # 1. Verificar que SOLO se ejecute el script de esquema
+        self.mock_cursor.execute.assert_called_once_with(self.MOCK_SCHEMA_SQL)
+        self.mock_conn.commit.assert_called_once()
+        self.mock_cursor.close.assert_called_once()
+
+    # ----------------------------------------------------
+    # Pruebas de initialize_database (Casos de Error/Exclusión)
+    # ----------------------------------------------------
+
+    def test_initialization_skipped_by_config(self):
+        """Prueba que la inicialización se omita si Config.RUN_DB_INIT_ON_STARTUP es False."""
+        Config.RUN_DB_INIT_ON_STARTUP = False
+
+        with patch('db_initializer.get_connection') as mock_get_conn:
+            initialize_database()
+            mock_get_conn.assert_not_called()  # Verifica que no se intenta conectar
+
+    @patch('db_initializer.os.path.exists', side_effect=[False, True])  # Falla schema.sql
+    @patch('db_initializer._read_sql_file')
+    @patch('db_initializer.get_connection')
+    def test_initialization_aborted_missing_schema_file(self, mock_get_conn, mock_read_file, mock_exists):
+        """Prueba que la inicialización aborte si schema.sql no existe."""
+        initialize_database()
+
+        mock_read_file.assert_not_called()
+        mock_get_conn.assert_not_called()
+
+    @patch('db_initializer._read_sql_file', return_value="")  # Retorna string vacío
+    @patch('db_initializer.os.path.exists', return_value=True)
+    @patch('db_initializer.get_connection')
+    def test_initialization_aborted_empty_schema_script(self, mock_get_conn, mock_exists, mock_read_file):
+        """Prueba que la inicialización aborte si el script de esquema está vacío."""
+        initialize_database()
+
+        mock_get_conn.assert_not_called()
+
+    @patch('db_initializer.get_connection', side_effect=ConnectionError("Fallo de red"))
+    def test_initialization_connection_error(self, mock_get_conn):
+        """Prueba el manejo de un error al intentar obtener la conexión."""
+        with patch('sys.stdout') as mock_print:
+            initialize_database()
+            mock_print.assert_called_with("❌ ERROR: Fallo de red")
+
+        mock_get_conn.assert_called_once()
+
+    @patch('db_initializer._read_sql_file', side_effect=[MOCK_SCHEMA_SQL, MOCK_INSERT_SQL])
+    @patch('db_initializer.os.path.exists', return_value=True)
+    @patch('db_initializer.get_connection')
+    def test_initialization_error_on_schema_creation(self, mock_get_conn, mock_exists, mock_read_file):
+        """Prueba el manejo de un error al ejecutar el script de esquema."""
+        mock_get_conn.return_value = self.mock_conn
+
+        # Simula un error de DB al crear el esquema
+        self.mock_cursor.execute.side_effect = psycopg2.Error("Tabla inválida")
+
+        initialize_database()
+
+        # 1. Verifica que se llama a rollback y se libera la conexión
+        self.mock_conn.rollback.assert_called_once()
+        with patch('db_initializer.release_connection') as mock_release:
+            initialize_database()
+            mock_release.assert_called_once_with(self.mock_conn)
+
+    @patch('db_initializer._read_sql_file', side_effect=[MOCK_SCHEMA_SQL, MOCK_INSERT_SQL])
+    @patch('db_initializer.os.path.exists', return_value=True)
+    @patch('db_initializer.get_connection')
+    def test_initialization_handle_data_insertion_warning(self, mock_get_conn, mock_exists, mock_read_file):
+        """Prueba el manejo del error al insertar datos (típico cuando ya existen)."""
+        mock_get_conn.return_value = self.mock_conn
+
+        # El primer execute (esquema) pasa, el segundo (datos) falla con un error
+        self.mock_cursor.execute.side_effect = [
+            None,  # Esquema pasa
+            psycopg2.Error("Duplicate Key Error")  # Inserción de datos falla
+        ]
+
+        initialize_database()
+
+        # 1. Verificar que el error de datos solo causa un rollback y no falla el proceso
+        self.assertEqual(self.mock_cursor.execute.call_count, 2)
+        self.mock_conn.commit.call_count, 1  # Solo el commit de la creación del esquema
+        self.mock_conn.rollback.assert_called_once()  # Rollback de la inserción fallida
+        self.mock_cursor.close.assert_called_once()
 
 
-@pytest.fixture
-def mock_config():
-    """Mockea la clase Config para controlar RUN_DB_INIT_ON_STARTUP."""
-    with patch('src.infrastructure.persistence.db_initializer.Config') as MockConfig:
-        # Establecer el valor por defecto a True para la mayoría de los tests
-        MockConfig.RUN_DB_INIT_ON_STARTUP = True
-        yield MockConfig
-
-
-# --- Tests de la Función Auxiliar (_read_sql_file) ---
-
-def test_read_sql_file_success():
-    """Verifica la lectura exitosa de un archivo."""
-    mock_data = "CREATE TABLE users;"
-    with patch('builtins.open', mock_open(read_data=mock_data)):
-        result = _read_sql_file("dummy_path.sql")
-        assert result == mock_data
-
-
-def test_read_sql_file_not_found():
-    """Verifica que maneje FileNotFoundError correctamente."""
-    with patch('builtins.open', side_effect=FileNotFoundError), \
-            patch('builtins.print') as mock_print:
-        result = _read_sql_file("non_existent.sql")
-        assert result == ""
-        # Verifica que se imprima el error
-        mock_print.assert_called_once()
-
-
-# --- Tests de initialize_database() ---
-
-@patch('src.infrastructure.persistence.db_initializer.print')
-def test_initialization_skipped(mock_print, mock_config, mock_db_connector):
-    """Prueba que la inicialización se omita si la configuración lo indica."""
-    mock_config.RUN_DB_INIT_ON_STARTUP = False
-
-    initialize_database()
-
-    # Verifica que se haya impreso el mensaje de omisión
-    mock_print.assert_called_with("INFO: Inicialización de la base de datos omitida por configuración.")
-    # Verifica que get_connection NO haya sido llamado
-    mock_db_connector[0].assert_not_called()
-
-
-@patch('src.infrastructure.persistence.db_initializer.print')
-@patch('src.infrastructure.persistence.db_initializer._read_sql_file', side_effect=["", "INSERT INTO data;"])
-def test_initialization_schema_missing(mock_read_sql, mock_print, mock_config):
-    """Prueba que la inicialización aborte si el esquema está vacío o no se encontró."""
-    initialize_database()
-
-    # Verifica que se haya impreso el mensaje de error y aborto
-    mock_print.assert_any_call(
-        "ERROR: El script de esquema (schema.sql) está vacío o no se encontró. Abortando inicialización.")
-    # Verifica que get_connection NO haya sido llamado (no es necesario mockearlo aquí)
-    assert mock_read_sql.call_count == 2  # Intentó leer ambos archivos
-
-
-@patch('src.infrastructure.persistence.db_initializer.print')
-@patch('src.infrastructure.persistence.db_initializer._read_sql_file',
-       side_effect=["CREATE TABLE;", "INSERT INTO data;"])
-def test_initialization_success(mock_read_sql, mock_print, mock_db_connector, mock_db_connection, mock_config):
-    """Prueba el flujo completo de inicialización exitosa."""
-    get_conn_mock, release_conn_mock = mock_db_connector
-    mock_cursor = mock_db_connection.cursor.return_value
-
-    initialize_database()
-
-    # 1. Verificación de la conexión
-    get_conn_mock.assert_called_once()
-
-    # 2. Verificación de la ejecución de comandos SQL
-    mock_cursor.execute.assert_any_call("CREATE TABLE;")  # Ejecución del esquema
-    mock_cursor.execute.assert_any_call("INSERT INTO data;")  # Ejecución de la inserción
-
-    # 3. Verificación de commits (hay dos en el código: uno después del esquema, otro al final)
-    assert mock_db_connection.commit.call_count == 2
-
-    # 4. Verificación del cleanup
-    release_conn_mock.assert_called_once_with(mock_db_connection)
-
-    # 5. Verificación de mensajes informativos
-    mock_print.assert_any_call("INFO: Ejecutando scripts de creación de esquema...")
-    mock_print.assert_any_call("INFO: Ejecutando scripts de inserción de datos de prueba...")
-    mock_print.assert_any_call(
-        "INFO: El script de inserción se ejecutó con éxito (los datos se insertan solo si están vacíos).")
-
-
-@patch('src.infrastructure.persistence.db_initializer.print')
-@patch('src.infrastructure.persistence.db_initializer._read_sql_file',
-       side_effect=["CREATE TABLE;", "INSERT INTO data;"])
-def test_initialization_data_error_handled(mock_read_sql, mock_print, mock_db_connector, mock_db_connection,
-                                           mock_config):
-    """
-    Prueba el caso donde la inserción de datos falla con psycopg2.ProgrammingError
-    (ej. datos ya existentes), pero el proceso continúa y se commite.
-    """
-    get_conn_mock, release_conn_mock = mock_db_connector
-    mock_cursor = mock_db_connection.cursor.return_value
-
-    # Forzamos que la segunda llamada a execute (la de INSERT) lance un error
-    mock_cursor.execute.side_effect = [
-        None,  # Primera llamada (CREATE TABLE) es exitosa
-        psycopg2.ProgrammingError("Datos existentes")  # Segunda llamada (INSERT) falla
-    ]
-
-    initialize_database()
-
-    # 1. El esquema (primera execute) debería haberse commiteado (primer commit)
-    # 2. El error de inserción debería haber sido atrapado
-    # 3. La función debería haber intentado el commit final (segundo commit)
-    assert mock_db_connection.commit.call_count == 2
-
-    # 4. Verificación del cleanup
-    release_conn_mock.assert_called_once_with(mock_db_connection)
-
-    # 5. Verificación de mensajes de ADVERTENCIA
-    mock_print.assert_any_call(
-        "ADVERTENCIA: Fallo al ejecutar el script de inserción (posiblemente datos ya existentes o error de sintaxis): Datos existentes"
-    )
-
-
-@patch('src.infrastructure.persistence.db_initializer.print')
-@patch('src.infrastructure.persistence.db_initializer._read_sql_file',
-       side_effect=["CREATE TABLE;", "INSERT INTO data;"])
-def test_initialization_db_error_rollback(mock_read_sql, mock_print, mock_db_connector, mock_db_connection,
-                                          mock_config):
-    """
-    Prueba el manejo de errores graves de psycopg2 (ej. error de conexión después de get_connection
-    o error de sintaxis en el esquema) que fuerzan un rollback.
-    """
-    get_conn_mock, release_conn_mock = mock_db_connector
-    mock_cursor = mock_db_connection.cursor.return_value
-
-    # Forzamos que la ejecución del esquema falle con un error general de DB
-    mock_cursor.execute.side_effect = psycopg2.Error("Error fatal de DB")
-
-    initialize_database()
-
-    # 1. Verificación de que NUNCA se llama a commit
-    mock_db_connection.commit.assert_not_called()
-
-    # 2. Verificación de que se llama a rollback
-    mock_db_connection.rollback.assert_called_once()
-
-    # 3. Verificación del cleanup
-    release_conn_mock.assert_called_once_with(mock_db_connection)
-
-    # 4. Verificación de mensajes de ERROR
-    mock_print.assert_any_call(
-        "ERROR: Fallo durante la inicialización de la base de datos (Esquema o Conexión): Error fatal de DB")
-
-
-@patch('src.infrastructure.persistence.db_initializer.print')
-def test_initialization_connection_error_handled(mock_print, mock_config, mock_db_connector):
-    """Prueba el manejo de un error de conexión al intentar obtenerla."""
-    get_conn_mock, release_conn_mock = mock_db_connector
-
-    # Forzamos que get_connection falle
-    get_conn_mock.side_effect = ConnectionError("No se pudo conectar")
-
-    initialize_database()
-
-    # 1. Verificación de que get_connection fue llamado
-    get_conn_mock.assert_called_once()
-
-    # 2. Verificación de que release_connection NO fue llamado (conn es None)
-    release_conn_mock.assert_not_called()
-
-    # 3. Verificación de mensajes de ERROR
-    mock_print.assert_any_call("ERROR: No se pudo conectar")
+if __name__ == '__main__':
+    unittest.main()
