@@ -10,11 +10,6 @@ MOCK_USER_DATA = [
     {"id": "USR002", "status": "Inactivo", "name": "Paciente B"}
 ]
 
-CLIENT_ID_EXISTS = "client_123"
-CLIENT_ID_NOT_FOUND = "client_404"
-CLIENT_ID_ERROR = "client_error"
-
-
 class TestUserRoutes(unittest.TestCase):
     """
     Pruebas unitarias para las rutas Flask del servicio users.
@@ -26,39 +21,40 @@ class TestUserRoutes(unittest.TestCase):
         self.app.register_blueprint(create_user_api_blueprint(self.mock_use_case))
         self.client = self.app.test_client()
 
-    def test_track_users_success(self):
-        """Debe retornar 200 y los usuarios si el cliente tiene registros."""
+    def test_get_users_success(self):
+        """Debe retornar 200 y los usuarios si existen registros CLIENT."""
         self.mock_use_case.execute.return_value = MOCK_USER_DATA
 
-        response = self.client.get(f'/track/{CLIENT_ID_EXISTS}')
+        response = self.client.get('/users/clients')
         response_data = json.loads(response.data)
 
-        self.mock_use_case.execute.assert_called_once_with(CLIENT_ID_EXISTS)
+        self.mock_use_case.execute.assert_called_once_with()
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response_data, MOCK_USER_DATA)
+        self.assertEqual(response_data['users'], MOCK_USER_DATA)
 
-    def test_track_users_not_found(self):
-        """Debe retornar 404 si el cliente no tiene usuarios registrados."""
+    def test_get_users_not_found(self):
+        """Debe retornar 404 si no hay usuarios CLIENT."""
         self.mock_use_case.execute.return_value = []
 
-        response = self.client.get(f'/track/{CLIENT_ID_NOT_FOUND}')
+        response = self.client.get('/users/clients')
         response_data = json.loads(response.data)
 
-        self.mock_use_case.execute.assert_called_once_with(CLIENT_ID_NOT_FOUND)
+        self.mock_use_case.execute.assert_called_once_with()
         self.assertEqual(response.status_code, 404)
-        self.assertIn("Aún no tienes usuarios registrados", response_data['message'])
+        self.assertIn("No se encontraron usuarios", response_data['message'])
         self.assertEqual(response_data['users'], [])
 
-    def test_track_users_internal_server_error(self):
+    def test_get_users_internal_error(self):
         """Debe retornar 500 si ocurre un error inesperado."""
         self.mock_use_case.execute.side_effect = Exception("Simulated DB error")
 
-        response = self.client.get(f'/track/{CLIENT_ID_ERROR}')
+        response = self.client.get('/users/clients')
         response_data = json.loads(response.data)
 
-        self.mock_use_case.execute.assert_called_once_with(CLIENT_ID_ERROR)
+        self.mock_use_case.execute.assert_called_once_with()
         self.assertEqual(response.status_code, 500)
-        self.assertIn("No pudimos obtener los usuarios", response_data['message'])
+        self.assertIn("No se pudieron obtener los usuarios", response_data['message'])
+        self.assertIn("Simulated DB error", response_data['error'])
 
 
 if __name__ == '__main__':
