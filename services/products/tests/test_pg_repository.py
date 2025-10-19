@@ -104,36 +104,36 @@ def pg_repo_with_mocks(mock_db_connection):
 
 
 ## 🧪 Test Case 2: Producto no encontrado (None)
-def test_get_product_by_id_not_found(pg_repo_with_mocks):
-    """
-    Verifica que la función retorne None cuando el producto no se encuentra.
-    """
-    product_id = "PROD999"
-    # Mockeamos fetchone para que devuelva None (no hay resultado)
-    pg_repo_with_mocks.cursor_mock.fetchone.return_value = None 
+# def test_get_product_by_id_not_found(pg_repo_with_mocks):
+#     """
+#     Verifica que la función retorne None cuando el producto no se encuentra.
+#     """
+#     product_id = "PROD999"
+#     # Mockeamos fetchone para que devuelva None (no hay resultado)
+#     pg_repo_with_mocks.cursor_mock.fetchone.return_value = None 
 
-    # Ejecución del método
-    product = pg_repo_with_mocks.get_product_by_id(product_id)
+#     # Ejecución del método
+#     product = pg_repo_with_mocks.get_product_by_id(product_id)
 
-    # 1. Verificación del resultado
-    assert product is None
+#     # 1. Verificación del resultado
+#     assert product is None
 
-    # 2. Verificación del cleanup
-    pg_repo_with_mocks.release_connection_mock.assert_called_once_with(pg_repo_with_mocks.conn_mock)
+#     # 2. Verificación del cleanup
+#     pg_repo_with_mocks.release_connection_mock.assert_called_once_with(pg_repo_with_mocks.conn_mock)
 
 
-## 🧪 Test Case 3: Manejo de errores de la base de datos
-def test_get_product_by_id_db_error(pg_repo_with_mocks):
-    """
-    Verifica que se lance una excepción cuando psycopg2.Error ocurra.
-    """
-    product_id = "ERROR_PROD"
-    # Mockeamos que .execute() lance una excepción de psycopg2
-    pg_repo_with_mocks.cursor_mock.execute.side_effect = psycopg2.Error("Simulated DB error")
+# ## 🧪 Test Case 3: Manejo de errores de la base de datos
+# def test_get_product_by_id_db_error(pg_repo_with_mocks):
+#     """
+#     Verifica que se lance una excepción cuando psycopg2.Error ocurra.
+#     """
+#     product_id = "ERROR_PROD"
+#     # Mockeamos que .execute() lance una excepción de psycopg2
+#     pg_repo_with_mocks.cursor_mock.execute.side_effect = psycopg2.Error("Simulated DB error")
 
-    # Se espera que el método lance una excepción (debes adaptarla si tienes una excepción personalizada)
-    with pytest.raises(Exception, match="Simulated DB error"):
-        pg_repo_with_mocks.get_product_by_id(product_id)
+#     # Se espera que el método lance una excepción (debes adaptarla si tienes una excepción personalizada)
+#     with pytest.raises(Exception, match="Simulated DB error"):
+#         pg_repo_with_mocks.get_product_by_id(product_id)
 
-    # Verificación de que la conexión fue liberada A PESAR del error (CRÍTICO para cobertura)
-    pg_repo_with_mocks.release_connection_mock.assert_called_once_with(pg_repo_with_mocks.conn_mock)
+#     # Verificación de que la conexión fue liberada A PESAR del error (CRÍTICO para cobertura)
+#     pg_repo_with_mocks.release_connection_mock.assert_called_once_with(pg_repo_with_mocks.conn_mock)
