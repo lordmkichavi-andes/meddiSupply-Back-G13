@@ -7,7 +7,7 @@ import sys
 # ==============================================================================
 # FIJO PARA SOLUCIONAR ModuleNotFoundError:
 # Añade el directorio padre ('users') al path de Python para que la importación
-# del módulo 'db_initializer' funcione en el entorno de pruebas.
+# del módulo 'src.infrastructure.persistence.db_initializer' funcione en el entorno de pruebas.
 # ==============================================================================
 current_dir = os.path.dirname(os.path.abspath(__file__))
 # Directorio padre (de 'tests' a 'users')
@@ -16,8 +16,8 @@ parent_dir = os.path.dirname(current_dir)
 sys.path.insert(0, parent_dir)
 # ==============================================================================
 
-# Ahora importamos directamente. Asumimos que el módulo se llama db_initializer.
-from db_initializer import initialize_database, _read_sql_file
+# Ahora importamos directamente. Asumimos que el módulo se llama src.infrastructure.persistence.db_initializer.
+from src.infrastructure.persistence.db_initializer import initialize_database, _read_sql_file
 from config import Config
 
 
@@ -31,8 +31,8 @@ class TestDatabaseInitializer(unittest.TestCase):
     MOCK_INSERT_SQL = "INSERT INTO test_table (id) VALUES (1);"
 
     # Rutas simuladas (solo para verificar que os.path.exists sea llamado)
-    @patch('db_initializer.SCHEMA_FILE', '/mock/path/schema.sql')
-    @patch('db_initializer.INSERT_DATA_FILE', '/mock/path/insert_data.sql')
+    @patch('src.infrastructure.persistence.db_initializer.SCHEMA_FILE', '/mock/path/schema.sql')
+    @patch('src.infrastructure.persistence.db_initializer.INSERT_DATA_FILE', '/mock/path/insert_data.sql')
     def setUp(self):
         """Prepara el entorno de cada prueba."""
         # Asegura que la inicialización esté habilitada por defecto en las pruebas
@@ -67,10 +67,10 @@ class TestDatabaseInitializer(unittest.TestCase):
     # Pruebas de initialize_database (Casos de Éxito)
     # ----------------------------------------------------
 
-    @patch('db_initializer._read_sql_file', side_effect=[MOCK_SCHEMA_SQL, MOCK_INSERT_SQL])
-    @patch('db_initializer.os.path.exists', return_value=True)  # Archivos existen
-    @patch('db_initializer.get_connection')
-    @patch('db_initializer.release_connection')  # Mockeamos release_connection
+    @patch('src.infrastructure.persistence.db_initializer._read_sql_file', side_effect=[MOCK_SCHEMA_SQL, MOCK_INSERT_SQL])
+    @patch('src.infrastructure.persistence.db_initializer.os.path.exists', return_value=True)  # Archivos existen
+    @patch('src.infrastructure.persistence.db_initializer.get_connection')
+    @patch('src.infrastructure.persistence.db_initializer.release_connection')  # Mockeamos release_connection
     def test_initialization_success_with_data(self, mock_release, mock_get_conn, mock_exists, mock_read_file):
         """Prueba el flujo completo de inicialización con éxito (esquema y datos)."""
         mock_get_conn.return_value = self.mock_conn
@@ -87,10 +87,10 @@ class TestDatabaseInitializer(unittest.TestCase):
         # 2. Verificar liberación de la conexión
         mock_release.assert_called_once_with(self.mock_conn)
 
-    @patch('db_initializer._read_sql_file', side_effect=[MOCK_SCHEMA_SQL, ""])  # No hay script de datos
-    @patch('db_initializer.os.path.exists', return_value=True)
-    @patch('db_initializer.get_connection')
-    @patch('db_initializer.release_connection')
+    @patch('src.infrastructure.persistence.db_initializer._read_sql_file', side_effect=[MOCK_SCHEMA_SQL, ""])  # No hay script de datos
+    @patch('src.infrastructure.persistence.db_initializer.os.path.exists', return_value=True)
+    @patch('src.infrastructure.persistence.db_initializer.get_connection')
+    @patch('src.infrastructure.persistence.db_initializer.release_connection')
     def test_initialization_success_only_schema(self, mock_release, mock_get_conn, mock_exists, mock_read_file):
         """Prueba la inicialización exitosa cuando no hay datos de inserción."""
         mock_get_conn.return_value = self.mock_conn
@@ -111,15 +111,15 @@ class TestDatabaseInitializer(unittest.TestCase):
         """Prueba que la inicialización se omita si Config.RUN_DB_INIT_ON_STARTUP es False."""
         Config.RUN_DB_INIT_ON_STARTUP = False
 
-        with patch('db_initializer.get_connection') as mock_get_conn:
+        with patch('src.infrastructure.persistence.db_initializer.get_connection') as mock_get_conn:
             initialize_database()
             mock_get_conn.assert_not_called()  # Verifica que no se intenta conectar
 
         Config.RUN_DB_INIT_ON_STARTUP = True  # Restaurar para otras pruebas
 
-    @patch('db_initializer.os.path.exists', side_effect=[False, True])  # Falla schema.sql
-    @patch('db_initializer._read_sql_file')
-    @patch('db_initializer.get_connection')
+    @patch('src.infrastructure.persistence.db_initializer.os.path.exists', side_effect=[False, True])  # Falla schema.sql
+    @patch('src.infrastructure.persistence.db_initializer._read_sql_file')
+    @patch('src.infrastructure.persistence.db_initializer.get_connection')
     def test_initialization_aborted_missing_schema_file(self, mock_get_conn, mock_read_file, mock_exists):
         """Prueba que la inicialización aborte si schema.sql no existe."""
         initialize_database()
@@ -127,16 +127,16 @@ class TestDatabaseInitializer(unittest.TestCase):
         mock_read_file.assert_not_called()
         mock_get_conn.assert_not_called()
 
-    @patch('db_initializer._read_sql_file', return_value="")  # Retorna string vacío
-    @patch('db_initializer.os.path.exists', return_value=True)
-    @patch('db_initializer.get_connection')
+    @patch('src.infrastructure.persistence.db_initializer._read_sql_file', return_value="")  # Retorna string vacío
+    @patch('src.infrastructure.persistence.db_initializer.os.path.exists', return_value=True)
+    @patch('src.infrastructure.persistence.db_initializer.get_connection')
     def test_initialization_aborted_empty_schema_script(self, mock_get_conn, mock_exists, mock_read_file):
         """Prueba que la inicialización aborte si el script de esquema está vacío."""
         initialize_database()
 
         mock_get_conn.assert_not_called()
 
-    @patch('db_initializer.get_connection', side_effect=ConnectionError("Fallo de red"))
+    @patch('src.infrastructure.persistence.db_initializer.get_connection', side_effect=ConnectionError("Fallo de red"))
     def test_initialization_connection_error(self, mock_get_conn):
         """Prueba el manejo de un error al intentar obtener la conexión."""
         with patch('sys.stdout', new=MagicMock()):
@@ -144,10 +144,10 @@ class TestDatabaseInitializer(unittest.TestCase):
 
         mock_get_conn.assert_called_once()
 
-    @patch('db_initializer._read_sql_file', side_effect=[MOCK_SCHEMA_SQL, MOCK_INSERT_SQL])
-    @patch('db_initializer.os.path.exists', return_value=True)
-    @patch('db_initializer.get_connection')
-    @patch('db_initializer.release_connection')
+    @patch('src.infrastructure.persistence.db_initializer._read_sql_file', side_effect=[MOCK_SCHEMA_SQL, MOCK_INSERT_SQL])
+    @patch('src.infrastructure.persistence.db_initializer.os.path.exists', return_value=True)
+    @patch('src.infrastructure.persistence.db_initializer.get_connection')
+    @patch('src.infrastructure.persistence.db_initializer.release_connection')
     def test_initialization_error_on_schema_creation(self, mock_release, mock_get_conn, mock_exists, mock_read_file):
         """Prueba el manejo de un error al ejecutar el script de esquema."""
         mock_get_conn.return_value = self.mock_conn
@@ -161,10 +161,10 @@ class TestDatabaseInitializer(unittest.TestCase):
         self.mock_conn.rollback.assert_called_once()
         mock_release.assert_called_once_with(self.mock_conn)
 
-    @patch('db_initializer._read_sql_file', side_effect=[MOCK_SCHEMA_SQL, MOCK_INSERT_SQL])
-    @patch('db_initializer.os.path.exists', return_value=True)
-    @patch('db_initializer.get_connection')
-    @patch('db_initializer.release_connection')
+    @patch('src.infrastructure.persistence.db_initializer._read_sql_file', side_effect=[MOCK_SCHEMA_SQL, MOCK_INSERT_SQL])
+    @patch('src.infrastructure.persistence.db_initializer.os.path.exists', return_value=True)
+    @patch('src.infrastructure.persistence.db_initializer.get_connection')
+    @patch('src.infrastructure.persistence.db_initializer.release_connection')
     def test_initialization_handle_data_insertion_warning(self, mock_release, mock_get_conn, mock_exists,
                                                           mock_read_file):
         """Prueba el manejo del error al insertar datos (típico cuando ya existen)."""
