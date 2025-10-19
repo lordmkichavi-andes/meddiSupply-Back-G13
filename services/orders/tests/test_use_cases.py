@@ -9,7 +9,7 @@ sys.path.append('src')
 
 # Importamos las clases a probar y sus dependencias (interfaces/entidades)
 from orders.src.application.use_cases import TrackOrdersUseCase
-
+from orders.src.application.use_cases import CreateOrderUseCase
 
 # Asumimos que OrderRepository y Order son interfaces/entidades, y las simulamos
 # para evitar dependencias reales.
@@ -168,6 +168,37 @@ class TestTrackOrdersUseCase(unittest.TestCase):
         self.assertEqual(str(context.exception), "Database connection failed")
         self.mock_repository.get_orders_by_client_id.assert_called_once_with(TEST_CLIENT_ID)
 
+class TestCreateOrderUseCase(unittest.TestCase):
+    """
+    Pruebas unitarias para el Caso de Uso CreateOrderUseCase.
+    """
+
+    def setUp(self):
+        self.mock_repository = Mock()
+        self.use_case = CreateOrderUseCase(self.mock_repository)
+
+    def test_execute_creates_order_successfully(self):
+        """
+        Verifica que el caso de uso llama al repositorio para insertar la orden
+        y retorna la misma instancia.
+        """
+        mock_order = Mock()
+        self.mock_repository.insert_order.return_value = mock_order
+
+        result = self.use_case.execute(mock_order)
+
+        self.mock_repository.insert_order.assert_called_once_with(mock_order)
+        self.assertEqual(result, mock_order)
+
+    def test_execute_repository_failure(self):
+        """
+        Verifica que si el repositorio lanza una excepción, esta se propaga.
+        """
+        mock_order = Mock()
+        self.mock_repository.insert_order.side_effect = Exception("Insert failed")
+
+        with self.assertRaises(Exception) as context:
+            self
 
 if __name__ == '__main__':
     unittest.main()
