@@ -1,5 +1,4 @@
 import unittest
-import json
 from unittest.mock import Mock
 from flask import Flask
 from users.src.infrastructure.web.flask_user_routes import create_user_api_blueprint
@@ -26,7 +25,7 @@ class TestUserRoutes(unittest.TestCase):
         self.mock_use_case.execute.return_value = MOCK_USER_DATA
 
         response = self.client.get('/users/clients')
-        response_data = json.loads(response.data)
+        response_data = response.get_json()
 
         self.mock_use_case.execute.assert_called_once_with()
         self.assertEqual(response.status_code, 200)
@@ -37,7 +36,7 @@ class TestUserRoutes(unittest.TestCase):
         self.mock_use_case.execute.return_value = []
 
         response = self.client.get('/users/clients')
-        response_data = json.loads(response.data)
+        response_data = response.get_json()
 
         self.mock_use_case.execute.assert_called_once_with()
         self.assertEqual(response.status_code, 404)
@@ -49,7 +48,7 @@ class TestUserRoutes(unittest.TestCase):
         self.mock_use_case.execute.side_effect = Exception("Simulated DB error")
 
         response = self.client.get('/users/clients')
-        response_data = json.loads(response.data)
+        response_data = response.get_json()
 
         self.mock_use_case.execute.assert_called_once_with()
         self.assertEqual(response.status_code, 500)
