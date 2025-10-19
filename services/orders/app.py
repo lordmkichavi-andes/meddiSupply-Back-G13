@@ -1,5 +1,5 @@
 # app.py
-from flask import Flask
+from flask import Flask, jsonify
 from dotenv import load_dotenv  # Necesario para cargar variables de entorno
 from src.infrastructure.web.flask_routes import create_api_blueprint
 from src.application.use_cases import TrackOrdersUseCase
@@ -59,8 +59,11 @@ def create_app():
     # --- REGISTRO DE RUTAS ---
     app.register_blueprint(api_bp, url_prefix='/orders')
 
+    # --- Ruta de control ---
+    @app.route('/health', methods=['GET'])
+    def health():
+        return jsonify({'status': 'ok'})
     return app
-
 
 if __name__ == '__main__':
     app = create_app()

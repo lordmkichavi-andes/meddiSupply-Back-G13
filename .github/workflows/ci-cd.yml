@@ -207,7 +207,7 @@ jobs:
         service: ${{ fromJSON(needs.detect-changes.outputs.changed-services) }}
     environment:
       name: production
-      url: https://cdk-exp-container-assets-120569610818-us-east-1
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -226,31 +226,29 @@ jobs:
       - name: Build and Push Docker image
         id: build-image
         env:
-           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-           COMMIT_SHA: ${{ github.sha }}
-           SERVICE: ${{ matrix.service }}
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          COMMIT_SHA: ${{ github.sha }}
+          SERVICE: ${{ matrix.service }}
+          ECR_REPOSITORY: cdk-exp-container-assets-120569610818-us-east-1
         run: |
-            IMAGE_TAG="$COMMIT_SHA-$SERVICE"
-            FULL_IMAGE_NAME="$ECR_REGISTRY/$SERVICE:$IMAGE_TAG"
-            
-            echo "🔎 Asegurando que el repositorio $SERVICE exista en ECR y sea inmutable..."
-            
-            # ✅ CORRECCIÓN: Se añade --image-tag-mutability IMMUTABLE
-            # y se corrige la ruta del 'docker build'
-            aws ecr create-repository \
-              --repository-name $SERVICE \
+          IMAGE_TAG="$COMMIT_SHA-$SERVICE"
+
+          # FULL_IMAGE_NAME = REGISTRY/REPOSITORY:TAG
+          FULL_IMAGE_NAME="$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          
+          echo "⚙️  Obteniendo token de autenticación de ECR para $ECR_REGISTRY..."
+          aws ecr get-login-password \
               --region ${{ env.AWS_REGION }} \
-              --image-scanning-configuration scanOnPush=true \
-              --image-tag-mutability IMMUTABLE \
-              2>/dev/null || true
-            
-            echo "Building image for $SERVICE with tag $IMAGE_TAG"
-            # ✅ RUTA FINAL CORREGIDA
-            docker build -t "$FULL_IMAGE_NAME" ./services/$SERVICE 
-            
-            echo "Pushing image $FULL_IMAGE_NAME to ECR"
-            docker push "$FULL_IMAGE_NAME"
-      
+          | docker login \
+              --username AWS \
+              --password-stdin $ECR_REGISTRY
+          
+          
+          echo "Building image for $SERVICE with full name $FULL_IMAGE_NAME"
+          docker build -t "$FULL_IMAGE_NAME" ./services/$SERVICE 
+          
+          echo "Pushing image $FULL_IMAGE_NAME to ECR"
+          docker push "$FULL_IMAGE_NAME"
 
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
@@ -262,6 +260,7 @@ jobs:
            AWS_REGION: ${{ env.AWS_REGION }}
            ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
            COMMIT_SHA: ${{ github.sha }}
+           ECR_REPOSITORY: cdk-exp-container-assets-120569610818-us-east-1
         run: |
             set -euo pipefail
             
@@ -310,10 +309,35 @@ jobs:
             fi
             
             # 5. Continuar el proceso de despliegue
-            IMAGE="$ECR_REGISTRY/$SERVICE_SLUG:$COMMIT_SHA-$SERVICE_SLUG" 
+            IMAGE="$ECR_REGISTRY/$ECR_REPOSITORY:$COMMIT_SHA-$SERVICE_SLUG"
             echo "🚀 Deploy $SERVICE_SLUG → $FULL_SERVICE_NAME (TD: $TD_ARN) con imagen $IMAGE"
             
-            # ... (El resto del script es correcto y sigue aquí: describe-task-definition, jq, register-task-definition, update-service, wait-services-stable) ...
+            # 6. Describir la Definición de Tarea
+            aws ecs describe-task-definition --task-definition "$TD_ARN" --query 'taskDefinition' --region "$AWS_REGION" > base.json
+            
+            # 7. Manipulación y Despliegue con JQ
+            jq 'del(.status,.taskDefinitionArn,.requiresAttributes,.revision,.compatibilities,.registeredAt,.registeredBy)' base.json > stripped.json
+            
+            jq --arg S "$SERVICE_SLUG" --arg IMG "$IMAGE" '
+              .containerDefinitions |= map(
+                  # 🟢 MODIFICACIÓN CLAVE: Usamos 'test' con el flag 'i' para una coincidencia flexible
+                  if (.name | test($S; "i")) then 
+                      .image = $IMG 
+                  else 
+                      . 
+                  end
+              )' stripped.json > rendered.json
+            
+            NEW_TD_ARN=$(aws ecs register-task-definition --cli-input-json file://rendered.json --query 'taskDefinition.taskDefinitionArn' --output text --region "$AWS_REGION")
+            
+            # Usamos $FULL_SERVICE_NAME para el update
+            aws ecs update-service --cluster "$CLUSTER" --service "$FULL_SERVICE_NAME" --task-definition "$NEW_TD_ARN" --region "$AWS_REGION" >/dev/null
+            
+            echo "⏳ Esperando estabilidad..."
+            # Usamos $FULL_SERVICE_NAME para esperar estabilidad
+            aws ecs wait services-stable --cluster "$CLUSTER" --services "$FULL_SERVICE_NAME" --region "$AWS_REGION"
+            
+            echo "✅ $SERVICE_SLUG desplegado en producción con $NEW_TD_ARN"
 
   # 4) Notificación de PR (si aplica)
   pr_notification:

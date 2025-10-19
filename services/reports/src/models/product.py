@@ -32,4 +32,3 @@ class Product:
             'price': self.price,
             'unit': self.unit
         }
-

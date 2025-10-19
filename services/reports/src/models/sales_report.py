@@ -70,4 +70,3 @@ class SalesReport:
             'period_type': self.period_type,
             'generated_at': self.generated_at
         }
-
