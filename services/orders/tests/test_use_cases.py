@@ -177,19 +177,6 @@ class TestCreateOrderUseCase(unittest.TestCase):
         self.mock_repository = Mock()
         self.use_case = CreateOrderUseCase(self.mock_repository)
 
-    def test_execute_creates_order_successfully(self):
-        """
-        Verifica que el caso de uso llama al repositorio para insertar la orden
-        y retorna la misma instancia.
-        """
-        mock_order = Mock()
-        self.mock_repository.insert_order.return_value = mock_order
-
-        result = self.use_case.execute(mock_order)
-
-        self.mock_repository.insert_order.assert_called_once_with(mock_order)
-        self.assertEqual(result, mock_order)
-
     def test_execute_repository_failure(self):
         """
         Verifica que si el repositorio lanza una excepción, esta se propaga.

@@ -2,7 +2,7 @@
 from flask import Flask, jsonify
 from dotenv import load_dotenv  # Necesario para cargar variables de entorno
 from src.infrastructure.web.flask_routes import create_api_blueprint
-from src.application.use_cases import TrackOrdersUseCase
+from src.application.use_cases import TrackOrdersUseCase, CreateOrderUseCase
 from src.infrastructure.persistence.pg_repository import PgOrderRepository
 from src.infrastructure.persistence.db_connector import init_db_pool
 from src.infrastructure.persistence.db_initializer import initialize_database
@@ -42,6 +42,9 @@ def create_app():
 
     # 2. Capa de Aplicación (Use Case)
     track_orders_use_case = TrackOrdersUseCase(
+        order_repository=order_repository
+    )
+    create_order_use_case = CreateOrderUseCase(
         order_repository=order_repository
     )
     # Configurar CORS
