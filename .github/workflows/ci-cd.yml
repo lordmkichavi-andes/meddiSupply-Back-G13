@@ -118,11 +118,12 @@ jobs:
         run: |
           mkdir -p reports/html
           # Ejecuta pytest con cobertura y umbral mínimo
-          pytest \
+          PYTHONPATH="$PWD:$PWD/src:$PYTHONPATH" pytest \
             --maxfail=1 \
             --disable-warnings \
             --junitxml=reports/junit.xml \
-            --cov=. \
+            --cov=src \
+            --cov-config=/dev/null \
             --cov-report=xml:reports/coverage.xml \
             --cov-report=html:reports/html \
             --cov-fail-under=${MIN_COVERAGE}
