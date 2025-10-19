@@ -1,20 +1,21 @@
-# Usar imagen base de Python
-FROM python:3.11-slim
+# Usa imagen compatible con Mac M1/M2 (ARM64) pero fuerza emulación AMD64
+FROM --platform=linux/amd64 python:3.9-slim
 
-# Establecer directorio de trabajo
+# Establece el directorio de trabajo
 WORKDIR /app
 
-# Copiar archivo de dependencias
+# Copia e instala dependencias
 COPY requirements.txt .
-
-# Instalar dependencias
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copiar código de la aplicación
-COPY app.py .
+# Copia el resto del código fuente
+COPY . .
 
-# Exponer puerto 5000
-EXPOSE 5000
+# Asegura que el código fuente esté en el path de Python
+ENV PYTHONPATH=/app
 
-# Comando para ejecutar la aplicación
-CMD ["python", "app.py"]
+# Expone el puerto interno del contenedor
+EXPOSE 8080
+
+# Comando de inicio del servicio
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "app:app"]
