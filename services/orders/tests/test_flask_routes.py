@@ -3,7 +3,7 @@ import json
 from unittest.mock import Mock, patch
 from flask import Flask
 # Importamos la función de fábrica desde la infraestructura
-from src.infrastructure.web.flask_routes import create_api_blueprint
+from orders.src.infrastructure.web.flask_routes import create_api_blueprint
 
 # Definición de datos de prueba
 MOCK_ORDER_DATA = [

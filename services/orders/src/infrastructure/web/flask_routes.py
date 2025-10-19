@@ -1,7 +1,6 @@
 from flask import Blueprint, jsonify
-from src.application.use_cases import TrackOrdersUseCase
+from src.application.use_cases import TrackOrdersUseCase, CreateOrderUseCase
 
-from services.orders.src.application.use_cases import CreateOrderUseCase
 
 
 # ELIMINAMOS la declaración global de api_bp.
@@ -53,7 +52,7 @@ def create_api_blueprint(track_case: TrackOrdersUseCase, create_case: CreateOrde
             status_id=data.get('status_id', 6),
             estimated_delivery_date=None,
         )
-        created_order = create_order_use_case.execute(order)
+        created_order = create_case.execute(order)
         return jsonify({"order_id": created_order.order_id, "message": "Order created"}), 201
 
 
