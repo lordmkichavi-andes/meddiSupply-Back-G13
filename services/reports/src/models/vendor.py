@@ -32,3 +32,4 @@ class Vendor:
             'region': self.region,
             'active': self.active
         }
+

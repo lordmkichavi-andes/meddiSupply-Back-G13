@@ -1,1 +1,1 @@
-"""Modelos para el servicio de reportes."""
+"""Módulo de modelos para el servicio de reportes."""
