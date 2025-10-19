@@ -41,7 +41,6 @@ def create_app():
     api_bp = create_api_blueprint(track_orders_use_case, create_order_use_case)
     app.register_blueprint(api_bp, url_prefix='/orders')
 
-    # --- Ruta de control ---
     @app.route('/health', methods=['GET'])
     def health():
         return jsonify({'status': 'ok'})
