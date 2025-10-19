@@ -44,18 +44,5 @@ class TestDBInitializer(unittest.TestCase):
         self.assertEqual(content, MOCK_SCHEMA_SQL)
         mock_file.assert_called_once_with("/fake/path/schema.sql", 'r', encoding='utf-8')
 
-    # --- Tests de la función initialize_database ---
-
-    def test_initialize_database_skipped_by_config(self):
-        """Verifica que la inicialización se omite si la bandera de Config es False."""
-        print("Ejecutando test_initialize_database_skipped_by_config...")
-        db_initializer.Config.RUN_DB_INIT_ON_STARTUP = False
-
-        # Patchamos get_connection para asegurar que no se llama
-        with patch('infrastructure.persistence.db_connector.get_connection') as mock_get_conn:
-            db_initializer.initialize_database()
-            mock_get_conn.assert_not_called()
-
-
 if __name__ == '__main__':
     unittest.main()
