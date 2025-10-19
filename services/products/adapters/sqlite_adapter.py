@@ -3,8 +3,8 @@ import sqlite3
 from typing import List
 from repositories.product_repository import ProductRepository
 from domain.models import Product
-from config import DB_NAME
 
+DB_NAME = os.environ.get('DB_NAME', 'postgres')
 
 class SQLiteProductAdapter(ProductRepository):
     """Implementación del repositorio de productos para SQLite."""
