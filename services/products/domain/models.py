@@ -8,3 +8,5 @@ class Product:
     value: float
     category_name: str
     total_quantity: int
+    image_url: str
+    name: str
