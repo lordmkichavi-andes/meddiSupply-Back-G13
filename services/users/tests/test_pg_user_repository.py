@@ -1,8 +1,15 @@
 import pytest
+import sys
+from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
 import psycopg2
+
+# Agregar el directorio raíz al path
+root_path = Path(__file__).parent.parent
+sys.path.insert(0, str(root_path))
+
 from src.infrastructure.repositories.pg_user_repository import PgUserRepository
-from src.domain.entities import Client
+from domain.entities import Client
 
 
 class TestPgUserRepository:
@@ -297,3 +304,26 @@ class TestPgUserRepository:
         assert 'c.nit' in query
         assert 'c.balance' in query
         assert 'c.perfil' in query
+
+    @patch('src.infrastructure.repositories.pg_user_repository.get_connection')
+    @patch('src.infrastructure.repositories.pg_user_repository.release_connection')
+    def test_get_users_by_role_with_special_characters_in_role(
+            self,
+            mock_release,
+            mock_get_conn,
+            repository,
+            mock_connection
+    ):
+        """Test: manejo de roles con caracteres especiales"""
+        # Arrange
+        conn, cursor = mock_connection
+        mock_get_conn.return_value = conn
+        cursor.fetchall.return_value = []
+
+        # Act
+        result = repository.get_users_by_role("SPECIAL_ROLE")
+
+        # Assert
+        assert result == []
+        cursor.execute.assert_called_once_with(pytest.approx, ("SPECIAL_ROLE",))
+        mock_release.assert_called_once_with(conn)
