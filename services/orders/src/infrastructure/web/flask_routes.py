@@ -39,7 +39,7 @@ def create_api_blueprint(use_case: TrackOrdersUseCase):
                 "message": "¡Ups! No pudimos obtener los pedidos. Intenta nuevamente."
             }), 500
 
-    @bp.route('/', methods=['POST'])
+    @api_bp.route('/', methods=['POST'])
     def create_order():
         data = request.json
         order = Order(
