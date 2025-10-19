@@ -1,14 +1,25 @@
-import pytest
-import psycopg2
-from unittest.mock import MagicMock, patch, sentinel
+import unittest
+import json
+from unittest.mock import Mock, patch
+from flask import Flask
+# Importamos la función de fábrica desde la infraestructura
+from orders.src.infrastructure.web.flask_routes import create_api_blueprint
 
-# Importamos las funciones a probar.
-# NOTA: Usamos la importación completa para facilitar el mocking global de 'db_connector.db_pool'
-from src.infrastructure.persistence import db_connector
-from config import Config
+# Definición de datos de prueba
+MOCK_ORDER_DATA = [
+    {"id": "ORD001", "status": "En tránsito", "item": "Medicamento X"},
+    {"id": "ORD002", "status": "Entregado", "item": "Suministro Y"}
+]
+CLIENT_ID_EXISTS = "client_123"
+CLIENT_ID_NOT_FOUND = "client_404"
+CLIENT_ID_ERROR = "client_error"
 
 
-# --- Mocks Comunes (Fixtures) ---
+class TestFlaskRoutes(unittest.TestCase):
+    """
+    Clase para probar las rutas de Flask, asegurando que interactúan
+    correctamente con el Caso de Uso (simulado con mocks).
+    """
 
     def setUp(self):
         """
@@ -21,6 +32,16 @@ from config import Config
         self.app.register_blueprint(create_api_blueprint(self.mock_use_case))
         self.client = self.app.test_client()
 
+    # --- Test de la ruta /health ---
+    def test_health_check(self):
+        """
+        Prueba que la ruta /health retorna el estado 'ok' y código 200.
+        """
+        print("Ejecutando test_health_check...")
+        response = self.client.get('/health')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(json.loads(response.data), {'status': 'ok'})
 
     # --- Tests de la ruta /track/<client_id> ---
 

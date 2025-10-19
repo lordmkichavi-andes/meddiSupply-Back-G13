@@ -32,6 +32,16 @@ class TestFlaskRoutes(unittest.TestCase):
         self.app.register_blueprint(create_api_blueprint(self.mock_use_case))
         self.client = self.app.test_client()
 
+    # --- Test de la ruta /health ---
+    def test_health_check(self):
+        """
+        Prueba que la ruta /health retorna el estado 'ok' y código 200.
+        """
+        print("Ejecutando test_health_check...")
+        response = self.client.get('/health')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(json.loads(response.data), {'status': 'ok'})
 
     # --- Tests de la ruta /track/<client_id> ---
 

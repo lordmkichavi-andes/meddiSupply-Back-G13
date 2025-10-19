@@ -9,7 +9,6 @@ sys.path.append('src')
 
 # Importamos las clases a probar y sus dependencias (interfaces/entidades)
 from orders.src.application.use_cases import TrackOrdersUseCase
-from orders.src.application.use_cases import CreateOrderUseCase
 
 # Asumimos que OrderRepository y Order son interfaces/entidades, y las simulamos
 # para evitar dependencias reales.
@@ -168,6 +167,7 @@ class TestTrackOrdersUseCase(unittest.TestCase):
         self.assertEqual(str(context.exception), "Database connection failed")
         self.mock_repository.get_orders_by_client_id.assert_called_once_with(TEST_CLIENT_ID)
 
+<<<<<<< HEAD
 class TestCreateOrderUseCase(unittest.TestCase):
     """
     Pruebas unitarias para el Caso de Uso CreateOrderUseCase.
@@ -202,6 +202,8 @@ class TestCreateOrderUseCase(unittest.TestCase):
 
         self.assertEqual(str(context.exception), "Insert failed")
         self.mock_repository.insert_order.assert_called_once_with(mock_order)
+=======
+>>>>>>> 5ce957f (add follow order logic)
 
 if __name__ == '__main__':
     unittest.main()
