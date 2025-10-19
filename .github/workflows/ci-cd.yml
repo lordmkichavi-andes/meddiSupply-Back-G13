@@ -69,6 +69,17 @@ jobs:
               echo "⏭️  $s: Sin cambios"
             fi
           done
+          # Fallback mínimo: si solo cambió el workflow, correr tests en servicios con pruebas
+          if [[ "$SERVICES_JSON" == '[]' ]] && echo "$CHANGED_FILES" | grep -q "^.github/workflows/ci-cd.yml$"; then
+            echo "🧪 Fallback: ejecutando pruebas en servicios con configuración de tests"
+            for dir in services/*/; do
+              [[ -d "$dir" ]] || continue
+              s=$(basename "$dir")
+              if [[ -f "services/$s/pytest.ini" ]] || find "services/$s" -maxdepth 2 -type f -name "test_*.py" | grep -q .; then
+                SERVICES_JSON=$(jq -c --arg svc "$s" '. + [$svc]' <<<"$SERVICES_JSON")
+              fi
+            done
+          fi
           echo "📊 Servicios a procesar (JSON): $SERVICES_JSON"
           # Escribir output en UNA sola línea evita el error "Invalid format"
           echo "changed-services=$SERVICES_JSON" >> "$GITHUB_OUTPUT"
