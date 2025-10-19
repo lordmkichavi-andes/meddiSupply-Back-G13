@@ -200,7 +200,7 @@ jobs:
 
     # 3) Deploy a Producción (matrix)
   deploy_prod:
-    needs: [detect-changes, test_build_push]
+    needs: [detect-changes]
     if: github.ref == 'refs/heads/main' && needs.detect-changes.outputs.changed-services != '[]'
     runs-on: ubuntu-latest
     strategy:
