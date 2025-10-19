@@ -7,7 +7,7 @@ def create_user_api_blueprint(use_case: GetClientUsersUseCase):
     Función de fábrica para inyectar el Caso de Uso en el Blueprint.
     Crea y registra un nuevo Blueprint en cada llamada para evitar conflictos en tests.
     """
-    user_api_bp = Blueprint('user_api', __name__)
+    user_api_bp = Blueprint('api', __name__)
 
     @user_api_bp.route('/users/clients', methods=['GET'])
     def get_client_users():
