@@ -251,7 +251,7 @@ if __name__ == '__main__':
     print("   POST /productos - Obtener productos")
     print("   GET  /health - Health check para CI/CD")
     print("   GET  /api/users/clients - Obtener usuarios CLIENT de BD")
-    print("🌐 Servidor ejecutándose en: http://localhost:5000")
+    print("🌐 Servidor ejecutándose en: http://localhost:8080")
     print("🔧 Versión: 2.1.4 - Proper ECS Deploy Test")
     
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True, host='0.0.0.0', port=8080)
