@@ -95,8 +95,6 @@ class UserRepository:
 # Mocks de las funciones de conexión (.db_connector)
 # Estas serán parcheadas en la clase de test para simular su comportamiento
 def get_connection():
-    # El cuerpo vacío (pass) hace que la función retorne None si el parche falla.
-    # Es fundamental asegurarse que el patch funcione siempre.
     pass
 
 
@@ -207,20 +205,23 @@ class TestPgUserRepository(unittest.TestCase):
     # La ruta del módulo para parchar (esto depende del nombre del archivo de prueba)
     MODULE_PATH = 'tests.test_pg_user_repository'
 
-    # Se eliminan setUp y tearDown para evitar problemas de ámbito de parches.
+    # --- MOCKS DE CONEXIÓN DEFINIDOS UNA SOLA VEZ ---
+    MOCK_CONN = MagicMock()
+    MOCK_CURSOR = MagicMock()
+    MOCK_CONN.cursor.return_value = MOCK_CURSOR
+
+    # ------------------------------------------------
 
     # --- CASOS DE ÉXITO ---
 
     @patch(f'{MODULE_PATH}.release_connection')
-    @patch(f'{MODULE_PATH}.get_connection')
+    @patch(f'{MODULE_PATH}.get_connection', return_value=MOCK_CONN)  # Asegura que siempre devuelva el mock
     def test_get_users_by_role_success(self, mock_get_conn, mock_release_conn):
         """Debe retornar una lista de clientes mapeados correctamente para el rol 'client'."""
 
-        # Configuración de mocks locales, ahora seguros dentro del ámbito de la prueba
-        mock_conn = MagicMock()
-        mock_cursor = MagicMock()
-        mock_conn.cursor.return_value = mock_cursor
-        mock_get_conn.return_value = mock_conn
+        # Referenciamos los mocks predefinidos
+        mock_cursor = self.MOCK_CURSOR
+        mock_conn = self.MOCK_CONN
 
         role_to_fetch = 'client'
         mock_cursor.fetchall.return_value = [self.MOCK_DB_ROW_1, self.MOCK_DB_ROW_2]
@@ -243,15 +244,13 @@ class TestPgUserRepository(unittest.TestCase):
         mock_release_conn.assert_called_once_with(mock_conn)
 
     @patch(f'{MODULE_PATH}.release_connection')
-    @patch(f'{MODULE_PATH}.get_connection')
+    @patch(f'{MODULE_PATH}.get_connection', return_value=MOCK_CONN)
     def test_get_users_by_role_no_results(self, mock_get_conn, mock_release_conn):
         """Debe retornar una lista vacía cuando no hay coincidencias."""
 
-        # Configuración de mocks locales
-        mock_conn = MagicMock()
-        mock_cursor = MagicMock()
-        mock_conn.cursor.return_value = mock_cursor
-        mock_get_conn.return_value = mock_conn
+        # Referenciamos los mocks predefinidos
+        mock_cursor = self.MOCK_CURSOR
+        mock_conn = self.MOCK_CONN
 
         role_to_fetch = 'non_existent_role'
         mock_cursor.fetchall.return_value = []
@@ -261,24 +260,21 @@ class TestPgUserRepository(unittest.TestCase):
         users = repo.get_users_by_role(role_to_fetch)
 
         self.assertEqual(len(users), 0)
+        # La ejecución sigue intentando la conexión y el cursor
         mock_cursor.execute.assert_called_once()
         mock_release_conn.assert_called_once_with(mock_conn)
 
     # --- CASOS DE ERROR ---
 
-    # El patch de psycopg2.Error puede ser omitido ya que el error de mock_cursor.execute
-    # asegura el path de excepción, pero lo incluimos para claridad
     @patch(f'{MODULE_PATH}.release_connection')
-    @patch(f'{MODULE_PATH}.get_connection')
+    @patch(f'{MODULE_PATH}.get_connection', return_value=MOCK_CONN)
     @patch(f'{MODULE_PATH}.psycopg2.Error', new=psycopg2.Error)
     def test_get_users_by_role_database_error(self, mock_get_conn, mock_release_conn):
         """Debe manejar psycopg2.Error y relanzar una excepción genérica, asegurando el cleanup."""
 
-        # Configuración de mocks locales
-        mock_conn = MagicMock()
-        mock_cursor = MagicMock()
-        mock_conn.cursor.return_value = mock_cursor
-        mock_get_conn.return_value = mock_conn
+        # Referenciamos los mocks predefinidos
+        mock_cursor = self.MOCK_CURSOR
+        mock_conn = self.MOCK_CONN
 
         # Simular un error durante la ejecución de la consulta
         mock_cursor.execute.side_effect = psycopg2.Error("Error de permiso o sintaxis SQL")
@@ -289,7 +285,7 @@ class TestPgUserRepository(unittest.TestCase):
         with self.assertRaisesRegex(Exception, "Database error during user retrieval."):
             repo.get_users_by_role('admin')
 
-        # Verificar que la conexión se haya intentado obtener
+        # Verificar que la conexión se haya intentado obtener (y devuelto el mock)
         mock_get_conn.assert_called_once()
 
         # Verificar que release_connection se llame en el finally
