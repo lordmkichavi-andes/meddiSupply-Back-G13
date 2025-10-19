@@ -1,4 +1,5 @@
 name: CI/CD Microservices
+# Reportes de pruebas unitarias agregados
 
 on:
   push:
@@ -73,6 +74,71 @@ jobs:
           echo "changed-services=$SERVICES_JSON" >> "$GITHUB_OUTPUT"
 
   # 2) Test + Build; Push a ECR SOLO en push a main (matriz)
+  unit_tests:
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.changed-services != '[]'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        service: ${{ fromJSON(needs.detect-changes.outputs.changed-services) }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies for ${{ matrix.service }}
+        working-directory: ./services/${{ matrix.service }}
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          # Asegura herramientas de test y cobertura
+          pip install pytest pytest-cov
+
+      - name: Run unit tests with coverage for ${{ matrix.service }}
+        working-directory: ./services/${{ matrix.service }}
+        env:
+          MIN_COVERAGE: ${{ env.MIN_COVERAGE }}
+        run: |
+          mkdir -p reports/html
+          # Ejecuta pytest con cobertura y umbral mínimo
+          pytest \
+            --maxfail=1 \
+            --disable-warnings \
+            --junitxml=reports/junit.xml \
+            --cov=. \
+            --cov-report=xml:reports/coverage.xml \
+            --cov-report=html:reports/html \
+            --cov-fail-under=${MIN_COVERAGE}
+
+      - name: Upload JUnit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-${{ matrix.service }}
+          path: services/${{ matrix.service }}/reports/junit.xml
+          if-no-files-found: warn
+
+      - name: Upload coverage XML
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml-${{ matrix.service }}
+          path: services/${{ matrix.service }}/reports/coverage.xml
+          if-no-files-found: warn
+
+      - name: Upload coverage HTML
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-html-${{ matrix.service }}
+          path: services/${{ matrix.service }}/reports/html
+          if-no-files-found: warn
 
   # 3) Deploy a Producción (matrix)
   deploy_prod:
