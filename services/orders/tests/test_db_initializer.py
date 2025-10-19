@@ -73,7 +73,7 @@ def test_initialization_skipped(mock_print, mock_config, mock_db_connector):
 @patch('src.infrastructure.persistence.db_initializer.print')
 @patch('src.infrastructure.persistence.db_initializer._read_sql_file', side_effect=["", "INSERT INTO data;"])
 def test_initialization_schema_missing(mock_read_sql, mock_print, mock_config):
-    """Prueba que la inicialización aborte si el esquema está vacío o no se encuentra."""
+    """Prueba que la inicialización aborte si el esquema está vacío o no se encontró."""
     initialize_database()
 
     # Verifica que se haya impreso el mensaje de error y aborto
@@ -86,7 +86,7 @@ def test_initialization_schema_missing(mock_read_sql, mock_print, mock_config):
 @patch('src.infrastructure.persistence.db_initializer.print')
 @patch('src.infrastructure.persistence.db_initializer._read_sql_file',
        side_effect=["CREATE TABLE;", "INSERT INTO data;"])
-def test_initialization_success(mock_read_sql, mock_print, mock_db_connector, mock_db_connection):
+def test_initialization_success(mock_read_sql, mock_print, mock_db_connector, mock_db_connection, mock_config):
     """Prueba el flujo completo de inicialización exitosa."""
     get_conn_mock, release_conn_mock = mock_db_connector
     mock_cursor = mock_db_connection.cursor.return_value
@@ -116,7 +116,8 @@ def test_initialization_success(mock_read_sql, mock_print, mock_db_connector, mo
 @patch('src.infrastructure.persistence.db_initializer.print')
 @patch('src.infrastructure.persistence.db_initializer._read_sql_file',
        side_effect=["CREATE TABLE;", "INSERT INTO data;"])
-def test_initialization_data_error_handled(mock_read_sql, mock_print, mock_db_connector, mock_db_connection):
+def test_initialization_data_error_handled(mock_read_sql, mock_print, mock_db_connector, mock_db_connection,
+                                           mock_config):
     """
     Prueba el caso donde la inserción de datos falla con psycopg2.ProgrammingError
     (ej. datos ya existentes), pero el proceso continúa y se commite.
