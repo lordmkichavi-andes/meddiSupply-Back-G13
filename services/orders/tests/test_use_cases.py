@@ -198,7 +198,10 @@ class TestCreateOrderUseCase(unittest.TestCase):
         self.mock_repository.insert_order.side_effect = Exception("Insert failed")
 
         with self.assertRaises(Exception) as context:
-            self
+            self.use_case.execute(mock_order)
+
+        self.assertEqual(str(context.exception), "Insert failed")
+        self.mock_repository.insert_order.assert_called_once_with(mock_order)
 
 if __name__ == '__main__':
     unittest.main()
