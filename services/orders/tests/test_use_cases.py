@@ -179,16 +179,20 @@ class TestCreateOrderUseCase(unittest.TestCase):
 
     def test_execute_repository_failure(self):
         """
-        Verifica que si el repositorio lanza una excepción, esta se propaga.
+        Verifica que si el repositorio lanza una excepción, esta se propaga
+        hacia el nivel superior (el controlador Flask).
         """
-        mock_order = Mock()
-        self.mock_repository.insert_order.side_effect = Exception("Insert failed")
+        print("Ejecutando test_execute_repository_failure...")
 
+        # 1. Configurar el Mock para lanzar una excepción
+        MOCK_ERROR = Exception("Database connection failed")
+        self.mock_repository.get_orders_by_client_id.side_effect = MOCK_ERROR
+
+        # 2. Verificar que el caso de uso lanza la misma excepción
         with self.assertRaises(Exception) as context:
-            self.use_case.execute(mock_order)
+            self.use_case.execute(TEST_CLIENT_ID)
 
-        self.assertEqual(str(context.exception), "Insert failed")
-        self.mock_repository.insert_order.assert_called_once_with(mock_order)
+        self.assertEqual(str(context.exception), "Database connection failed")
         
 if __name__ == '__main__':
     unittest.main()
