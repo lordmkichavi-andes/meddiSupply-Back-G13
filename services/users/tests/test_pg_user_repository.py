@@ -14,17 +14,17 @@ if str(src_dir) not in sys.path:
 
 # Ahora importar los módulos necesarios
 try:
-    from infrastructure.repositories.pg_user_repository import PgUserRepository
+    from infrastructure.persistence.pg_user_repository import PgUserRepository
     from domain.entities import Client
 except ImportError:
     # Intento alternativo si la estructura es diferente
     try:
-        from src.infrastructure.repositories.pg_user_repository import PgUserRepository
+        from src.infrastructure.persistence.pg_user_repository import PgUserRepository
         from src.domain.entities import Client
     except ImportError:
         # Último intento con path absoluto
         sys.path.insert(0, str(project_root))
-        from src.infrastructure.repositories.pg_user_repository import PgUserRepository
+        from src.infrastructure.persistence.pg_user_repository import PgUserRepository
         from src.domain.entities import Client
 
 
@@ -74,8 +74,8 @@ class TestPgUserRepository:
             )
         ]
 
-    @patch('src.infrastructure.repositories.pg_user_repository.get_connection')
-    @patch('src.infrastructure.repositories.pg_user_repository.release_connection')
+    @patch('src.infrastructure.persistence.pg_user_repository.get_connection')
+    @patch('src.infrastructure.persistence.pg_user_repository.release_connection')
     def test_get_users_by_role_success(
             self,
             mock_release,
@@ -123,8 +123,8 @@ class TestPgUserRepository:
         # Verificar que se liberó la conexión
         mock_release.assert_called_once_with(conn)
 
-    @patch('src.infrastructure.repositories.pg_user_repository.get_connection')
-    @patch('src.infrastructure.repositories.pg_user_repository.release_connection')
+    @patch('src.infrastructure.persistence.pg_user_repository.get_connection')
+    @patch('src.infrastructure.persistence.pg_user_repository.release_connection')
     def test_get_users_by_role_empty_result(
             self,
             mock_release,
@@ -146,8 +146,8 @@ class TestPgUserRepository:
         assert isinstance(result, list)
         mock_release.assert_called_once_with(conn)
 
-    @patch('src.infrastructure.repositories.pg_user_repository.get_connection')
-    @patch('src.infrastructure.repositories.pg_user_repository.release_connection')
+    @patch('src.infrastructure.persistence.pg_user_repository.get_connection')
+    @patch('src.infrastructure.persistence.pg_user_repository.release_connection')
     def test_get_users_by_role_database_error(
             self,
             mock_release,
@@ -170,8 +170,8 @@ class TestPgUserRepository:
         # Verificar que se liberó la conexión incluso con error
         mock_release.assert_called_once_with(conn)
 
-    @patch('src.infrastructure.repositories.pg_user_repository.get_connection')
-    @patch('src.infrastructure.repositories.pg_user_repository.release_connection')
+    @patch('src.infrastructure.persistence.pg_user_repository.get_connection')
+    @patch('src.infrastructure.persistence.pg_user_repository.release_connection')
     def test_get_users_by_role_connection_error(
             self,
             mock_release,
@@ -191,8 +191,8 @@ class TestPgUserRepository:
         # No se debe liberar conexión si no se obtuvo
         mock_release.assert_not_called()
 
-    @patch('src.infrastructure.repositories.pg_user_repository.get_connection')
-    @patch('src.infrastructure.repositories.pg_user_repository.release_connection')
+    @patch('src.infrastructure.persistence.pg_user_repository.get_connection')
+    @patch('src.infrastructure.persistence.pg_user_repository.release_connection')
     def test_get_users_by_role_cursor_error(
             self,
             mock_release,
@@ -212,8 +212,8 @@ class TestPgUserRepository:
 
         mock_release.assert_called_once_with(conn)
 
-    @patch('src.infrastructure.repositories.pg_user_repository.get_connection')
-    @patch('src.infrastructure.repositories.pg_user_repository.release_connection')
+    @patch('src.infrastructure.persistence.pg_user_repository.get_connection')
+    @patch('src.infrastructure.persistence.pg_user_repository.release_connection')
     def test_get_users_by_role_ordered_by_name(
             self,
             mock_release,
@@ -240,8 +240,8 @@ class TestPgUserRepository:
         query = cursor.execute.call_args[0][0]
         assert "ORDER BY u.name ASC" in query
 
-    @patch('src.infrastructure.repositories.pg_user_repository.get_connection')
-    @patch('src.infrastructure.repositories.pg_user_repository.release_connection')
+    @patch('src.infrastructure.persistence.pg_user_repository.get_connection')
+    @patch('src.infrastructure.persistence.pg_user_repository.release_connection')
     def test_get_users_by_role_single_user(
             self,
             mock_release,
@@ -268,8 +268,8 @@ class TestPgUserRepository:
         assert result[0].balance == 5000000.75
         assert result[0].perfil == "vip"
 
-    @patch('src.infrastructure.repositories.pg_user_repository.get_connection')
-    @patch('src.infrastructure.repositories.pg_user_repository.release_connection')
+    @patch('src.infrastructure.persistence.pg_user_repository.get_connection')
+    @patch('src.infrastructure.persistence.pg_user_repository.release_connection')
     def test_get_users_by_role_ensures_connection_release_on_success(
             self,
             mock_release,
@@ -290,8 +290,8 @@ class TestPgUserRepository:
         # Assert
         mock_release.assert_called_once_with(conn)
 
-    @patch('src.infrastructure.repositories.pg_user_repository.get_connection')
-    @patch('src.infrastructure.repositories.pg_user_repository.release_connection')
+    @patch('src.infrastructure.persistence.pg_user_repository.get_connection')
+    @patch('src.infrastructure.persistence.pg_user_repository.release_connection')
     def test_get_users_by_role_query_structure(
             self,
             mock_release,
