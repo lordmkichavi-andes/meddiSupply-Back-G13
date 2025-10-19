@@ -50,3 +50,17 @@ class TrackOrdersUseCase:
             })
 
         return formatted_orders
+
+class CreateOrderUseCase:
+    """
+    Caso de uso: Crear una nueva orden.
+    """
+
+    def __init__(self, order_repository: OrderRepository):
+        self.repository = order_repository
+
+    def execute(self, order: Order) -> Order:
+        """
+        Ejecuta la lógica para insertar una nueva orden.
+        """
+        return self.repository.insert_order(order)

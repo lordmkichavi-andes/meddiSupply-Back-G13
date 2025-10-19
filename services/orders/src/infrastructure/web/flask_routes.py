@@ -42,4 +42,19 @@ def create_api_blueprint(use_case: TrackOrdersUseCase):
                 "message": "¡Ups! No pudimos obtener los pedidos. Intenta nuevamente."
             }), 500
 
+    @bp.route('/', methods=['POST'])
+    def create_order():
+        data = request.json
+        order = Order(
+            order_id=None,
+            client_id=data.get('client_id'),
+            creation_date=None,
+            last_updated_date=None,
+            status_id=data.get('status_id', 6),
+            estimated_delivery_date=None,
+        )
+        created_order = create_order_use_case.execute(order)
+        return jsonify({"order_id": created_order.order_id, "message": "Order created"}), 201
+
+
     return api_bp
