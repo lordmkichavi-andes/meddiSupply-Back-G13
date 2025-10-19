@@ -167,7 +167,6 @@ class TestTrackOrdersUseCase(unittest.TestCase):
 
         self.assertEqual(str(context.exception), "Database connection failed")
         self.mock_repository.get_orders_by_client_id.assert_called_once_with(TEST_CLIENT_ID)
-
-
+        
 if __name__ == '__main__':
     unittest.main()

@@ -157,6 +157,6 @@ if __name__ == '__main__':
     print("   POST /datos - Obtener todos los datos quemados")
     print("   POST /usuarios - Obtener usuarios")
     print("   POST /productos - Obtener productos")
-    print("🌐 Servidor ejecutándose en: http://localhost:5000")
+    print("🌐 Servidor ejecutándose en: http://localhost:8080")
     
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True, host='0.0.0.0', port=8080)

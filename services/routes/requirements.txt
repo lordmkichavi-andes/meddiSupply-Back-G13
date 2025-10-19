@@ -3,3 +3,9 @@ Flask-Caching
 redis
 pandas
 gunicorn
+psycopg2-binary
+pytest
+pytest-cov
+pytest-mock
+coverage
+pytest-flask

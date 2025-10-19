@@ -14,15 +14,32 @@
 
 -- Creación de la tabla 'Product' (Producto)
 -- Almacena la información de los productos, incluyendo su relación con la categoría y el proveedor.
- CREATE TABLE IF NOT EXISTS Product (
-                         product_id VARCHAR(50) PRIMARY KEY,
-                         sku VARCHAR(50) NOT NULL UNIQUE,
-                         value FLOAT NOT NULL,
-                         provider_id VARCHAR(50) NOT NULL,
-                         category_id INT NOT NULL,
-                         objective_profile VARCHAR(255) NOT NULL,
-                         FOREIGN KEY (provider_id) REFERENCES Provider(provider_id),
-                         FOREIGN KEY (category_id) REFERENCES Category(category_id)
+CREATE TABLE Product (
+    product_id VARCHAR(50) PRIMARY KEY,
+    sku VARCHAR(50) NOT NULL UNIQUE,
+    name VARCHAR(100) NOT NULL,
+    value FLOAT NOT NULL,
+    image_url VARCHAR(255),
+    provider_id VARCHAR(50) NOT NULL,
+    category_id INT NOT NULL,
+    objective_profile VARCHAR(255) NOT NULL,
+    FOREIGN KEY (provider_id) REFERENCES Provider(provider_id),
+    FOREIGN KEY (category_id) REFERENCES Category(category_id)
+);
+
+CREATE TABLE IF NOT EXISTS Warehouse (
+    warehouse_id VARCHAR(50) PRIMARY KEY, -- Identificador único de la bodega
+    name VARCHAR(100) NOT NULL,          -- Nombre de la bodega
+    location VARCHAR(255)                -- Ubicación o dirección de la bodega (opcional)
+);
+
+CREATE TABLE IF NOT EXISTS Inventory (
+    product_id VARCHAR(50),
+    warehouse_id VARCHAR(50),
+    stock_quantity INT NOT NULL DEFAULT 0, -- Cantidad de este producto en esta bodega
+    PRIMARY KEY (product_id, warehouse_id), -- La clave primaria compuesta asegura que solo haya una entrada por producto/bodega
+    FOREIGN KEY (product_id) REFERENCES Product(product_id),
+    FOREIGN KEY (warehouse_id) REFERENCES Warehouse(warehouse_id)
 );
 
 -- Creación de la tabla 'ProductStock' (Inventario de Producto)

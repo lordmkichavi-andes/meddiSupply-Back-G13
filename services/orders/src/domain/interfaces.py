@@ -12,3 +12,8 @@ class OrderRepository(ABC):
     def get_orders_by_client_id(self, client_id: str) -> List[Order]:
         """Recupera la lista de pedidos para un cliente."""
         pass
+
+    @abstractmethod
+    def insert_order(self, order: Order) -> Order:
+        """Inserta una nueva orden en la base de datos y retorna la entidad creada."""
+        pass

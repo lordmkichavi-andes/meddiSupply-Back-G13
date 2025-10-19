@@ -90,37 +90,100 @@ def get_periods() -> List[Dict[str, str]]:
 
 def get_sales_report_data(vendor_id: str, period: str) -> Optional[Dict[str, Any]]:
     """Obtiene los datos de reporte de ventas para un vendedor y período específico."""
-    query = """
+    # Mapear periodos a los valores de la base de datos
+    period_mapping = {
+        'bimestral': 'bimonthly',
+        'trimestral': 'quarterly', 
+        'semestral': 'semiannual',
+        'anual': 'annual'
+    }
+    db_period = period_mapping.get(period, period)
+    
+    # Consulta principal para datos básicos de ventas
+    sales_query = """
     SELECT 
-        sr.ventas_totales,
-        sr.pedidos,
-        sr.grafico,
-        sr.periodo,
-        json_agg(
-            json_build_object(
-                'nombre', p.name,
-                'ventas', srp.ventas,
-                'cantidad', srp.cantidad
-            ) ORDER BY p.name
-        ) as productos
-    FROM reportes.sales_reports sr
-    JOIN reportes.sales_report_products srp ON sr.id = srp.sales_report_id
-    JOIN reportes.products p ON srp.product_id = p.id
-    WHERE sr.vendor_id = %s AND sr.period_type = %s
-    GROUP BY sr.id, sr.ventas_totales, sr.pedidos, sr.grafico, sr.periodo
+        total_sales as ventas_totales,
+        total_orders as pedidos,
+        period_start,
+        period_end
+    FROM reportes.sales 
+    WHERE vendor_id = %s AND period_type = %s
+    LIMIT 1
     """
     
-    result = execute_query(query, (vendor_id, period), fetch_one=True)
-    return dict(result) if result else None
+    # Consulta para productos (separada para evitar duplicados)
+    products_query = """
+    SELECT 
+        p.name as nombre,
+        SUM(sd.line_amount) as ventas,
+        SUM(sd.quantity) as cantidad
+    FROM reportes.sales s
+    JOIN reportes.sale_details sd ON s.id = sd.sale_id
+    JOIN reportes.products p ON sd.product_id = p.id
+    WHERE s.vendor_id = %s AND s.period_type = %s
+    GROUP BY p.name
+    ORDER BY p.name
+    """
+    
+    # Consulta para datos del gráfico (separada)
+    chart_query = """
+    SELECT DISTINCT
+        scp.idx,
+        scp.value
+    FROM reportes.sales s
+    JOIN reportes.sales_chart_points scp ON s.id = scp.sale_id
+    WHERE s.vendor_id = %s AND s.period_type = %s
+    ORDER BY scp.idx
+    """
+    
+    # Ejecutar consultas
+    sales_result = execute_query(sales_query, (vendor_id, db_period), fetch_one=True)
+    products_result = execute_query(products_query, (vendor_id, db_period), fetch_all=True)
+    chart_result = execute_query(chart_query, (vendor_id, db_period), fetch_all=True)
+    
+    if sales_result:
+        # Construir resultado combinando las consultas separadas
+        data = dict(sales_result)
+        
+        # Agregar productos (convertir a formato esperado)
+        data['productos'] = [
+            {
+                'nombre': row['nombre'],
+                'ventas': float(row['ventas']),
+                'cantidad': int(row['cantidad'])
+            }
+            for row in (products_result or [])
+        ]
+        
+        # Agregar gráfico (convertir a array simple)
+        data['grafico'] = [row['value'] for row in (chart_result or [])]
+        
+        # Crear periodo string
+        data['periodo'] = f"{data['period_start']} - {data['period_end']}"
+        
+        # Mapear campos a camelCase para el modelo
+        data['ventasTotales'] = data['ventas_totales']
+        
+        return data
+    return None
 
 
 def validate_sales_data_availability(vendor_id: str, period: str) -> bool:
     """Valida si existen datos para un vendedor y período específico."""
+    # Mapear periodos a los valores de la base de datos
+    period_mapping = {
+        'bimestral': 'bimonthly',
+        'trimestral': 'quarterly', 
+        'semestral': 'semiannual',
+        'anual': 'annual'
+    }
+    db_period = period_mapping.get(period, period)
+    
     query = """
     SELECT COUNT(*) as count 
-    FROM reportes.sales_reports 
+    FROM reportes.sales 
     WHERE vendor_id = %s AND period_type = %s
     """
     
-    result = execute_query(query, (vendor_id, period), fetch_one=True)
+    result = execute_query(query, (vendor_id, db_period), fetch_one=True)
     return result['count'] > 0 if result else False

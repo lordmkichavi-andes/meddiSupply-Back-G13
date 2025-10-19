@@ -1,18 +1,29 @@
-from flask import Flask, jsonify, request, make_response
-from functools import wraps
-import os
-import json
+from flask import Flask, jsonify
+from flask_cors import CORS
+
+# Updated for CI/CD pipeline testing
 
 
+def create_app() -> Flask:
+    app = Flask(__name__)
+    
+    # Configurar CORS
+    CORS(app, resources={
+        r"/*": {
+            "origins": "*",
+            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            "allow_headers": ["Content-Type", "Authorization", "X-Requested-With"]
+        }
+    })
 
-app = Flask(__name__)
-app.config.from_mapping(config)
+    # Registro del blueprint de dominio "routes"
+    from src.blueprints.routes import routes_bp
+    app.register_blueprint(routes_bp, url_prefix='/routes')
+
+    return app
 
 
-
-@app.route('/health', methods=['GET'])
-def health():
-    return jsonify({'status': 'ok'})
+app = create_app()
 
 
 if __name__ == '__main__':

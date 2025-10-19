@@ -38,40 +38,37 @@ WHERE NOT EXISTS (SELECT 1 FROM Provider WHERE provider_id = 'PROV003');
 
 -- Productos
 -- Se asume que las categorías y proveedores ya existen
-INSERT INTO Product (product_id, sku, value, provider_id, category_id, objective_profile)
-SELECT 'PROD_A01', 'SKU-EL-4K', 850.50, 'PROV001', 101, 'Televisor 4K de alta gama.'
-WHERE NOT EXISTS (SELECT 1 FROM Product WHERE product_id = 'PROD_A01');
+INSERT INTO Product (product_id, sku, name, value, image_url, provider_id, category_id, objective_profile)
+VALUES ('PROD001', 'LAPTOP-X1', 'Portátil Ultradelgado Max', 1250.00, 'https://tienda.com/img/laptop.jpg', 'PROV001', 101, 'Profesionales móviles y estudiantes de alto rendimiento.');
+INSERT INTO Product (product_id, sku, name, value, image_url, provider_id, category_id, objective_profile)
+VALUES ('PROD002', 'ERP-BASICO', 'Software de Contabilidad PYME', 499.99, NULL, 'PROV002', 102, 'Pequeñas y medianas empresas que inician su digitalización.');
+INSERT INTO Product (product_id, sku, name, value, image_url, provider_id, category_id, objective_profile)
+VALUES ('PROD003', 'ADAP-USB-C', 'Adaptador USB-C a HDMI', 24.95, 'https://tienda.com/img/adaptador.webp', 'PROV003', 103, 'Usuarios con equipos modernos que requieren conectar pantallas externas.');
 
-INSERT INTO Product (product_id, sku, value, provider_id, category_id, objective_profile)
-SELECT 'PROD_B02', 'SKU-CL-TS', 45.99, 'PROV002', 102, 'Camiseta de algodón, talla M.'
-WHERE NOT EXISTS (SELECT 1 FROM Product WHERE product_id = 'PROD_B02');
+INSERT INTO Warehouse (warehouse_id, name, location) VALUES
+('BOD01', 'Bodega Central Norte', 'Calle Falsa 123, Ciudad A'),
+('BOD02', 'Mini Centro Sur', 'Avenida Siempre Viva 456, Ciudad B');
 
-INSERT INTO Product (product_id, sku, value, provider_id, category_id, objective_profile)
-SELECT 'PROD_C03', 'SKU-AL-APL', 1.20, 'PROV003', 103, 'Manzana Fuji unitaria.'
-WHERE NOT EXISTS (SELECT 1 FROM Product WHERE product_id = 'PROD_C03');
+INSERT INTO Inventory (product_id, warehouse_id, stock_quantity) VALUES
+('PROD001', 'BOD01', 50),
+('PROD001', 'BOD02', 10),
+('PROD002', 'BOD01', 200),
+('PROD003', 'BOD02', 350);
 
-INSERT INTO Product (product_id, sku, value, provider_id, category_id, objective_profile)
-SELECT 'PROD_A02', 'SKU-EL-AUD', 120.00, 'PROV001', 101, 'Audífonos inalámbricos con cancelación de ruido.'
-WHERE NOT EXISTS (SELECT 1 FROM Product WHERE product_id = 'PROD_A02');
+
 
 -- Inventario de Producto
 INSERT INTO ProductStock (stock_id, product_id, quantity, lote, warehouse_id, country)
-SELECT 'STK_001', 'PROD_A01', 15, 'LOTE-TV-2024', 'WH-NY', 'USA'
+SELECT 'STK_001', 'PROD001', 15, 'LOTE-TV-2024', 'WH-NY', 'USA'
 WHERE NOT EXISTS (SELECT 1 FROM ProductStock WHERE stock_id = 'STK_001');
 
 INSERT INTO ProductStock (stock_id, product_id, quantity, lote, warehouse_id, country)
-SELECT 'STK_002', 'PROD_B02', 200, 'LOTE-TS-JUL', 'WH-LDN', 'UK'
-WHERE NOT EXISTS (SELECT 1 FROM ProductStock WHERE stock_id = 'STK_001');
+SELECT 'STK_002', 'PROD002', 200, 'LOTE-TS-JUL', 'WH-LDN', 'UK'
+WHERE NOT EXISTS (SELECT 1 FROM ProductStock WHERE stock_id = 'STK_002');
 
 INSERT INTO ProductStock (stock_id, product_id, quantity, lote, warehouse_id, country)
-SELECT 'STK_003', 'PROD_C03', 500, 'LOTE-FR-09', 'WH-SP', 'ESP'
+SELECT 'STK_003', 'PROD003', 500, 'LOTE-FR-09', 'WH-SP', 'ESP'
 WHERE NOT EXISTS (SELECT 1 FROM ProductStock WHERE stock_id = 'STK_003');
-
-INSERT INTO ProductStock (stock_id, product_id, quantity, lote, warehouse_id, country)
-SELECT 'STK_004', 'PROD_A02', 50, 'LOTE-AUD-V3', 'WH-NY', 'USA'
-WHERE NOT EXISTS (SELECT 1 FROM ProductStock WHERE stock_id = 'STK_004');
-
-
 -- 2. Tablas de Pedidos
 ------------------------------------------------------
 
@@ -112,21 +109,17 @@ WHERE NOT EXISTS (SELECT 1 FROM "Order" WHERE order_id = 'ORD_2024_003');
 
 -- Líneas de Pedido (OrderLine)
 INSERT INTO OrderLine (order_line_id, order_id, product_id, quantity, value_at_time_of_order)
-SELECT 'LINE_001A', 'ORD_2024_001', 'PROD_A01', 1, 850.50
+SELECT 'LINE_001A', 'ORD_2024_001', 'PROD001', 1, 850.50
 WHERE NOT EXISTS (SELECT 1 FROM OrderLine WHERE order_line_id = 'LINE_001A');
 
 INSERT INTO OrderLine (order_line_id, order_id, product_id, quantity, value_at_time_of_order)
-SELECT 'LINE_001B', 'ORD_2024_001', 'PROD_B02', 1, 45.99
+SELECT 'LINE_001B', 'ORD_2024_001', 'PROD002', 1, 45.99
 WHERE NOT EXISTS (SELECT 1 FROM OrderLine WHERE order_line_id = 'LINE_001B');
 
-INSERT INTO OrderLine (order_line_id, order_id, product_id, quantity, value_at_time_of_order)
-SELECT 'LINE_002A', 'ORD_2024_002', 'PROD_A02', 1, 120.00
-WHERE NOT EXISTS (SELECT 1 FROM OrderLine WHERE order_line_id = 'LINE_002A');
+
 
 INSERT INTO OrderLine (order_line_id, order_id, product_id, quantity, value_at_time_of_order)
-SELECT 'LINE_002B', 'ORD_2024_002', 'PROD_C03', 2, 1.20
+SELECT 'LINE_002B', 'ORD_2024_002', 'PROD003', 2, 1.20
 WHERE NOT EXISTS (SELECT 1 FROM OrderLine WHERE order_line_id = 'LINE_002B');
 
-INSERT INTO OrderLine (order_line_id, order_id, product_id, quantity, value_at_time_of_order)
-SELECT 'LINE_003A', 'ORD_2024_003', 'PROD_A02', 2, 120.00
-WHERE NOT EXISTS (SELECT 1 FROM OrderLine WHERE order_line_id = 'LINE_003A');
+
