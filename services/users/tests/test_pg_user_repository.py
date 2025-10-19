@@ -163,6 +163,7 @@ class PgUserRepository(UserRepository):
             return users
 
         except psycopg2.Error as e:
+            # Imprimir el error solo en el bloque except
             print(f"ERROR de base de datos al recuperar usuarios: {e}")
             raise Exception("Database error during user retrieval.")
         finally:
@@ -190,7 +191,6 @@ class TestPgUserRepository(unittest.TestCase):
     MOCK_CONN.cursor.return_value = MOCK_CURSOR
 
     # RUTA DE PARCHE: Debe apuntar al módulo actual (tests.test_entities)
-    # donde se definen las funciones get_connection y release_connection.
     MODULE_PATH = 'tests.test_entities'
 
     # ------------------------------------------
@@ -245,12 +245,13 @@ class TestPgUserRepository(unittest.TestCase):
         mock_conn = self.MOCK_CONN
         repo = PgUserRepository()
 
-        try:
-            # Simular un error durante la ejecución de la consulta
-            # Esto hace que el código salte al bloque except
-            mock_cursor.execute.side_effect = psycopg2.Error("Error de permiso")
+        # Simular un error durante la ejecución de la consulta
+        error = psycopg2.Error("Error simulado de base de datos")
+        mock_cursor.execute.side_effect = error
 
-            # Verificar que se lance la excepción esperada
+        try:
+            # Esto debe lanzar psycopg2.Error internamente, que es capturado
+            # y relanzado como Exception("Database error...").
             with self.assertRaisesRegex(Exception, "Database error during user retrieval."):
                 repo.get_users_by_role('admin')
 
