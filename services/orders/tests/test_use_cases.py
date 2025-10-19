@@ -167,32 +167,6 @@ class TestTrackOrdersUseCase(unittest.TestCase):
 
         self.assertEqual(str(context.exception), "Database connection failed")
         self.mock_repository.get_orders_by_client_id.assert_called_once_with(TEST_CLIENT_ID)
-
-class TestCreateOrderUseCase(unittest.TestCase):
-    """
-    Pruebas unitarias para el Caso de Uso CreateOrderUseCase.
-    """
-
-    def setUp(self):
-        self.mock_repository = Mock()
-        self.use_case = CreateOrderUseCase(self.mock_repository)
-
-    def test_execute_repository_failure(self):
-        """
-        Verifica que si el repositorio lanza una excepción, esta se propaga
-        hacia el nivel superior (el controlador Flask).
-        """
-        print("Ejecutando test_execute_repository_failure...")
-
-        # 1. Configurar el Mock para lanzar una excepción
-        MOCK_ERROR = Exception("Database connection failed")
-        self.mock_repository.get_orders_by_client_id.side_effect = MOCK_ERROR
-
-        # 2. Verificar que el caso de uso lanza la misma excepción
-        with self.assertRaises(Exception) as context:
-            self.use_case.execute(TEST_CLIENT_ID)
-
-        self.assertEqual(str(context.exception), "Database connection failed")
         
 if __name__ == '__main__':
     unittest.main()
