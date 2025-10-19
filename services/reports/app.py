@@ -21,6 +21,11 @@ def create_app() -> Flask:
     from src.blueprints.reports import reports_bp
     app.register_blueprint(reports_bp, url_prefix='/reports')
 
+    @app.route('/health', methods=['GET'])
+    def health():
+        return jsonify({'status': 'ok'})
+
+
     return app
 
 app = create_app()

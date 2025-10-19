@@ -151,7 +151,7 @@ jobs:
           name: coverage-html-${{ matrix.service }}
           path: services/${{ matrix.service }}/reports/html
           if-no-files-found: warn
-  test_build_push:
+  test_push:
     needs: [detect-changes]
     if: needs.detect-changes.outputs.changed-services != '[]'
     runs-on: ubuntu-latest
