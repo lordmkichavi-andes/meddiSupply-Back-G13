@@ -29,7 +29,7 @@ class TestFlaskRoutes(unittest.TestCase):
         self.mock_use_case = Mock()  # Creamos un mock del Caso de Uso
 
         # Usamos la función de fábrica para inyectar el mock en el Blueprint
-        self.app.register_blueprint(create_api_blueprint(self.mock_use_case, self.mock_use_cas))
+        self.app.register_blueprint(create_api_blueprint(self.mock_use_case, self.mock_use_case))
         self.client = self.app.test_client()
 
 
