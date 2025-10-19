@@ -14,17 +14,17 @@
 
 -- Creación de la tabla 'Product' (Producto)
 -- Almacena la información de los productos, incluyendo su relación con la categoría y el proveedor.
- CREATE TABLE IF NOT EXISTS Product (
-                         product_id VARCHAR(50) PRIMARY KEY,
-                         sku VARCHAR(50) NOT NULL UNIQUE,
-                         name VARCHAR(100) NOT NULL,
-                         product_name VARCHAR(100) NOT NULL,
-                         value FLOAT NOT NULL,
-                         provider_id VARCHAR(50) NOT NULL,
-                         category_id INT NOT NULL,
-                         objective_profile VARCHAR(255) NOT NULL,
-                         FOREIGN KEY (provider_id) REFERENCES Provider(provider_id),
-                         FOREIGN KEY (category_id) REFERENCES Category(category_id)
+CREATE TABLE Product (
+    product_id VARCHAR(50) PRIMARY KEY,
+    sku VARCHAR(50) NOT NULL UNIQUE,
+    name VARCHAR(100) NOT NULL,
+    value FLOAT NOT NULL,
+    image_url VARCHAR(255),
+    provider_id VARCHAR(50) NOT NULL,
+    category_id INT NOT NULL,
+    objective_profile VARCHAR(255) NOT NULL,
+    FOREIGN KEY (provider_id) REFERENCES Provider(provider_id),
+    FOREIGN KEY (category_id) REFERENCES Category(category_id)
 );
 
 CREATE TABLE IF NOT EXISTS Warehouse (

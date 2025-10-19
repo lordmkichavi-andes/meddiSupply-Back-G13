@@ -38,17 +38,12 @@ WHERE NOT EXISTS (SELECT 1 FROM Provider WHERE provider_id = 'PROV003');
 
 -- Productos
 -- Se asume que las categorías y proveedores ya existen
-INSERT INTO Product (product_id, sku, value, provider_id, category_id, objective_profile)
-SELECT 'PROD001', 'SKU-EL-4K', 850.50, 'PROV001', 101, 'Televisor 4K de alta gama.'
-WHERE NOT EXISTS (SELECT 1 FROM Product WHERE product_id = 'PROD001');
-
-INSERT INTO Product (product_id, sku, value, provider_id, category_id, objective_profile)
-SELECT 'PROD002', 'SKU-CL-TS', 45.99, 'PROV002', 102, 'Camiseta de algodón, talla M.'
-WHERE NOT EXISTS (SELECT 1 FROM Product WHERE product_id = 'PROD002');
-
-INSERT INTO Product (product_id, sku, value, provider_id, category_id, objective_profile)
-SELECT 'PROD003', 'SKU-AL-APL', 1.20, 'PROV003', 103, 'Manzana Fuji unitaria.'
-WHERE NOT EXISTS (SELECT 1 FROM Product WHERE product_id = 'PROD003');
+INSERT INTO Product (product_id, sku, name, value, image_url, provider_id, category_id, objective_profile)
+VALUES ('PROD001', 'LAPTOP-X1', 'Portátil Ultradelgado Max', 1250.00, 'https://tienda.com/img/laptop.jpg', 'PROV001', 101, 'Profesionales móviles y estudiantes de alto rendimiento.');
+INSERT INTO Product (product_id, sku, name, value, image_url, provider_id, category_id, objective_profile)
+VALUES ('PROD002', 'ERP-BASICO', 'Software de Contabilidad PYME', 499.99, NULL, 'PROV002', 102, 'Pequeñas y medianas empresas que inician su digitalización.');
+INSERT INTO Product (product_id, sku, name, value, image_url, provider_id, category_id, objective_profile)
+VALUES ('PROD003', 'ADAP-USB-C', 'Adaptador USB-C a HDMI', 24.95, 'https://tienda.com/img/adaptador.webp', 'PROV003', 103, 'Usuarios con equipos modernos que requieren conectar pantallas externas.');
 
 INSERT INTO Warehouse (warehouse_id, name, location) VALUES
 ('BOD01', 'Bodega Central Norte', 'Calle Falsa 123, Ciudad A'),
