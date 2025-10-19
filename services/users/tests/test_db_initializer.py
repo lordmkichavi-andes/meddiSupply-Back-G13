@@ -31,8 +31,6 @@ class TestDatabaseInitializer(unittest.TestCase):
     MOCK_INSERT_SQL = "INSERT INTO test_table (id) VALUES (1);"
 
     # Rutas simuladas (solo para verificar que os.path.exists sea llamado)
-    # Estas líneas de @patch ya no son necesarias si la ruta es manipulada por sys.path,
-    # pero las mantengo por si acaso se usan como reemplazo directo de variables en el módulo real.
     @patch('db_initializer.SCHEMA_FILE', '/mock/path/schema.sql')
     @patch('db_initializer.INSERT_DATA_FILE', '/mock/path/insert_data.sql')
     def setUp(self):
@@ -64,8 +62,6 @@ class TestDatabaseInitializer(unittest.TestCase):
             with patch('sys.stdout', new=MagicMock()) as mock_print:
                 content = _read_sql_file("/dummy/path/missing.sql")
                 self.assertEqual(content, "")
-                # Nota: En entornos de test, es mejor verificar logs o excepciones que stdout
-                # Sin embargo, el código original usa print, así que se simula.
 
     # ----------------------------------------------------
     # Pruebas de initialize_database (Casos de Éxito)
@@ -86,7 +82,6 @@ class TestDatabaseInitializer(unittest.TestCase):
         self.mock_cursor.execute.assert_any_call(self.MOCK_SCHEMA_SQL)  # Ejecuta esquema
         self.mock_conn.commit.assert_called()  # Commit después del esquema
         self.mock_cursor.execute.assert_any_call(self.MOCK_INSERT_SQL)  # Ejecuta datos
-        # self.mock_conn.commit.assert_called() # Se llama dos veces, una por esquema y otra por datos
         self.mock_cursor.close.assert_called_once()
 
         # 2. Verificar liberación de la conexión
