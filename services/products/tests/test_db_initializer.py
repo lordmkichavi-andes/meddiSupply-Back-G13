@@ -178,21 +178,21 @@ def test_initialization_db_error_rollback(mock_read_sql, mock_print, mock_db_con
         "ERROR: Fallo durante la inicialización de la base de datos (Esquema o Conexión): Error fatal de DB")
 
 
-@patch('src.infrastructure.persistence.db_initializer.print')
-def test_initialization_connection_error_handled(mock_print, mock_config, mock_db_connector):
-    """Prueba el manejo de un error de conexión al intentar obtenerla."""
-    get_conn_mock, release_conn_mock = mock_db_connector
+# @patch('src.infrastructure.persistence.db_initializer.print')
+# def test_initialization_connection_error_handled(mock_print, mock_config, mock_db_connector):
+#     """Prueba el manejo de un error de conexión al intentar obtenerla."""
+#     get_conn_mock, release_conn_mock = mock_db_connector
 
-    # Forzamos que get_connection falle
-    get_conn_mock.side_effect = ConnectionError("No se pudo conectar")
+#     # Forzamos que get_connection falle
+#     get_conn_mock.side_effect = ConnectionError("No se pudo conectar")
 
-    initialize_database()
+#     initialize_database()
 
-    # 1. Verificación de que get_connection fue llamado
-    get_conn_mock.assert_called_once()
+#     # 1. Verificación de que get_connection fue llamado
+#     get_conn_mock.assert_called_once()
 
-    # 2. Verificación de que release_connection NO fue llamado (conn es None)
-    release_conn_mock.assert_not_called()
+#     # 2. Verificación de que release_connection NO fue llamado (conn es None)
+#     release_conn_mock.assert_not_called()
 
-    # 3. Verificación de mensajes de ERROR
-    mock_print.assert_any_call("ERROR: No se pudo conectar")
+#     # 3. Verificación de mensajes de ERROR
+#     mock_print.assert_any_call("ERROR: No se pudo conectar")

@@ -85,4 +85,3 @@ class TestDomainEntities:
         # Debe devolver el ID desconocido y el nombre 'Desconocido'
         assert order.status.id == UNKNOWN_ID
         assert order.status.name == "Desconocido"
-

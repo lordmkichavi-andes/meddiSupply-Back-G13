@@ -75,3 +75,27 @@ class PgOrderRepository(OrderRepository):
         finally:
             if conn:
                 release_connection(conn)
+
+    def insert_order(self, order: Order) -> Order:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO "Order" (client_id, creation_date, last_updated_date, status_id, estimated_delivery_date)
+            VALUES (%s, %s, %s, %s, %s)
+            RETURNING order_id
+            """,
+            (
+                order.client_id,
+                order.creation_date or datetime.now(),
+                order.last_updated_date or datetime.now(),
+                order.status_id,
+                order.estimated_delivery_date
+            )
+        )
+        order_id = cur.fetchone()[0]
+        conn.commit()
+        cur.close()
+        order.order_id = order_id
+        return order
+
