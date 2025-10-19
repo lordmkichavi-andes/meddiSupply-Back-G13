@@ -238,28 +238,28 @@ class TestPgUserRepository(unittest.TestCase):
 
     @patch(f'{MODULE_PATH}.release_connection')
     @patch(f'{MODULE_PATH}.get_connection', return_value=MOCK_CONN)
-    @patch(f'{MODULE_PATH}.psycopg2.Error', new=psycopg2.Error)
     def test_get_users_by_role_database_error(self, mock_get_conn, mock_release_conn):
         """Debe manejar psycopg2.Error, relanzar una excepción genérica y hacer cleanup."""
 
         mock_cursor = self.MOCK_CURSOR
         mock_conn = self.MOCK_CONN
-
-        # Simular un error durante la ejecución de la consulta
-        # Esto hace que el código salte al bloque except
-        mock_cursor.execute.side_effect = psycopg2.Error("Error de permiso")
-
         repo = PgUserRepository()
 
-        # Verificar que se lance la excepción esperada
-        with self.assertRaisesRegex(Exception, "Database error during user retrieval."):
-            repo.get_users_by_role('admin')
+        try:
+            # Simular un error durante la ejecución de la consulta
+            # Esto hace que el código salte al bloque except
+            mock_cursor.execute.side_effect = psycopg2.Error("Error de permiso")
 
-        # Verificar que release_connection se llame en el finally
-        mock_release_conn.assert_called_once_with(mock_conn)
+            # Verificar que se lance la excepción esperada
+            with self.assertRaisesRegex(Exception, "Database error during user retrieval."):
+                repo.get_users_by_role('admin')
 
-        # Resetear side_effect para no interferir con otras pruebas
-        mock_cursor.execute.side_effect = None
+            # Verificar que release_connection se llame en el finally
+            mock_release_conn.assert_called_once_with(mock_conn)
+
+        finally:
+            # Asegurar el restablecimiento del side effect para el resto de las pruebas.
+            mock_cursor.execute.side_effect = None
 
 
 if __name__ == '__main__':
