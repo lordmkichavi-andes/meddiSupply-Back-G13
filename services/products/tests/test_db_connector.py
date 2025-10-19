@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch, sentinel
 
 # Importamos las funciones a probar.
 # NOTA: Usamos la importación completa para facilitar el mocking global de 'db_connector.db_pool'
-from src.infrastructure.persistence import db_connector
+from products.src.infrastructure.persistence import db_connector
 from config import Config
 
 
