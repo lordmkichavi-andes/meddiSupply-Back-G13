@@ -112,8 +112,6 @@ class PgUserRepository(UserRepository):
         try:
             # Obtiene la conexión (mockeada en el test)
             conn = get_connection()
-            # El error "NoneType has no attribute 'cursor'" ocurre aquí
-            # si el parcheo de get_connection falla.
             cursor = conn.cursor()
 
             query = """
@@ -178,11 +176,12 @@ class PgUserRepository(UserRepository):
 
 
 # ==============================================================================
-# 3. TESTS (CORRECCIÓN DE PATCHING CONFIRMADA)
+# 3. TESTS (CON CORRECCIÓN DE PATCHING)
 # ==============================================================================
 
 # Usamos __name__ para que el path de parcheo funcione correctamente en un archivo autocontenido
 MODULE_PATH = __name__
+
 
 class TestPgUserRepository(unittest.TestCase):
     # Datos simulados que retorna la DB
@@ -211,12 +210,12 @@ class TestPgUserRepository(unittest.TestCase):
         self.mock_conn.cursor.return_value = self.mock_cursor
 
         # Parcheo de las funciones de conexión que están en este módulo
+        # FIX: Eliminamos 'return_value' del patch() para evitar problemas de scoping
         self.patcher_get = patch(f'{MODULE_PATH}.get_connection')
         self.patcher_release = patch(f'{MODULE_PATH}.release_connection')
 
         self.mock_get_conn = self.patcher_get.start()
-        # **EL FIX CLAVE:** Asignar el valor de retorno explícitamente al mock iniciado.
-        # Esto asegura que 'conn' dentro del repositorio sea 'self.mock_conn' y no 'None'.
+        # EXPLICITLY set the return value on the started mock (More robust)
         self.mock_get_conn.return_value = self.mock_conn
 
         self.mock_release_conn = self.patcher_release.start()
@@ -283,4 +282,3 @@ class TestPgUserRepository(unittest.TestCase):
 if __name__ == '__main__':
     # Esto permite ejecutar los tests directamente desde la línea de comandos
     unittest.main()
-s
