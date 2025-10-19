@@ -1,60 +1,48 @@
 import unittest
-from unittest.mock import Mock
-from flask import Flask
-from users.src.infrastructure.web.flask_user_routes import create_user_api_blueprint
+from unittest.mock import patch, Mock, mock_open
+import sys
+from psycopg2 import Error as Psycopg2Error, ProgrammingError
 
-# Datos simulados
-MOCK_USER_DATA = [
-    {"id": "USR001", "status": "Activo", "name": "Paciente A"},
-    {"id": "USR002", "status": "Inactivo", "name": "Paciente B"}
-]
+# Aseguramos que el módulo 'src' se puede importar
+sys.path.append('users/src')
+import users.src.infrastructure.persistence.db_initializer as db_initializer
 
-class TestUserRoutes(unittest.TestCase):
+# --- Mocks de Configuración y Datos ---
+
+class MockConfig:
+    RUN_DB_INIT_ON_STARTUP = True
+
+MOCK_SCHEMA_SQL = "CREATE TABLE users (id VARCHAR(255));"
+MOCK_INSERT_SQL = "INSERT INTO users (id) VALUES ('TEST');"
+
+# Reemplazamos el módulo de configuración real con nuestro mock
+db_initializer.Config = MockConfig
+
+class TestDBInitializer(unittest.TestCase):
     """
-    Pruebas unitarias para las rutas Flask del servicio users.
+    Pruebas unitarias para la inicialización de la base de datos del servicio users,
+    simulando la lectura de archivos y la ejecución de SQL.
     """
 
     def setUp(self):
-        self.app = Flask(__name__)
-        self.mock_use_case = Mock()
-        self.app.register_blueprint(create_user_api_blueprint(self.mock_use_case))
-        self.client = self.app.test_client()
+        db_initializer.Config.RUN_DB_INIT_ON_STARTUP = True
 
-    def test_get_users_success(self):
-        """Debe retornar 200 y los usuarios si existen registros CLIENT."""
-        self.mock_use_case.execute.return_value = MOCK_USER_DATA
+    @patch('builtins.open', new_callable=mock_open, read_data=MOCK_SCHEMA_SQL)
+    def test_read_sql_file_success(self, mock_file):
+        """Verifica la lectura exitosa de un archivo SQL."""
+        print("Ejecutando test_read_sql_file_success...")
+        content = db_initializer._read_sql_file("/fake/path/schema.sql")
+        self.assertEqual(content, MOCK_SCHEMA_SQL)
+        mock_file.assert_called_once_with("/fake/path/schema.sql", 'r', encoding='utf-8')
 
-        response = self.client.get('/users/clients')
-        response_data = response.get_json()
+    def test_initialize_database_skipped_by_config(self):
+        """Verifica que la inicialización se omite si la bandera de Config es False."""
+        print("Ejecutando test_initialize_database_skipped_by_config...")
+        db_initializer.Config.RUN_DB_INIT_ON_STARTUP = False
 
-        self.mock_use_case.execute.assert_called_once_with()
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response_data['users'], MOCK_USER_DATA)
-
-    def test_get_users_not_found(self):
-        """Debe retornar 404 si no hay usuarios CLIENT."""
-        self.mock_use_case.execute.return_value = []
-
-        response = self.client.get('/users/clients')
-        response_data = response.get_json()
-
-        self.mock_use_case.execute.assert_called_once_with()
-        self.assertEqual(response.status_code, 404)
-        self.assertIn("No se encontraron usuarios", response_data['message'])
-        self.assertEqual(response_data['users'], [])
-
-    def test_get_users_internal_error(self):
-        """Debe retornar 500 si ocurre un error inesperado."""
-        self.mock_use_case.execute.side_effect = Exception("Simulated DB error")
-
-        response = self.client.get('/users/clients')
-        response_data = response.get_json()
-
-        self.mock_use_case.execute.assert_called_once_with()
-        self.assertEqual(response.status_code, 500)
-        self.assertIn("No se pudieron obtener los usuarios", response_data['message'])
-        self.assertIn("Simulated DB error", response_data['error'])
-
+        with patch('infrastructure.persistence.db_connector.get_connection') as mock_get_conn:
+            db_initializer.initialize_database()
+            mock_get_conn.assert_not_called()
 
 if __name__ == '__main__':
     unittest.main()
