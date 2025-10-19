@@ -3,7 +3,7 @@ from unittest.mock import Mock, patch
 import psycopg2
 
 from src.infrastructure.persistence.pg_user_repository import PgUserRepository
-from domain.entities import Client
+from src.domain.entities import Client
 
 
 class TestPgUserRepository:
