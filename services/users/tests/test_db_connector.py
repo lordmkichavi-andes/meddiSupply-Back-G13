@@ -23,7 +23,7 @@ class TestUserRoutes(unittest.TestCase):
     def setUp(self):
         self.app = Flask(__name__)
         self.mock_use_case = Mock()
-        self.app.register_blueprint(create_api_blueprint(self.mock_use_case))
+        self.app.register_blueprint(create_user_api_blueprint(self.mock_use_case))
         self.client = self.app.test_client()
 
     def test_track_users_success(self):
