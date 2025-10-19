@@ -1,11 +1,14 @@
 from flask import Blueprint, jsonify
 from src.application.use_cases import TrackOrdersUseCase
 
+from services.orders.src.application.use_cases import CreateOrderUseCase
+
+
 # ELIMINAMOS la declaración global de api_bp.
 # Ya no necesitamos el comentario sobre la inyección de dependencias aquí,
 # ya que la crearemos dentro de la función de fábrica.
 
-def create_api_blueprint(use_case: TrackOrdersUseCase):
+def create_api_blueprint(track_case: TrackOrdersUseCase, create_case: CreateOrderUseCase):
     """
     Función de fábrica para inyectar el Caso de Uso en el Blueprint.
     Crea y registra un nuevo Blueprint en cada llamada para evitar conflictos en tests.
@@ -21,7 +24,7 @@ def create_api_blueprint(use_case: TrackOrdersUseCase):
         """
         try:
             # 1. Llamar al Caso de Uso (Lógica de Negocio)
-            orders = use_case.execute(client_id)
+            orders = track_case.execute(client_id)
 
             # 2. Manejo de mensajes específicos (Requisito del Frontend)
             if not orders:
