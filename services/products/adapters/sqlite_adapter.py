@@ -4,14 +4,15 @@ import os
 from typing import List
 from repositories.product_repository import ProductRepository
 from domain.models import Product
+from config import Config
 
-DB_NAME = os.environ.get('DB_NAME', 'postgres')
+
 
 class SQLiteProductAdapter(ProductRepository):
     """Implementación del repositorio de productos para SQLite."""
 
     def get_available_products(self) -> List[Product]:
-        conn = sqlite3.connect(DB_NAME)
+        conn = sqlite3.connect(Config.DB_NAME)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
 
@@ -54,7 +55,7 @@ class SQLiteProductAdapter(ProductRepository):
 
     def get_product_by_id(self, product_id: str) -> List[Product]:
         """Obtiene un producto por su ID."""
-        conn = sqlite3.connect(DB_NAME)
+        conn = sqlite3.connect(Config.DB_NAME)
         cursor = conn.cursor()
         query = '''
                 SELECT 
@@ -89,7 +90,7 @@ class SQLiteProductAdapter(ProductRepository):
         Actualiza el precio y el stock de un producto por su ID.
         Si el producto no existe, se asume que la operación no es válida y no se hace nada.
         """
-        conn = sqlite3.connect(DB_NAME)
+        conn = sqlite3.connect(Config.DB_NAME)
         cursor = conn.cursor()
         queryProduct = '''
                  UPDATE Product

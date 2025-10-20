@@ -2,5 +2,6 @@ Flask
 Flask-Caching
 redis
 pandas
+Flask-CORS
 gunicorn
 psycopg2-binary
