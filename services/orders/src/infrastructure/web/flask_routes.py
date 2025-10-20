@@ -44,16 +44,36 @@ def create_api_blueprint(track_case: TrackOrdersUseCase, create_case: CreateOrde
     @api_bp.route('/', methods=['POST'])
     def create_order():
         data = request.json
+        # Validaciones mínimas
+        if "client_id" not in data or "products" not in data:
+            return jsonify({"error": "client_id and products are required"}), 400
+        # Crear la orden base
         order = Order(
             order_id=None,
-            client_id=data.get('client_id'),
-            creation_date=None,
-            last_updated_date=None,
-            status_id=data.get('status_id', 6),
-            estimated_delivery_date=None,
+            client_id=data["client_id"],
+            creation_date=datetime.utcnow(),
+            last_updated_date=datetime.utcnow(),
+            status_id=data.get("status_id", 6),  # Por defecto "Pending"
+            estimated_delivery_date=data.get("estimated_delivery_time")
         )
-        created_order = create_case.execute(order)
-        return jsonify({"order_id": created_order.order_id, "message": "Order created"}), 201
-
+        # Procesar los productos
+        order_items = []
+        for item in data["products"]:
+            product_id = item.get("product_id")
+            quantity = item.get("quantity")
+            if not product_id or not quantity:
+                return jsonify({"error": "Each product must have product_id and quantity"}), 400
+            order_item = OrderItem(
+                product_id=product_id,
+                quantity=quantity,
+                # Puedes incluir price_at_purchase si tu modelo lo requiere
+            )
+            order_items.append(order_item)
+        # Ejecutar el caso de uso para guardar la orden y los productos
+        created_order = create_case.execute(order, order_items)
+        return jsonify({
+            "order_id": created_order.order_id,
+            "message": "Order created successfully"
+        }), 201
 
     return api_bp
