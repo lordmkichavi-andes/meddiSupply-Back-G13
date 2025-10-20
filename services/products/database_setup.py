@@ -25,8 +25,10 @@ def setup_database():
         CREATE TABLE IF NOT EXISTS Product (
                                  product_id VARCHAR(50) PRIMARY KEY,
                                  sku VARCHAR(50) NOT NULL UNIQUE,
+                                 name VARCHAR(100) NOT NULL,
                                  value FLOAT NOT NULL,
                                  provider_id VARCHAR(50) NOT NULL,
+                                 image_url VARCHAR(255),
                                  category_id INT NOT NULL,
                                  objective_profile VARCHAR(255) NOT NULL,
                                  FOREIGN KEY (provider_id) REFERENCES Provider(provider_id),
