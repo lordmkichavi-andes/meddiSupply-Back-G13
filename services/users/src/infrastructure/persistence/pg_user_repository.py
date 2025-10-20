@@ -35,8 +35,8 @@ class PgUserRepository(UserRepository):
                     c.nit,
                     c.balance,
                     c.perfil
-                FROM "User" u
-                INNER JOIN "Client" c ON u.user_id = c.user_id
+                FROM "Users" u
+                INNER JOIN "Clientes" c ON u.user_id = c.user_id
                 WHERE u.role = %s
                 ORDER BY u.name ASC;
             """
