@@ -2,7 +2,7 @@
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM Users LIMIT 1) THEN
-        INSERT INTO users (name, last_name, password, identification, phone, role, client_id) VALUES
+        INSERT INTO Users (name, last_name, password, identification, phone, role, client_id) VALUES
         ('Carlos', 'Ramírez', 'hashed_pw_001', 'ID-1001', '3001112233', 'CLIENT', 'ORD-001'),
         ('Laura', 'Gómez', 'hashed_pw_002', 'ID-1002', '3002223344', 'CLIENT', 'ORD-002'),
         ('Andrés', 'Martínez', 'hashed_pw_003', 'ID-1003', '3003334455', 'CLIENT', 'ORD-003'),

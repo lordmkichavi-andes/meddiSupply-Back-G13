@@ -18,9 +18,9 @@ CREATE TABLE IF NOT EXISTS Clientes (
     nit VARCHAR(50) UNIQUE,
     balance DECIMAL(15, 2) DEFAULT 0.00,
     perfil TEXT,
-    FOREIGN KEY (user_id) REFERENCES User(user_id) ON DELETE CASCADE
+    FOREIGN KEY (user_id) REFERENCES Users(user_id) ON DELETE CASCADE
 );
 
 -- Crear índices para mejorar el rendimiento
-CREATE INDEX IF NOT EXISTS idx_user_role ON User(role);
-CREATE INDEX IF NOT EXISTS idx_client_user_id ON Client(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_role ON Users(role);
+CREATE INDEX IF NOT EXISTS idx_client_user_id ON Clientes(user_id);
