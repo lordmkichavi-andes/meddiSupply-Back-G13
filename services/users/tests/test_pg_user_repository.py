@@ -33,7 +33,7 @@ class TestPgUserRepository:
                 "hashed_password_123",
                 "1234567890",
                 "3001234567",
-                "CLIENT",
+                'CLIENT',
                 "900123456-7",
                 1500000.50,
                 "premium"
@@ -45,7 +45,7 @@ class TestPgUserRepository:
                 "hashed_password_456",
                 "0987654321",
                 "3107654321",
-                "CLIENT",
+                'CLIENT',
                 "900654321-1",
                 2500000.00,
                 "basic"
@@ -82,7 +82,7 @@ class TestPgUserRepository:
         assert result[0].password == "hashed_password_123"
         assert result[0].identification == "1234567890"
         assert result[0].phone == "3001234567"
-        assert result[0].role_value == "CLIENT"
+        assert result[0].role_value == 'CLIENT'
         assert result[0].nit == "900123456-7"
         assert result[0].balance == 1500000.50
         assert result[0].perfil == "premium"
@@ -95,8 +95,8 @@ class TestPgUserRepository:
         cursor.execute.assert_called_once()
         call_args = cursor.execute.call_args
         assert "SELECT" in call_args[0][0]
-        assert 'WHERE u.role = %s' in call_args[0][0]
-        assert call_args[0][1] == ("CLIENT",)
+        assert 'WHERE u.role IN (%s)' in call_args[0][0]
+        assert call_args[0][1] == ('CLIENT',)
 
         # Verificar que se liberó la conexión
         mock_release.assert_called_once_with(conn)
@@ -141,7 +141,7 @@ class TestPgUserRepository:
 
         # Act & Assert
         with pytest.raises(Exception) as exc_info:
-            repository.get_users_by_role("CLIENT")
+            repository.get_users_by_role('CLIENT')
 
         assert str(exc_info.value) == "Database error during user retrieval."
 
@@ -162,7 +162,7 @@ class TestPgUserRepository:
 
         # Act & Assert
         with pytest.raises(Exception) as exc_info:
-            repository.get_users_by_role("CLIENT")
+            repository.get_users_by_role('CLIENT')
 
         assert str(exc_info.value) == "Unable to get connection"
 
@@ -186,7 +186,7 @@ class TestPgUserRepository:
 
         # Act & Assert
         with pytest.raises(Exception):
-            repository.get_users_by_role("CLIENT")
+            repository.get_users_by_role('CLIENT')
 
         mock_release.assert_called_once_with(conn)
 
@@ -204,13 +204,13 @@ class TestPgUserRepository:
         conn, cursor = mock_connection
         mock_get_conn.return_value = conn
         unordered_rows = [
-            (2, "Zoe", "Last", "pass", "123", "phone", "CLIENT", "nit", 1000, "basic"),
-            (1, "Ana", "Last", "pass", "456", "phone", "CLIENT", "nit", 2000, "premium"),
+            (2, "Zoe", "Last", "pass", "123", "phone", 'CLIENT', "nit", 1000, "basic"),
+            (1, "Ana", "Last", "pass", "456", "phone", 'CLIENT', "nit", 2000, "premium"),
         ]
         cursor.fetchall.return_value = unordered_rows
 
         # Act
-        result = repository.get_users_by_role("CLIENT")
+        result = repository.get_users_by_role('CLIENT')
 
         # Assert
         # Verificar que la query incluye ORDER BY
@@ -233,12 +233,12 @@ class TestPgUserRepository:
         mock_get_conn.return_value = conn
         single_row = [
             (1, "Carlos", "Ruiz", "pass123", "111222333", "3009876543",
-             "CLIENT", "900111222-3", 5000000.75, "vip")
+             'CLIENT', "900111222-3", 5000000.75, "vip")
         ]
         cursor.fetchall.return_value = single_row
 
         # Act
-        result = repository.get_users_by_role("CLIENT")
+        result = repository.get_users_by_role('CLIENT')
 
         # Assert
         assert len(result) == 1
@@ -263,7 +263,7 @@ class TestPgUserRepository:
         cursor.fetchall.return_value = sample_db_rows
 
         # Act
-        repository.get_users_by_role("CLIENT")
+        repository.get_users_by_role('CLIENT')
 
         # Assert
         mock_release.assert_called_once_with(conn)
@@ -284,7 +284,7 @@ class TestPgUserRepository:
         cursor.fetchall.return_value = []
 
         # Act
-        repository.get_users_by_role("CLIENT")
+        repository.get_users_by_role('CLIENT')
 
         # Assert
         cursor.execute.assert_called_once()
@@ -316,7 +316,7 @@ class TestPgUserRepository:
         cursor.fetchall.return_value = sample_db_rows
 
         # Act
-        result1 = repository.get_users_by_role("CLIENT")
+        result1 = repository.get_users_by_role('CLIENT')
 
         # Reset mocks para segunda llamada
         mock_get_conn.reset_mock()
@@ -327,7 +327,7 @@ class TestPgUserRepository:
         mock_get_conn.return_value = conn
         cursor.fetchall.return_value = sample_db_rows
 
-        result2 = repository.get_users_by_role("CLIENT")
+        result2 = repository.get_users_by_role('CLIENT')
 
         # Assert
         assert len(result1) == 2
@@ -352,7 +352,7 @@ class TestPgUserRepository:
         cursor.fetchall.return_value = sample_db_rows
 
         # Act
-        repository.get_users_by_role("CLIENT")
+        repository.get_users_by_role('CLIENT')
 
         # Assert
         cursor.fetchall.assert_called_once()
@@ -374,7 +374,7 @@ class TestPgUserRepository:
 
         # Act & Assert
         with pytest.raises(Exception):
-            repository.get_users_by_role("CLIENT")
+            repository.get_users_by_role('CLIENT')
 
         # Verificar que se liberó la conexión
         mock_release.assert_called_once_with(conn)
