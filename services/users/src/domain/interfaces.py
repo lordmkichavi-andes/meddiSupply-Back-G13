@@ -11,3 +11,13 @@ class UserRepository(ABC):
     def get_users_by_role(self, role: str) -> List[Client]:
         """Recupera la lista de usuarios con un rol específico."""
         pass
+
+    @abstractmethod
+    def get_users_by_seller(self, seller_id: int) -> List[Client]:
+        """Recupera la lista de usuarios con un rol específico."""
+        pass
+
+    @abstractmethod
+    def save_visit(self, visit_data: Dict[str, Any]):
+        """Registra visitas"""
+        pass
