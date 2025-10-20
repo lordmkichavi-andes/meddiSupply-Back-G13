@@ -38,7 +38,7 @@ class PgOrderRepository(OrderRepository):
                     o.total_value,
                     MAX(o.creation_date) AS last_updated_date -- Usamos creation_date como proxy de last_updated_date
                                                              -- En un sistema real, necesitarías una tabla de histórico o un campo dedicado
-                FROM "Order" o
+                FROM orders."Order" o
                 WHERE o.user_id = %s
                 GROUP BY o.order_id, o.creation_date, o.estimated_delivery_date, o.current_state_id, o.total_value
                 ORDER BY last_updated_date DESC;
@@ -81,7 +81,7 @@ class PgOrderRepository(OrderRepository):
         cur = conn.cursor()
         cur.execute(
             """
-            INSERT INTO "Order" (client_id, creation_date, last_updated_date, status_id, estimated_delivery_date)
+            INSERT INTO orders."Order" (client_id, creation_date, last_updated_date, status_id, estimated_delivery_date)
             VALUES (%s, %s, %s, %s, %s)
             RETURNING order_id
             """,
