@@ -6,8 +6,7 @@ CREATE TABLE IF NOT EXISTS Users(
     password VARCHAR NOT NULL,
     identification VARCHAR UNIQUE NOT NULL,
     phone VARCHAR,
-    role VARCHAR NOT NULL,
-    client_id VARCHAR REFERENCES clientes(id)
+    role VARCHAR NOT NULL
 );
 
 
@@ -21,6 +20,3 @@ CREATE TABLE IF NOT EXISTS Clientes (
     FOREIGN KEY (user_id) REFERENCES Users(user_id) ON DELETE CASCADE
 );
 
--- Crear índices para mejorar el rendimiento
-CREATE INDEX IF NOT EXISTS idx_user_role ON Users(role);
-CREATE INDEX IF NOT EXISTS idx_client_user_id ON Clientes(user_id);

@@ -24,7 +24,7 @@ class PgUserRepository(UserRepository):
 
             # Consulta para obtener usuarios CLIENT con sus atributos específicos
             query = """
-                SELECT
+             SELECT
                     u.user_id,
                     u.name,
                     u.last_name,
@@ -35,9 +35,9 @@ class PgUserRepository(UserRepository):
                     c.nit,
                     c.balance,
                     c.perfil
-                FROM "Users" u
-                INNER JOIN "Clientes" c ON u.user_id = c.user_id
-                WHERE u.role = %s
+                FROM Users u
+                INNER JOIN Clientes c ON u.user_id = c.user_id
+                WHERE u.role IN (%s)
                 ORDER BY u.name ASC;
             """
 
