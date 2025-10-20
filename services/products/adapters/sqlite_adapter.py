@@ -19,6 +19,8 @@ class SQLiteProductAdapter(ProductRepository):
             p.product_id,
             p.sku,
             p.value,
+            p.name,
+            p.image_url,
             c.name AS category_name,
             SUM(ps.quantity) AS total_quantity
         FROM 
@@ -43,6 +45,8 @@ class SQLiteProductAdapter(ProductRepository):
                 product_id=row['product_id'],
                 sku=row['sku'],
                 value=row['value'],
+                image_url=row['image_url'],
+                name=row['name'],
                 category_name=row['category_name'],
                 total_quantity=row['total_quantity']
             ) for row in results
@@ -60,6 +64,8 @@ class SQLiteProductAdapter(ProductRepository):
                     p.product_id,
                     p.sku,
                     p.value,
+                    p.name,
+                    p.image_url,
                     c.name AS category_name,
                     SUM(ps.quantity) AS total_quantity
                 FROM 
@@ -80,7 +86,15 @@ class SQLiteProductAdapter(ProductRepository):
         row = cursor.fetchone()
         conn.close()
         if row:
-            return Product(id=row[0], name=row[1], price=row[2], stock=row[3])
+            return  Product(
+                product_id=row['product_id'],
+                sku=row['sku'],
+                value=row['value'],
+                image_url=row['image_url'],
+                name=row['name'],
+                category_name=row['category_name'],
+                total_quantity=row['total_quantity']
+            )
         return None
 
     def update_product(self, product_id: str, price: float, stock: int) -> None:
