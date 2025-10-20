@@ -76,7 +76,7 @@ class PgUserRepository(UserRepository):
 
         except psycopg2.Error as e:
             print(f"ERROR de base de datos al recuperar usuarios: {e}")
-            raise Exception("Database error during user retrieval.")
+            raise Exception(f"Database error during user retrieval. : {e}")
         finally:
             if conn:
                 release_connection(conn)
