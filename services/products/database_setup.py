@@ -1,8 +1,8 @@
 # database_setup.py
 import sqlite3
 import os
-from config import DB_NAME
 
+DB_NAME = os.environ.get('DB_NAME', 'postgres')
 def setup_database():
     """Crea la base de datos y las tablas si no existen, y las puebla con datos."""
     conn = sqlite3.connect(DB_NAME)
