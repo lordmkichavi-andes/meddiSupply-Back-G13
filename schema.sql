@@ -112,6 +112,15 @@ CREATE TABLE IF NOT EXISTS users.Users(
     role VARCHAR NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS users.seller (
+    seller_id SERIAL PRIMARY KEY,
+    user_id INTEGER UNIQUE NOT NULL, -- Clave foránea 1:1 con users.Users
+    zone VARCHAR(100) NOT NULL,      -- Zona de trabajo del vendedor
+    -- NOTA: La FK a users.Users está comentada para evitar errores si users.Users no existe.
+    FOREIGN KEY (user_id) REFERENCES users.Users(user_id) ON DELETE CASCADE
+);
+
+
 
 -- Crear tabla Client
 CREATE TABLE IF NOT EXISTS users.Clientes (
@@ -120,12 +129,14 @@ CREATE TABLE IF NOT EXISTS users.Clientes (
     nit VARCHAR(50) UNIQUE,
     balance DECIMAL(15, 2) DEFAULT 0.00,
     perfil TEXT,
+    seller_id INTEGER,
+    FOREIGN KEY (seller_id) REFERENCES users.seller(seller_id) ON DELETE SET NULL,
     FOREIGN KEY (user_id) REFERENCES users.Users(user_id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS users.visits (
     visit_id SERIAL PRIMARY KEY,                       -- Identificador de la visita (visit_id: str)
-    user_id INTEGER NOT NULL,                           -- ID del usuario que realizó la visita (user_id: str)
+    seller_id INTEGER NOT NULL,                           -- ID del usuario que realizó la visita (user_id: str)
     date DATE NOT NULL,                              -- Fecha en que se realizó la visita (date: Date)
     place TEXT,                                      -- Lugar o dirección de la visita (place: str)
     findings TEXT,                                   -- Hallazgos o notas de la visita (findings: str)
@@ -134,7 +145,7 @@ CREATE TABLE IF NOT EXISTS users.visits (
     client_id INTEGER NOT NULL,
     -- Relaciones
     FOREIGN KEY (client_id) REFERENCES users.Clientes(client_id) ON DELETE RESTRICT,
-    FOREIGN KEY (user_id) REFERENCES users.Users(user_id) ON DELETE RESTRICT,
+    FOREIGN KEY (seller_id) REFERENCES users.seller(seller_id) ON DELETE RESTRICT,
 );
 
 CREATE TABLE IF NOT EXISTS users.visit_product_suggestions (
@@ -228,10 +239,14 @@ INSERT INTO users.Users (name, last_name, password, identification, phone, role)
 ( 'Carlos', 'Lopez', 'R7hash', '30303030', '3207778899', 'CLIENT'), -- Dueño Farmacia A
 ( 'Laura', 'Diaz', 'A9hash', '40404040', '3019990011', 'CLIENT'); -- Gerente Hospital X
 
--- USERS.CLIENTES (Clientes/Puntos de Venta)
-INSERT INTO users.Clientes (user_id, nit, balance, perfil) VALUES
-(3, '800123456-1', 1500.50, 'Farmacia de Barrio A'),
-(4, '900789012-5', 52000.75, 'Hospital Nivel 3 X');
+-- NUEVO: USERS.SELLER (Vendedores)
+INSERT INTO users.seller (user_id, zone) VALUES
+(2, 'ZONA CENTRO-NORTE'); -- Maria Gomez (user_id 2) es la vendedora 1
+
+-- USERS.CLIENTES (Clientes/Puntos de Venta) - Modificado para incluir seller_id
+INSERT INTO users.Clientes (user_id, nit, balance, perfil, seller_id) VALUES
+(3, '800123456-1', 1500.50, 'Farmacia de Barrio A', 1), -- Cliente 1 asignado al Seller 1
+(4, '900789012-5', 52000.75, 'Hospital Nivel 3 X', 1); -- Cliente 2 asignado al Seller 1
 
 -- --------------------------------------------------------------------------------
 -- 3. TABLAS DE PEDIDOS (orders SCHEMA)
@@ -282,5 +297,3 @@ INSERT INTO users.visit_product_suggestions (visit_id, product_id) VALUES
 INSERT INTO users.visual_evidences (type, url_file, description, visit_id) VALUES
 ('PHOTO', 'https://storage.example.com/visit/1/photo_01.jpg', 'Foto de estantería de productos de la competencia.', 1),
 ('NOTE', 'https://storage.example.com/visit/1/audio_01.mp3', 'Nota de voz sobre la conversación con el dueño.', 1);
-
-
