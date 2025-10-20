@@ -69,7 +69,7 @@ class TestPgUserRepository:
         cursor.fetchall.return_value = sample_db_rows
 
         # Act
-        result = repository.get_users_by_role("CLIENT")
+        result = repository.get_users_by_role('CLIENT')
 
         # Assert
         assert len(result) == 2
