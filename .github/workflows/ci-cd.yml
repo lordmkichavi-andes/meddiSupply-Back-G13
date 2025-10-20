@@ -344,7 +344,6 @@ jobs:
   # 4) Notificación de PR (si aplica)
   pr_notification:
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
     steps:
       - name: PR Summary
         run: |
