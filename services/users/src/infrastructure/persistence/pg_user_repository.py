@@ -81,6 +81,79 @@ class PgUserRepository(UserRepository):
             if conn:
                 release_connection(conn)
 
+    def get_users_by_seller(self, seller_id: str) -> List[Client]:
+        """
+        Recupera usuarios de la base de datos filtrados por rol.
+        """
+        conn = None
+        users = []
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+
+            # Consulta para obtener usuarios CLIENT con sus atributos específicos
+            query = """
+                SELECT
+                   u.user_id,
+                   c.client_id,           -- Agregamos el ID del cliente
+                   u.name,
+                   u.last_name,
+                   u.password,            -- Considera si realmente necesitas la contraseña en esta consulta
+                   u.identification,
+                   u.phone,
+                   u.role,
+                   c.nit,
+                   c.balance,
+                   c.perfil
+               FROM users.Users u
+               INNER JOIN users.Clientes c ON u.user_id = c.user_id
+               -- Unimos con la tabla Seller para filtrar por el vendedor
+               INNER JOIN users.seller s ON c.seller_id = s.seller_id
+               -- El filtro ahora busca por el ID del vendedor, no por el rol.
+               WHERE s.seller_id = %d
+               ORDER BY u.name ASC;
+               """
+
+            # Ejecutamos la consulta
+            cursor.execute(query, (seller_id,))
+
+            for row in cursor.fetchall():
+                (
+                    user_id,
+                    name,
+                    last_name,
+                    password,
+                    identification,
+                    phone,
+                    role_value,
+                    nit,
+                    balance,
+                    perfil
+                ) = row
+
+                # Mapeo a la entidad del dominio
+                users.append(Client(
+                    user_id=user_id,
+                    name=name,
+                    last_name=last_name,
+                    password=password,
+                    identification=identification,
+                    phone=phone,
+                    role_value=role_value,
+                    nit=nit,
+                    balance=balance,
+                    perfil=perfil
+                ))
+
+            return users
+
+        except psycopg2.Error as e:
+            print(f"ERROR de base de datos al recuperar usuarios: {e}")
+            raise Exception("Database error during user retrieval.")
+        finally:
+            if conn:
+                release_connection(conn)
+
     def save_visit(self, visit_data: Dict[str, Any]):
         """
         Guarda la información de una nueva visita en la base de datos.

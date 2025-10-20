@@ -43,6 +43,38 @@ def create_user_api_blueprint(
                 "error": str(e)
             }), 500
 
+    @user_api_bp.route('/clients/<int:seller_id>', methods=['GET'])
+    def get_client_users(seller_id):
+        """
+        Maneja la solicitud HTTP para obtener usuarios CLIENT filtrados por seller_id,
+        llama al Caso de Uso y retorna la respuesta.
+        """
+        try:
+            # 1. Llamar al Caso de Uso (Lógica de Negocio)
+            # Se pasa el seller_id para filtrar los clientes
+            users = get_clients_by_seller_use_case.execute_by_seller(seller_id=seller_id)
+
+            # 2. Manejo de mensajes específicos
+            if not users:
+                return jsonify({
+                    # Mensaje más específico para el contexto
+                    "message": f"No se encontraron clientes asignados al vendedor con ID {seller_id}.",
+                    "users": []
+                }), 404
+
+            # 3. Retornar la respuesta exitosa
+            return jsonify({
+                "users": users
+            }), 200
+
+        except Exception as e:
+            # Si el sistema no puede recuperar la información
+            return jsonify({
+                "message": "No se pudieron obtener los clientes. Intenta nuevamente.",
+                "error": str(e)
+            }), 500
+
+    @user_api_bp.route('/visit', methods=['POST'])
     def register_visit():
         """
         Maneja la solicitud HTTP POST para registrar una nueva visita,
