@@ -6,8 +6,6 @@ from repositories.product_repository import ProductRepository
 from domain.models import Product
 from config import Config
 
-
-
 class SQLiteProductAdapter(ProductRepository):
     """Implementación del repositorio de productos para SQLite."""
 
