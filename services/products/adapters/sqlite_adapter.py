@@ -1,5 +1,6 @@
 # adapters/sql_adapter.py
 import sqlite3
+import os
 from typing import List
 from repositories.product_repository import ProductRepository
 from domain.models import Product
