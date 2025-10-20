@@ -253,4 +253,4 @@ if __name__ == '__main__':
     print("🌐 Servidor ejecutándose en: http://localhost:8080")
     print("🔧 Versión: 2.1.4 - Proper ECS Deploy Test")
     app = create_app()
-    app.run(debug=True, host='0.0.0.0', port=8080)
+    app.run(host='0.0.0.0', port=8080, debug=False)
