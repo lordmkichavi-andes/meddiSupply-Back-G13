@@ -111,7 +111,7 @@ def create_app():
     user_api_bp = create_user_api_blueprint(get_client_users_use_case)
     
     # --- REGISTRO DE RUTAS ---
-    app.register_blueprint(user_api_bp, url_prefix='/api')
+    app.register_blueprint(user_api_bp, url_prefix='/users')
     
     # --- RUTAS LEGACY (Datos quemados) ---
     
@@ -239,7 +239,8 @@ def create_app():
             }), 503
     
     return app
-  
+
+app = create_app()
 
 if __name__ == '__main__':
     print("🚀 Iniciando Usuarios Service - CI/CD Pipeline...")
@@ -252,5 +253,4 @@ if __name__ == '__main__':
     print("   GET  /api/users/clients - Obtener usuarios CLIENT de BD")
     print("🌐 Servidor ejecutándose en: http://localhost:8080")
     print("🔧 Versión: 2.1.4 - Proper ECS Deploy Test")
-    app = create_app()
-    app.run(debug=True, host='0.0.0.0', port=8080)
+    app.run(host='0.0.0.0', port=8080, debug=False)

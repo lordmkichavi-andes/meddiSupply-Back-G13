@@ -9,7 +9,7 @@ def create_user_api_blueprint(use_case: GetClientUsersUseCase):
     """
     user_api_bp = Blueprint('api', __name__)
 
-    @user_api_bp.route('/users/clients', methods=['GET'])
+    @user_api_bp.route('/clients', methods=['GET'])
     def get_client_users():
         """
         Maneja la solicitud HTTP para obtener usuarios CLIENT,

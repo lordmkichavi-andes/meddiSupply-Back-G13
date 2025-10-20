@@ -17,7 +17,7 @@ class GetClientUsersUseCase:
         Ejecuta la lógica de negocio para obtener la lista de usuarios CLIENT.
         """
         # 1. Obtener usuarios con rol CLIENT (Usando el Repositorio)
-        users = self.repository.get_users_by_role("CLIENT")
+        users = self.repository.get_users_by_role('CLIENT')
 
         # 2. Si no hay usuarios
         if not users:

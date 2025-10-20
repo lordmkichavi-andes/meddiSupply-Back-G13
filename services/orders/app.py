@@ -55,7 +55,6 @@ def create_app():
             "allow_headers": ["Content-Type", "Authorization", "X-Requested-With"]
         }
     })
-
     # 3. Capa de Presentación (Web)
     api_bp = create_api_blueprint(track_orders_use_case, create_order_use_case)
     app.register_blueprint(api_bp, url_prefix='/orders')

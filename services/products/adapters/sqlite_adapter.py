@@ -1,16 +1,16 @@
 # adapters/sql_adapter.py
 import sqlite3
+import os
 from typing import List
 from repositories.product_repository import ProductRepository
 from domain.models import Product
-from config import DB_NAME
-
+from config import Config
 
 class SQLiteProductAdapter(ProductRepository):
     """Implementación del repositorio de productos para SQLite."""
 
     def get_available_products(self) -> List[Product]:
-        conn = sqlite3.connect(DB_NAME)
+        conn = sqlite3.connect(Config.DB_NAME)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
 
@@ -19,6 +19,8 @@ class SQLiteProductAdapter(ProductRepository):
             p.product_id,
             p.sku,
             p.value,
+            p.name,
+            p.image_url,
             c.name AS category_name,
             SUM(ps.quantity) AS total_quantity
         FROM 
@@ -43,6 +45,8 @@ class SQLiteProductAdapter(ProductRepository):
                 product_id=row['product_id'],
                 sku=row['sku'],
                 value=row['value'],
+                image_url=row['image_url'],
+                name=row['name'],
                 category_name=row['category_name'],
                 total_quantity=row['total_quantity']
             ) for row in results
@@ -53,13 +57,15 @@ class SQLiteProductAdapter(ProductRepository):
 
     def get_product_by_id(self, product_id: str) -> List[Product]:
         """Obtiene un producto por su ID."""
-        conn = sqlite3.connect(DB_NAME)
+        conn = sqlite3.connect(Config.DB_NAME)
         cursor = conn.cursor()
         query = '''
                 SELECT 
                     p.product_id,
                     p.sku,
                     p.value,
+                    p.name,
+                    p.image_url,
                     c.name AS category_name,
                     SUM(ps.quantity) AS total_quantity
                 FROM 
@@ -80,7 +86,15 @@ class SQLiteProductAdapter(ProductRepository):
         row = cursor.fetchone()
         conn.close()
         if row:
-            return Product(id=row[0], name=row[1], price=row[2], stock=row[3])
+            return  Product(
+                product_id=row['product_id'],
+                sku=row['sku'],
+                value=row['value'],
+                image_url=row['image_url'],
+                name=row['name'],
+                category_name=row['category_name'],
+                total_quantity=row['total_quantity']
+            )
         return None
 
     def update_product(self, product_id: str, price: float, stock: int) -> None:
@@ -88,7 +102,7 @@ class SQLiteProductAdapter(ProductRepository):
         Actualiza el precio y el stock de un producto por su ID.
         Si el producto no existe, se asume que la operación no es válida y no se hace nada.
         """
-        conn = sqlite3.connect(DB_NAME)
+        conn = sqlite3.connect(Config.DB_NAME)
         cursor = conn.cursor()
         queryProduct = '''
                  UPDATE Product

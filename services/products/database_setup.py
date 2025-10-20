@@ -1,11 +1,12 @@
 # database_setup.py
 import sqlite3
-import os
-from config import DB_NAME
+from config import Config
+
+
 
 def setup_database():
     """Crea la base de datos y las tablas si no existen, y las puebla con datos."""
-    conn = sqlite3.connect(DB_NAME)
+    conn = sqlite3.connect(Config.DB_NAME)
     cursor = conn.cursor()
 
     with open('insert_data.sql', 'r') as f:
@@ -24,8 +25,10 @@ def setup_database():
         CREATE TABLE IF NOT EXISTS Product (
                                  product_id VARCHAR(50) PRIMARY KEY,
                                  sku VARCHAR(50) NOT NULL UNIQUE,
+                                 name VARCHAR(100) NOT NULL,
                                  value FLOAT NOT NULL,
                                  provider_id VARCHAR(50) NOT NULL,
+                                 image_url VARCHAR(255),
                                  category_id INT NOT NULL,
                                  objective_profile VARCHAR(255) NOT NULL,
                                  FOREIGN KEY (provider_id) REFERENCES Provider(provider_id),
