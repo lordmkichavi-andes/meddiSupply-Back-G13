@@ -1,0 +1,853 @@
+-- Creación esquema de Productos
+CREATE SCHEMA IF NOT EXISTS products;
+
+-- Creación de la tabla 'Category' (Categoría)
+-- Esta tabla almacena los tipos de categorías de productos.
+ CREATE TABLE IF NOT EXISTS products.Category (
+                          category_id INT PRIMARY KEY,
+                          name VARCHAR(50) NOT NULL
+);
+
+-- Creación de la tabla 'Provider' (Proveedor)
+-- Esta tabla se crea para soportar la relación con la tabla 'Product'.
+ CREATE TABLE IF NOT EXISTS products.Provider (
+                          provider_id VARCHAR(50) PRIMARY KEY,
+                          name VARCHAR(100) NOT NULL
+);
+
+-- Creación de la tabla 'Product' (Producto)
+-- Almacena la información de los productos, incluyendo su relación con la categoría y el proveedor.
+CREATE TABLE products.Product (
+    product_id VARCHAR(50) PRIMARY KEY,
+    sku VARCHAR(50) NOT NULL UNIQUE,
+    name VARCHAR(100) NOT NULL,
+    value FLOAT NOT NULL,
+    image_url VARCHAR(255),
+    provider_id VARCHAR(50) NOT NULL,
+    category_id INT NOT NULL,
+    objective_profile VARCHAR(255) NOT NULL,
+    FOREIGN KEY (provider_id) REFERENCES products.Provider(provider_id),
+    FOREIGN KEY (category_id) REFERENCES products.Category(category_id)
+);
+
+CREATE TABLE IF NOT EXISTS products.Warehouse (
+    warehouse_id VARCHAR(50) PRIMARY KEY, -- Identificador único de la bodega
+    name VARCHAR(100) NOT NULL,          -- Nombre de la bodega
+    location VARCHAR(255)                -- Ubicación o dirección de la bodega (opcional)
+);
+
+CREATE TABLE IF NOT EXISTS products.Inventory (
+    product_id VARCHAR(50),
+    warehouse_id VARCHAR(50),
+    stock_quantity INT NOT NULL DEFAULT 0, -- Cantidad de este producto en esta bodega
+    PRIMARY KEY (product_id, warehouse_id), -- La clave primaria compuesta asegura que solo haya una entrada por producto/bodega
+    FOREIGN KEY (product_id) REFERENCES products.Product(product_id),
+    FOREIGN KEY (warehouse_id) REFERENCES products.Warehouse(warehouse_id)
+);
+
+-- Creación de la tabla 'ProductStock' (Inventario de Producto)
+-- Almacena los registros de inventario para cada producto.
+ CREATE TABLE IF NOT EXISTS products.ProductStock (
+                              stock_id VARCHAR(50) PRIMARY KEY,
+                              product_id VARCHAR(50) NOT NULL,
+                              quantity INT NOT NULL,
+                              lote VARCHAR(50) NOT NULL,
+                              warehouse_id VARCHAR(50) NOT NULL,
+                              country VARCHAR(50) NOT NULL,
+                              FOREIGN KEY (product_id) REFERENCES products.Product(product_id)
+);
+
+ CREATE TABLE IF NOT EXISTS products.State (
+                         state_id INT PRIMARY KEY,
+                         name VARCHAR(50) NOT NULL UNIQUE
+);
+
+
+-- Creación de la tabla 'Order' (Pedido)
+    CREATE SCHEMA IF NOT EXISTS orders;
+
+-- Almacena la cabecera del pedido y su información general.
+ CREATE TABLE IF NOT EXISTS orders."Order" (
+                          order_id VARCHAR(50) PRIMARY KEY,
+                          user_id VARCHAR(50), -- Asumiendo que hay una tabla 'User' o 'Customer' externa
+                          creation_date DATE NOT NULL,
+                          estimated_delivery_date DATE,
+                          current_state_id INT NOT NULL,
+                          total_value FLOAT NOT NULL,
+
+                          FOREIGN KEY (current_state_id) REFERENCES products.State(state_id)
+);
+
+
+-- Creación de la tabla 'OrderLine' (Línea de Pedido / Detalle)
+-- Almacena los productos específicos dentro de un pedido, su cantidad y precio en el momento de la compra.
+ CREATE TABLE IF NOT EXISTS orders.OrderLine (
+                             order_line_id VARCHAR(50) PRIMARY KEY,
+                             order_id VARCHAR(50) NOT NULL,
+                             product_id VARCHAR(50) NOT NULL,
+                             quantity INT NOT NULL,
+                             -- Se registra el valor del producto en el momento del pedido para evitar incoherencias futuras
+                             value_at_time_of_order FLOAT NOT NULL,
+
+                             FOREIGN KEY (order_id) REFERENCES "Order"(order_id),
+                             FOREIGN KEY (product_id) REFERENCES products.Product(product_id)
+);
+
+
+CREATE INDEX IF NOT EXISTS idx_order_state ON orders."Order"(current_state_id);
+CREATE INDEX IF NOT EXISTS idx_line_order ON orders.OrderLine(order_id);
+CREATE INDEX IF NOT EXISTS idx_line_product ON orders.OrderLine(product_id);
+
+
+-- Crear tabla User
+    CREATE SCHEMA IF NOT EXISTS users;
+CREATE TABLE IF NOT EXISTS users.Users(
+    user_id SERIAL PRIMARY KEY,
+    name VARCHAR NOT NULL,
+    last_name VARCHAR NOT NULL,
+    password VARCHAR NOT NULL,
+    identification VARCHAR UNIQUE NOT NULL,
+    phone VARCHAR,
+    role VARCHAR NOT NULL
+);
+
+
+-- Crear tabla Client
+CREATE TABLE IF NOT EXISTS users.Clientes (
+    client_id SERIAL PRIMARY KEY,
+    user_id INTEGER UNIQUE NOT NULL,
+    nit VARCHAR(50) UNIQUE,
+    balance DECIMAL(15, 2) DEFAULT 0.00,
+    perfil TEXT,
+    FOREIGN KEY (user_id) REFERENCES users.Users(user_id) ON DELETE CASCADE
+);
+
+
+-- ******************************************************
+
+-- INSERCIÓN DE DATOS DE PRUEBA
+-- Se asume que las tablas Category, Provider, Product y ProductStock
+-- ya están definidas, junto con State, Order y OrderLine.
+-- Se añade una validación para insertar datos solo si las tablas están vacías.
+-- ******************************************************
+
+-- 1. Tablas de Catálogo y Proveedores
+------------------------------------------------------
+
+-- Categorías
+
+-- Inserción de estados iniciales (Opcional, pero recomendado para iniciar)
+INSERT INTO products.Category (category_id, name) VALUES
+                                             (1, 'MEDICATION'),
+                                             (2, 'SURGICAL_SUPPLIES'),
+                                             (3, 'REAGENTS'),
+                                             (4, 'EQUIPMENT'),
+                                             (5, 'OTHERS');
+
+-- Inserción de registros para la tabla 'Provider'
+INSERT INTO products.Provider (provider_id, name) VALUES
+                                             ('prov_001', 'PharmaCorp'),
+                                             ('prov_002', 'MediEquip Solutions'),
+                                             ('prov_003', 'BioTech Innovations'),
+                                             ('prov_004', 'SurgiCare Global'),
+                                             ('prov_005', 'HealthFlow Distributors');
+
+-- Inserción de 100 registros para la tabla 'Product'
+-- Inserciones de datos en la tabla Product, adaptadas al nuevo esquema.
+-- Columnas: product_id, sku, name, value, provider_id, image_url, category_id, objective_profile
+INSERT INTO products.Product (product_id, sku, name, value, provider_id, image_url, category_id, objective_profile) VALUES
+-- Medicamentos (Categoría 1)
+('prod_001', 'SKU-MED-001', 'Tratamiento Dolencias Comunes', 25.50, 'prov_001', NULL, 1, 'Tratamiento de dolencias comunes'),
+('prod_002', 'SKU-MED-002', 'Antibiótico Amplio Espectro', 120.75, 'prov_001', NULL, 1, 'Antibiótico de amplio espectro'),
+('prod_008', 'SKU-MED-008', 'Inyectable Analgésico', 55.00, 'prov_001', NULL, 1, 'Inyectable analgésico'),
+('prod_012', 'SKU-MED-012', 'Antihistamínico para Alergias', 45.75, 'prov_001', NULL, 1, 'Antihistamínico para alergias'),
+('prod_016', 'SKU-MED-016', 'Antiácido Acción Rápida', 30.25, 'prov_001', NULL, 1, 'Antiácido de acción rápida'),
+('prod_021', 'SKU-MED-021', 'Vacuna de Temporada', 95.00, 'prov_001', NULL, 1, 'Vacuna de temporada'),
+('prod_025', 'SKU-MED-025', 'Suplemento Vitamínico', 40.00, 'prov_001', NULL, 1, 'Suplemento vitamínico'),
+('prod_030', 'SKU-MED-030', 'Ansiolítico Baja Potencia', 60.00, 'prov_001', NULL, 1, 'Ansiolítico de baja potencia'),
+('prod_034', 'SKU-MED-034', 'Medicamento Presión Arterial', 38.00, 'prov_001', NULL, 1, 'Medicamento para la presión arterial'),
+('prod_039', 'SKU-MED-039', 'Gotas Oftálmicas', 80.00, 'prov_001', NULL, 1, 'Gotas oftálmicas'),
+('prod_043', 'SKU-MED-043', 'Jarabe para la Tos', 28.00, 'prov_001', NULL, 1, 'Jarabe para la tos'),
+('prod_048', 'SKU-MED-048', 'Inmunosupresor', 42.00, 'prov_001', NULL, 1, 'Inmunosupresor'),
+('prod_052', 'SKU-MED-052', 'Cápsulas Liberación Prolongada', 50.00, 'prov_001', NULL, 1, 'Cápsulas de liberación prolongada'),
+('prod_056', 'SKU-MED-056', 'Tabletas Efervescentes', 33.00, 'prov_001', NULL, 1, 'Tabletas efervescentes'),
+('prod_061', 'SKU-MED-061', 'Cremas Dermatológicas', 72.00, 'prov_001', NULL, 1, 'Cremas dermatológicas'),
+('prod_065', 'SKU-MED-065', 'Analgésico Tópico', 58.00, 'prov_001', NULL, 1, 'Analgésico tópico'),
+('prod_070', 'SKU-MED-070', 'Antiemético', 49.00, 'prov_001', NULL, 1, 'Antiemético'),
+('prod_074', 'SKU-MED-074', 'Suero Salino', 22.50, 'prov_001', NULL, 1, 'Suero salino'),
+('prod_079', 'SKU-MED-079', 'Medicamento para el Asma', 53.00, 'prov_001', NULL, 1, 'Medicamento para el asma'),
+('prod_083', 'SKU-MED-083', 'Antifúngico', 39.50, 'prov_001', NULL, 1, 'Antifúngico'),
+('prod_088', 'SKU-MED-088', 'Antiviral', 65.00, 'prov_001', NULL, 1, 'Antiviral'),
+('prod_092', 'SKU-MED-092', 'Medicamento para el Insomnio', 46.00, 'prov_001', NULL, 1, 'Medicamento para el insomnio'),
+('prod_097', 'SKU-MED-097', 'Gotas para los Oídos', 29.00, 'prov_001', NULL, 1, 'Gotas para los oídos'),
+
+-- Material Quirúrgico (Categoría 2)
+('prod_003', 'SKU-SUR-003', 'Guantes Quirúrgicos Estériles', 8.90, 'prov_002', NULL, 2, 'Guantes estériles para cirugía'),
+('prod_004', 'SKU-SUR-004', 'Suturas Reabsorbibles', 35.00, 'prov_004', NULL, 2, 'Suturas reabsorbibles'),
+('prod_009', 'SKU-SUR-009', 'Agujas Hipodérmicas', 12.00, 'prov_004', NULL, 2, 'Agujas hipodérmicas'),
+('prod_013', 'SKU-SUR-013', 'Grapas Quirúrgicas', 22.00, 'prov_004', NULL, 2, 'Grapas quirúrgicas'),
+('prod_017', 'SKU-SUR-017', 'Apósitos Estériles', 7.50, 'prov_004', NULL, 2, 'Apósitos estériles'),
+('prod_022', 'SKU-SUR-022', 'Gasas Hemostáticas', 15.00, 'prov_004', NULL, 2, 'Gasas hemostáticas'),
+('prod_026', 'SKU-SUR-026', 'Vendas Elásticas', 18.00, 'prov_004', NULL, 2, 'Vendas elásticas'),
+('prod_031', 'SKU-SUR-031', 'Catéteres de Silicona', 9.50, 'prov_004', NULL, 2, 'Catéteres de silicona'),
+('prod_035', 'SKU-SUR-035', 'Tijeras de Disección', 25.00, 'prov_004', NULL, 2, 'Tijeras de disección'),
+('prod_040', 'SKU-SUR-040', 'Pinzas Hemostáticas', 11.00, 'prov_004', NULL, 2, 'Pinzas hemostáticas'),
+('prod_044', 'SKU-SUR-044', 'Tubos Ensayo Estériles', 6.00, 'prov_004', NULL, 2, 'Tubos de ensayo estériles'),
+('prod_049', 'SKU-SUR-049', 'Agujas de Biopsia', 14.50, 'prov_004', NULL, 2, 'Agujas de biopsia'),
+('prod_053', 'SKU-SUR-053', 'Láminas de Bisturí', 28.00, 'prov_004', NULL, 2, 'Láminas de bisturí'),
+('prod_057', 'SKU-SUR-057', 'Cinta Adhesiva Médica', 10.50, 'prov_004', NULL, 2, 'Cinta adhesiva médica'),
+('prod_062', 'SKU-SUR-062', 'Tubos Drenaje Quirúrgico', 16.00, 'prov_004', NULL, 2, 'Tubos de drenaje quirúrgico'),
+('prod_066', 'SKU-SUR-066', 'Pinzas de Coagulación', 19.50, 'prov_004', NULL, 2, 'Pinzas de coagulación'),
+('prod_071', 'SKU-SUR-071', 'Jeringas de Insulina', 8.50, 'prov_004', NULL, 2, 'Jeringas de insulina'),
+('prod_075', 'SKU-SUR-075', 'Tiras Reactivas de Orina', 17.00, 'prov_004', NULL, 2, 'Tiras reactivas de orina'),
+('prod_080', 'SKU-SUR-080', 'Apósitos Hidrocoloides', 21.00, 'prov_004', NULL, 2, 'Apósitos hidrocoloides'),
+('prod_084', 'SKU-SUR-084', 'Esponjas Quirúrgicas', 13.00, 'prov_004', NULL, 2, 'Esponjas quirúrgicas'),
+('prod_089', 'SKU-SUR-089', 'Instrumental Laparoscopia', 24.00, 'prov_004', NULL, 2, 'Instrumental de laparoscopia'),
+('prod_093', 'SKU-SUR-093', 'Cánulas de Aspiración', 15.50, 'prov_004', NULL, 2, 'Cánulas de aspiración'),
+('prod_098', 'SKU-SUR-098', 'Vendas Yeso Sintético', 18.00, 'prov_004', NULL, 2, 'Vendas de yeso sintético'),
+
+-- Reactivos de Laboratorio (Categoría 3)
+('prod_005', 'SKU-REA-005', 'Reactivo Pruebas Laboratorio', 75.20, 'prov_003', NULL, 3, 'Reactivo para pruebas de laboratorio'),
+('prod_010', 'SKU-REA-010', 'Solución de Calibración', 98.50, 'prov_003', NULL, 3, 'Solución de calibración'),
+('prod_014', 'SKU-REA-014', 'Medio de Cultivo Microbiológico', 110.00, 'prov_003', NULL, 3, 'Medio de cultivo microbiológico'),
+('prod_018', 'SKU-REA-018', 'Tiras Reactivas Glucosa', 65.00, 'prov_003', NULL, 3, 'Tiras reactivas de glucosa'),
+('prod_023', 'SKU-REA-023', 'Kit Prueba Molecular', 130.00, 'prov_003', NULL, 3, 'Kit de prueba molecular'),
+('prod_027', 'SKU-REA-027', 'Solución Tinción Histológica', 88.00, 'prov_003', NULL, 3, 'Solución de tinción histológica'),
+('prod_032', 'SKU-REA-032', 'Anticuerpos Monoclonales Prueba', 150.00, 'prov_003', NULL, 3, 'Anticuerpos monoclonales de prueba'),
+('prod_036', 'SKU-REA-036', 'Medio Transporte Viral', 105.00, 'prov_003', NULL, 3, 'Medio de transporte viral'),
+('prod_041', 'SKU-REA-041', 'Kit Extracción de ADN', 70.00, 'prov_003', NULL, 3, 'Kit de extracción de ADN'),
+('prod_045', 'SKU-REA-045', 'Solución Buffer Fosfato', 125.00, 'prov_003', NULL, 3, 'Solución de buffer fosfato'),
+('prod_050', 'SKU-REA-050', 'Medio de Cultivo Celular', 90.00, 'prov_003', NULL, 3, 'Medio de cultivo celular'),
+('prod_054', 'SKU-REA-054', 'Reactivo Western Blot', 160.00, 'prov_003', NULL, 3, 'Reactivo para Western Blot'),
+('prod_058', 'SKU-REA-058', 'Kit PCR Tiempo Real', 85.00, 'prov_003', NULL, 3, 'Kit de PCR en tiempo real'),
+('prod_063', 'SKU-REA-063', 'Sustrato para ELISA', 145.00, 'prov_003', NULL, 3, 'Sustrato para ELISA'),
+('prod_067', 'SKU-REA-067', 'Reactivos de Hematología', 99.00, 'prov_003', NULL, 3, 'Reactivos de hematología'),
+('prod_072', 'SKU-REA-072', 'Kit Secuenciación ADN', 115.00, 'prov_003', NULL, 3, 'Kit de secuenciación de ADN'),
+('prod_076', 'SKU-REA-076', 'Reactivo para Inmunoensayo', 68.00, 'prov_003', NULL, 3, 'Reactivo para Inmunoensayo'),
+('prod_081', 'SKU-REA-081', 'Sustrato Inmunohistoquímica', 122.00, 'prov_003', NULL, 3, 'Sustrato para Inmunohistoquímica'),
+('prod_085', 'SKU-REA-085', 'Solución Purificación ARN', 77.00, 'prov_003', NULL, 3, 'Solución de purificación de ARN'),
+('prod_090', 'SKU-REA-090', 'Kit Detección Patógenos', 155.00, 'prov_003', NULL, 3, 'Kit de detección de patógenos'),
+('prod_094', 'SKU-REA-094', 'Reactivo Inmunofluorescencia', 92.00, 'prov_003', NULL, 3, 'Reactivo para inmunofluorescencia'),
+('prod_099', 'SKU-REA-099', 'Kit Elisa Alta Sensibilidad', 108.00, 'prov_003', NULL, 3, 'Kit de Elisa de alta sensibilidad'),
+
+-- Equipos Médicos (Categoría 4)
+('prod_006', 'SKU-EQU-006', 'Monitor Signos Vitales Portátil', 500.00, 'prov_002', NULL, 4, 'Monitor de signos vitales portátil'),
+('prod_011', 'SKU-EQU-011', 'Bomba de Infusión Volumétrica', 2500.00, 'prov_002', NULL, 4, 'Bomba de infusión volumétrica'),
+('prod_015', 'SKU-EQU-015', 'Lámpara de Examen Clínica', 780.00, 'prov_002', NULL, 4, 'Lámpara de examen clínica'),
+('prod_019', 'SKU-EQU-019', 'Tensiómetro Digital', 350.00, 'prov_002', NULL, 4, 'Tensiómetro digital'),
+('prod_024', 'SKU-EQU-024', 'Ecógrafo Portátil', 1800.00, 'prov_002', NULL, 4, 'Ecógrafo portátil'),
+('prod_028', 'SKU-EQU-028', 'Balanza Precisión Clínica', 750.00, 'prov_002', NULL, 4, 'Balanza de precisión clínica'),
+('prod_033', 'SKU-EQU-033', 'Ventilador Mecánico Emergencia', 3500.00, 'prov_002', NULL, 4, 'Ventilador mecánico de emergencia'),
+('prod_037', 'SKU-EQU-037', 'Electrobisturí', 950.00, 'prov_002', NULL, 4, 'Electrobisturí'),
+('prod_042', 'SKU-EQU-042', 'Fonendoscopio Electrónico', 450.00, 'prov_002', NULL, 4, 'Fonendoscopio electrónico'),
+('prod_046', 'SKU-EQU-046', 'Centrífuga de Laboratorio', 600.00, 'prov_002', NULL, 4, 'Centrífuga de laboratorio'),
+('prod_051', 'SKU-EQU-051', 'Bomba Peristáltica Lab', 1100.00, 'prov_002', NULL, 4, 'Bomba peristáltica de laboratorio'),
+('prod_055', 'SKU-EQU-055', 'Sistema Purificación Agua', 2000.00, 'prov_002', NULL, 4, 'Sistema de purificación de agua'),
+('prod_059', 'SKU-EQU-059', 'Microscopio Óptico Avanzado', 820.00, 'prov_002', NULL, 4, 'Microscopio óptico avanzado'),
+('prod_064', 'SKU-EQU-064', 'Oxímetro de Pulso de Dedo', 300.00, 'prov_002', NULL, 4, 'Oxímetro de pulso de dedo'),
+('prod_068', 'SKU-EQU-068', 'Incubadora de Laboratorio', 1500.00, 'prov_002', NULL, 4, 'Incubadora de laboratorio'),
+('prod_073', 'SKU-EQU-073', 'Autoclave de Sobremesa', 700.00, 'prov_002', NULL, 4, 'Autoclave de sobremesa'),
+('prod_077', 'SKU-EQU-077', 'Bomba de Succión', 400.00, 'prov_002', NULL, 4, 'Bomba de succión'),
+('prod_082', 'SKU-EQU-082', 'Electrocardiógrafo (ECG)', 900.00, 'prov_002', NULL, 4, 'Electrocardiógrafo (ECG)'),
+('prod_086', 'SKU-EQU-086', 'Espectrofotómetro', 1800.00, 'prov_002', NULL, 4, 'Espectrofotómetro'),
+('prod_091', 'SKU-EQU-091', 'Cámara Flujo Laminar', 1200.00, 'prov_002', NULL, 4, 'Cámara de flujo laminar'),
+('prod_095', 'SKU-EQU-095', 'Báscula Médica con Tallímetro', 550.00, 'prov_002', NULL, 4, 'Báscula médica con tallímetro'),
+('prod_100', 'SKU-EQU-100', 'Termómetro Infrarrojo', 250.00, 'prov_002', NULL, 4, 'Termómetro infrarrojo'),
+
+-- Otros Insumos (Categoría 5)
+('prod_007', 'SKU-OTH-007', 'Material Embalaje Bioseguridad', 15.00, 'prov_005', NULL, 5, 'Material de embalaje para bioseguridad'),
+('prod_020', 'SKU-OTH-020', 'Mascarillas de Protección N95', 8.00, 'prov_005', NULL, 5, 'Mascarillas de protección N95'),
+('prod_029', 'SKU-OTH-029', 'Desinfectante de Superficies', 20.00, 'prov_005', NULL, 5, 'Desinfectante de superficies'),
+('prod_038', 'SKU-OTH-038', 'Contenedor Residuos Biológicos', 18.50, 'prov_005', NULL, 5, 'Contenedor de residuos biológicos'),
+('prod_047', 'SKU-OTH-047', 'Alcohol Isopropílico', 10.00, 'prov_005', NULL, 5, 'Alcohol isopropílico'),
+('prod_060', 'SKU-OTH-060', 'Toallitas Desinfectantes', 13.00, 'prov_005', NULL, 5, 'Toallitas desinfectantes'),
+('prod_069', 'SKU-OTH-069', 'Gafas de Seguridad Médica', 9.00, 'prov_005', NULL, 5, 'Gafas de seguridad médica'),
+('prod_078', 'SKU-OTH-078', 'Gel Antibacterial', 6.00, 'prov_005', NULL, 5, 'Gel antibacterial'),
+('prod_087', 'SKU-OTH-087', 'Batas Desechables', 11.50, 'prov_005', NULL, 5, 'Batas desechables'),
+('prod_096', 'SKU-OTH-096', 'Bolsas Residuos Clínicos', 7.00, 'prov_005', NULL, 5, 'Bolsas de residuos clínicos');
+
+
+-- Inserción de 500 registros para la tabla 'ProductStock'
+INSERT INTO products.ProductStock (stock_id, product_id, quantity, lote, warehouse_id, country) VALUES
+                                                                                           ('stock_001', 'prod_001', 50, 'L-MED-1A-25', 'W-001', 'USA'),
+                                                                                           ('stock_002', 'prod_002', 30, 'L-MED-2B-25', 'W-002', 'CAN'),
+                                                                                           ('stock_003', 'prod_003', 200, 'L-SUR-3C-25', 'W-003', 'MEX'),
+                                                                                           ('stock_004', 'prod_004', 150, 'L-SUR-4D-25', 'W-001', 'USA'),
+                                                                                           ('stock_005', 'prod_005', 75, 'L-REA-5E-25', 'W-002', 'CAN'),
+                                                                                           ('stock_006', 'prod_006', 10, 'L-EQU-6F-25', 'W-003', 'MEX'),
+                                                                                           ('stock_007', 'prod_007', 300, 'L-OTH-7G-25', 'W-001', 'USA'),
+                                                                                           ('stock_008', 'prod_008', 60, 'L-MED-8H-25', 'W-002', 'CAN'),
+                                                                                           ('stock_009', 'prod_009', 180, 'L-SUR-9I-25', 'W-003', 'MEX'),
+                                                                                           ('stock_010', 'prod_010', 50, 'L-REA-10J-25', 'W-001', 'USA'),
+                                                                                           ('stock_011', 'prod_011', 5, 'L-EQU-11K-25', 'W-002', 'CAN'),
+                                                                                           ('stock_012', 'prod_012', 45, 'L-MED-12L-25', 'W-003', 'MEX'),
+                                                                                           ('stock_013', 'prod_013', 110, 'L-SUR-13M-25', 'W-001', 'USA'),
+                                                                                           ('stock_014', 'prod_014', 85, 'L-REA-14N-25', 'W-002', 'CAN'),
+                                                                                           ('stock_015', 'prod_015', 15, 'L-EQU-15O-25', 'W-003', 'MEX'),
+                                                                                           ('stock_016', 'prod_016', 70, 'L-MED-16P-25', 'W-001', 'USA'),
+                                                                                           ('stock_017', 'prod_017', 220, 'L-SUR-17Q-25', 'W-002', 'CAN'),
+                                                                                           ('stock_018', 'prod_018', 90, 'L-REA-18R-25', 'W-003', 'MEX'),
+                                                                                           ('stock_019', 'prod_019', 20, 'L-EQU-19S-25', 'W-001', 'USA'),
+                                                                                           ('stock_020', 'prod_020', 400, 'L-OTH-20T-25', 'W-002', 'CAN'),
+                                                                                           ('stock_021', 'prod_021', 40, 'L-MED-21U-25', 'W-003', 'MEX'),
+                                                                                           ('stock_022', 'prod_022', 170, 'L-SUR-22V-25', 'W-001', 'USA'),
+                                                                                           ('stock_023', 'prod_023', 60, 'L-REA-23W-25', 'W-002', 'CAN'),
+                                                                                           ('stock_024', 'prod_024', 8, 'L-EQU-24X-25', 'W-003', 'MEX'),
+                                                                                           ('stock_025', 'prod_025', 55, 'L-MED-25Y-25', 'W-001', 'USA'),
+                                                                                           ('stock_026', 'prod_026', 190, 'L-SUR-26Z-25', 'W-002', 'CAN'),
+                                                                                           ('stock_027', 'prod_027', 80, 'L-REA-27A-25', 'W-003', 'MEX'),
+                                                                                           ('stock_028', 'prod_028', 12, 'L-EQU-28B-25', 'W-001', 'USA'),
+                                                                                           ('stock_029', 'prod_029', 250, 'L-OTH-29C-25', 'W-002', 'CAN'),
+                                                                                           ('stock_030', 'prod_030', 70, 'L-MED-30D-25', 'W-003', 'MEX'),
+                                                                                           ('stock_031', 'prod_031', 130, 'L-SUR-31E-25', 'W-001', 'USA'),
+                                                                                           ('stock_032', 'prod_032', 45, 'L-REA-32F-25', 'W-002', 'CAN'),
+                                                                                           ('stock_033', 'prod_033', 3, 'L-EQU-33G-25', 'W-003', 'MEX'),
+                                                                                           ('stock_034', 'prod_034', 65, 'L-MED-34H-25', 'W-001', 'USA'),
+                                                                                           ('stock_035', 'prod_035', 100, 'L-SUR-35I-25', 'W-002', 'CAN'),
+                                                                                           ('stock_036', 'prod_036', 75, 'L-REA-36J-25', 'W-003', 'MEX'),
+                                                                                           ('stock_037', 'prod_037', 10, 'L-EQU-37K-25', 'W-001', 'USA'),
+                                                                                           ('stock_038', 'prod_038', 350, 'L-OTH-38L-25', 'W-002', 'CAN'),
+                                                                                           ('stock_039', 'prod_039', 80, 'L-MED-39M-25', 'W-003', 'MEX'),
+                                                                                           ('stock_040', 'prod_040', 160, 'L-SUR-40N-25', 'W-001', 'USA'),
+                                                                                           ('stock_041', 'prod_041', 55, 'L-REA-41O-25', 'W-002', 'CAN'),
+                                                                                           ('stock_042', 'prod_042', 18, 'L-EQU-42P-25', 'W-003', 'MEX'),
+                                                                                           ('stock_043', 'prod_043', 95, 'L-MED-43Q-25', 'W-001', 'USA'),
+                                                                                           ('stock_044', 'prod_044', 210, 'L-SUR-44R-25', 'W-002', 'CAN'),
+                                                                                           ('stock_045', 'prod_045', 70, 'L-REA-45S-25', 'W-003', 'MEX'),
+                                                                                           ('stock_046', 'prod_046', 25, 'L-EQU-46T-25', 'W-001', 'USA'),
+                                                                                           ('stock_047', 'prod_047', 450, 'L-OTH-47U-25', 'W-002', 'CAN'),
+                                                                                           ('stock_048', 'prod_048', 48, 'L-MED-48V-25', 'W-003', 'MEX'),
+                                                                                           ('stock_049', 'prod_049', 115, 'L-SUR-49W-25', 'W-001', 'USA'),
+                                                                                           ('stock_050', 'prod_050', 88, 'L-REA-50X-25', 'W-002', 'CAN'),
+                                                                                           ('stock_051', 'prod_051', 14, 'L-EQU-51Y-25', 'W-003', 'MEX'),
+                                                                                           ('stock_052', 'prod_052', 52, 'L-MED-52Z-25', 'W-001', 'USA'),
+                                                                                           ('stock_053', 'prod_053', 200, 'L-SUR-53A-25', 'W-002', 'CAN'),
+                                                                                           ('stock_054', 'prod_054', 65, 'L-REA-54B-25', 'W-003', 'MEX'),
+                                                                                           ('stock_055', 'prod_055', 7, 'L-EQU-55C-25', 'W-001', 'USA'),
+                                                                                           ('stock_056', 'prod_056', 68, 'L-MED-56D-25', 'W-002', 'CAN'),
+                                                                                           ('stock_057', 'prod_057', 155, 'L-SUR-57E-25', 'W-003', 'MEX'),
+                                                                                           ('stock_058', 'prod_058', 92, 'L-REA-58F-25', 'W-001', 'USA'),
+                                                                                           ('stock_059', 'prod_059', 22, 'L-EQU-59G-25', 'W-002', 'CAN'),
+                                                                                           ('stock_060', 'prod_060', 310, 'L-OTH-60H-25', 'W-003', 'MEX'),
+                                                                                           ('stock_061', 'prod_061', 78, 'L-MED-61I-25', 'W-001', 'USA'),
+                                                                                           ('stock_062', 'prod_062', 190, 'L-SUR-62J-25', 'W-002', 'CAN'),
+                                                                                           ('stock_063', 'prod_063', 105, 'L-REA-63K-25', 'W-003', 'MEX'),
+                                                                                           ('stock_064', 'prod_064', 35, 'L-EQU-64L-25', 'W-001', 'USA'),
+                                                                                           ('stock_065', 'prod_065', 55, 'L-MED-65M-25', 'W-002', 'CAN'),
+                                                                                           ('stock_066', 'prod_066', 110, 'L-SUR-66N-25', 'W-003', 'MEX'),
+                                                                                           ('stock_067', 'prod_067', 75, 'L-REA-67O-25', 'W-001', 'USA'),
+                                                                                           ('stock_068', 'prod_068', 11, 'L-EQU-68P-25', 'W-002', 'CAN'),
+                                                                                           ('stock_069', 'prod_069', 280, 'L-OTH-69Q-25', 'W-003', 'MEX'),
+                                                                                           ('stock_070', 'prod_070', 43, 'L-MED-70R-25', 'W-001', 'USA'),
+                                                                                           ('stock_071', 'prod_071', 185, 'L-SUR-71S-25', 'W-002', 'CAN'),
+                                                                                           ('stock_072', 'prod_072', 62, 'L-REA-72T-25', 'W-003', 'MEX'),
+                                                                                           ('stock_073', 'prod_073', 17, 'L-EQU-73U-25', 'W-001', 'USA'),
+                                                                                           ('stock_074', 'prod_074', 85, 'L-MED-74V-25', 'W-002', 'CAN'),
+                                                                                           ('stock_075', 'prod_075', 150, 'L-SUR-75W-25', 'W-003', 'MEX'),
+                                                                                           ('stock_076', 'prod_076', 98, 'L-REA-76X-25', 'W-001', 'USA'),
+                                                                                           ('stock_077', 'prod_077', 28, 'L-EQU-77Y-25', 'W-002', 'CAN'),
+                                                                                           ('stock_078', 'prod_078', 370, 'L-OTH-78Z-25', 'W-003', 'MEX'),
+                                                                                           ('stock_079', 'prod_079', 60, 'L-MED-79A-25', 'W-001', 'USA'),
+                                                                                           ('stock_080', 'prod_080', 140, 'L-SUR-80B-25', 'W-002', 'CAN'),
+                                                                                           ('stock_081', 'prod_081', 88, 'L-REA-81C-25', 'W-003', 'MEX'),
+                                                                                           ('stock_082', 'prod_082', 19, 'L-EQU-82D-25', 'W-001', 'USA'),
+                                                                                           ('stock_083', 'prod_083', 75, 'L-MED-83E-25', 'W-002', 'CAN'),
+                                                                                           ('stock_084', 'prod_084', 165, 'L-SUR-84F-25', 'W-003', 'MEX'),
+                                                                                           ('stock_085', 'prod_085', 95, 'L-REA-85G-25', 'W-001', 'USA'),
+                                                                                           ('stock_086', 'prod_086', 15, 'L-EQU-86H-25', 'W-002', 'CAN'),
+                                                                                           ('stock_087', 'prod_087', 290, 'L-OTH-87I-25', 'W-003', 'MEX'),
+                                                                                           ('stock_088', 'prod_088', 50, 'L-MED-88J-25', 'W-001', 'USA'),
+                                                                                           ('stock_089', 'prod_089', 115, 'L-SUR-89K-25', 'W-002', 'CAN'),
+                                                                                           ('stock_090', 'prod_090', 70, 'L-REA-90L-25', 'W-003', 'MEX'),
+                                                                                           ('stock_091', 'prod_091', 9, 'L-EQU-91M-25', 'W-001', 'USA'),
+                                                                                           ('stock_092', 'prod_092', 58, 'L-MED-92N-25', 'W-002', 'CAN'),
+                                                                                           ('stock_093', 'prod_093', 145, 'L-SUR-93O-25', 'W-003', 'MEX'),
+                                                                                           ('stock_094', 'prod_094', 83, 'L-REA-94P-25', 'W-001', 'USA'),
+                                                                                           ('stock_095', 'prod_095', 21, 'L-EQU-95Q-25', 'W-002', 'CAN'),
+                                                                                           ('stock_096', 'prod_096', 330, 'L-OTH-96R-25', 'W-003', 'MEX'),
+                                                                                           ('stock_097', 'prod_097', 62, 'L-MED-97S-25', 'W-001', 'USA'),
+                                                                                           ('stock_098', 'prod_098', 170, 'L-SUR-98T-25', 'W-002', 'CAN'),
+                                                                                           ('stock_099', 'prod_099', 95, 'L-REA-99U-25', 'W-003', 'MEX'),
+                                                                                           ('stock_100', 'prod_100', 30, 'L-EQU-100V-25', 'W-001', 'USA'),
+                                                                                           ('stock_101', 'prod_001', 65, 'L-MED-1A-25', 'W-002', 'CAN'),
+                                                                                           ('stock_102', 'prod_002', 40, 'L-MED-2B-25', 'W-003', 'MEX'),
+                                                                                           ('stock_103', 'prod_003', 220, 'L-SUR-3C-25', 'W-001', 'USA'),
+                                                                                           ('stock_104', 'prod_004', 160, 'L-SUR-4D-25', 'W-002', 'CAN'),
+                                                                                           ('stock_105', 'prod_005', 80, 'L-REA-5E-25', 'W-003', 'MEX'),
+                                                                                           ('stock_106', 'prod_006', 12, 'L-EQU-6F-25', 'W-001', 'USA'),
+                                                                                           ('stock_107', 'prod_007', 320, 'L-OTH-7G-25', 'W-002', 'CAN'),
+                                                                                           ('stock_108', 'prod_008', 65, 'L-MED-8H-25', 'W-003', 'MEX'),
+                                                                                           ('stock_109', 'prod_009', 190, 'L-SUR-9I-25', 'W-001', 'USA'),
+                                                                                           ('stock_110', 'prod_010', 55, 'L-REA-10J-25', 'W-002', 'CAN'),
+                                                                                           ('stock_111', 'prod_011', 6, 'L-EQU-11K-25', 'W-003', 'MEX'),
+                                                                                           ('stock_112', 'prod_012', 50, 'L-MED-12L-25', 'W-001', 'USA'),
+                                                                                           ('stock_113', 'prod_013', 120, 'L-SUR-13M-25', 'W-002', 'CAN'),
+                                                                                           ('stock_114', 'prod_014', 90, 'L-REA-14N-25', 'W-003', 'MEX'),
+                                                                                           ('stock_115', 'prod_015', 18, 'L-EQU-15O-25', 'W-001', 'USA'),
+                                                                                           ('stock_116', 'prod_016', 80, 'L-MED-16P-25', 'W-002', 'CAN'),
+                                                                                           ('stock_117', 'prod_017', 230, 'L-SUR-17Q-25', 'W-003', 'MEX'),
+                                                                                           ('stock_118', 'prod_018', 95, 'L-REA-18R-25', 'W-001', 'USA'),
+                                                                                           ('stock_119', 'prod_019', 25, 'L-EQU-19S-25', 'W-002', 'CAN'),
+                                                                                           ('stock_120', 'prod_020', 420, 'L-OTH-20T-25', 'W-003', 'MEX'),
+                                                                                           ('stock_121', 'prod_021', 45, 'L-MED-21U-25', 'W-001', 'USA'),
+                                                                                           ('stock_122', 'prod_022', 180, 'L-SUR-22V-25', 'W-002', 'CAN'),
+                                                                                           ('stock_123', 'prod_023', 65, 'L-REA-23W-25', 'W-003', 'MEX'),
+                                                                                           ('stock_124', 'prod_024', 9, 'L-EQU-24X-25', 'W-001', 'USA'),
+                                                                                           ('stock_125', 'prod_025', 60, 'L-MED-25Y-25', 'W-002', 'CAN'),
+                                                                                           ('stock_126', 'prod_026', 200, 'L-SUR-26Z-25', 'W-003', 'MEX'),
+                                                                                           ('stock_127', 'prod_027', 85, 'L-REA-27A-25', 'W-001', 'USA'),
+                                                                                           ('stock_128', 'prod_028', 14, 'L-EQU-28B-25', 'W-002', 'CAN'),
+                                                                                           ('stock_129', 'prod_029', 270, 'L-OTH-29C-25', 'W-003', 'MEX'),
+                                                                                           ('stock_130', 'prod_030', 75, 'L-MED-30D-25', 'W-001', 'USA'),
+                                                                                           ('stock_131', 'prod_031', 140, 'L-SUR-31E-25', 'W-002', 'CAN'),
+                                                                                           ('stock_132', 'prod_032', 50, 'L-REA-32F-25', 'W-003', 'MEX'),
+                                                                                           ('stock_133', 'prod_033', 4, 'L-EQU-33G-25', 'W-001', 'USA'),
+                                                                                           ('stock_134', 'prod_034', 70, 'L-MED-34H-25', 'W-002', 'CAN'),
+                                                                                           ('stock_135', 'prod_035', 110, 'L-SUR-35I-25', 'W-003', 'MEX'),
+                                                                                           ('stock_136', 'prod_036', 80, 'L-REA-36J-25', 'W-001', 'USA'),
+                                                                                           ('stock_137', 'prod_037', 12, 'L-EQU-37K-25', 'W-002', 'CAN'),
+                                                                                           ('stock_138', 'prod_038', 380, 'L-OTH-38L-25', 'W-003', 'MEX'),
+                                                                                           ('stock_139', 'prod_039', 85, 'L-MED-39M-25', 'W-001', 'USA'),
+                                                                                           ('stock_140', 'prod_040', 170, 'L-SUR-40N-25', 'W-002', 'CAN'),
+                                                                                           ('stock_141', 'prod_041', 60, 'L-REA-41O-25', 'W-003', 'MEX'),
+                                                                                           ('stock_142', 'prod_042', 20, 'L-EQU-42P-25', 'W-001', 'USA'),
+                                                                                           ('stock_143', 'prod_043', 100, 'L-MED-43Q-25', 'W-002', 'CAN'),
+                                                                                           ('stock_144', 'prod_044', 220, 'L-SUR-44R-25', 'W-003', 'MEX'),
+                                                                                           ('stock_145', 'prod_045', 75, 'L-REA-45S-25', 'W-001', 'USA'),
+                                                                                           ('stock_146', 'prod_046', 28, 'L-EQU-46T-25', 'W-002', 'CAN'),
+                                                                                           ('stock_147', 'prod_047', 480, 'L-OTH-47U-25', 'W-003', 'MEX'),
+                                                                                           ('stock_148', 'prod_048', 50, 'L-MED-48V-25', 'W-001', 'USA'),
+                                                                                           ('stock_149', 'prod_049', 125, 'L-SUR-49W-25', 'W-002', 'CAN'),
+                                                                                           ('stock_150', 'prod_050', 95, 'L-REA-50X-25', 'W-003', 'MEX'),
+                                                                                           ('stock_151', 'prod_051', 16, 'L-EQU-51Y-25', 'W-001', 'USA'),
+                                                                                           ('stock_152', 'prod_052', 55, 'L-MED-52Z-25', 'W-002', 'CAN'),
+                                                                                           ('stock_153', 'prod_053', 210, 'L-SUR-53A-25', 'W-003', 'MEX'),
+                                                                                           ('stock_154', 'prod_054', 70, 'L-REA-54B-25', 'W-001', 'USA'),
+                                                                                           ('stock_155', 'prod_055', 8, 'L-EQU-55C-25', 'W-002', 'CAN'),
+                                                                                           ('stock_156', 'prod_056', 70, 'L-MED-56D-25', 'W-003', 'MEX'),
+                                                                                           ('stock_157', 'prod_057', 160, 'L-SUR-57E-25', 'W-001', 'USA'),
+                                                                                           ('stock_158', 'prod_058', 98, 'L-REA-58F-25', 'W-002', 'CAN'),
+                                                                                           ('stock_159', 'prod_059', 25, 'L-EQU-59G-25', 'W-003', 'MEX'),
+                                                                                           ('stock_160', 'prod_060', 350, 'L-OTH-60H-25', 'W-001', 'USA'),
+                                                                                           ('stock_161', 'prod_061', 82, 'L-MED-61I-25', 'W-002', 'CAN'),
+                                                                                           ('stock_162', 'prod_062', 200, 'L-SUR-62J-25', 'W-003', 'MEX'),
+                                                                                           ('stock_163', 'prod_063', 110, 'L-REA-63K-25', 'W-001', 'USA'),
+                                                                                           ('stock_164', 'prod_064', 38, 'L-EQU-64L-25', 'W-002', 'CAN'),
+                                                                                           ('stock_165', 'prod_065', 60, 'L-MED-65M-25', 'W-003', 'MEX'),
+                                                                                           ('stock_166', 'prod_066', 120, 'L-SUR-66N-25', 'W-001', 'USA'),
+                                                                                           ('stock_167', 'prod_067', 80, 'L-REA-67O-25', 'W-002', 'CAN'),
+                                                                                           ('stock_168', 'prod_068', 13, 'L-EQU-68P-25', 'W-003', 'MEX'),
+                                                                                           ('stock_169', 'prod_069', 300, 'L-OTH-69Q-25', 'W-001', 'USA'),
+                                                                                           ('stock_170', 'prod_070', 48, 'L-MED-70R-25', 'W-002', 'CAN'),
+                                                                                           ('stock_171', 'prod_071', 190, 'L-SUR-71S-25', 'W-003', 'MEX'),
+                                                                                           ('stock_172', 'prod_072', 65, 'L-REA-72T-25', 'W-001', 'USA'),
+                                                                                           ('stock_173', 'prod_073', 20, 'L-EQU-73U-25', 'W-002', 'CAN'),
+                                                                                           ('stock_174', 'prod_074', 90, 'L-MED-74V-25', 'W-003', 'MEX'),
+                                                                                           ('stock_175', 'prod_075', 160, 'L-SUR-75W-25', 'W-001', 'USA'),
+                                                                                           ('stock_176', 'prod_076', 105, 'L-REA-76X-25', 'W-002', 'CAN'),
+                                                                                           ('stock_177', 'prod_077', 30, 'L-EQU-77Y-25', 'W-003', 'MEX'),
+                                                                                           ('stock_178', 'prod_078', 400, 'L-OTH-78Z-25', 'W-001', 'USA'),
+                                                                                           ('stock_179', 'prod_079', 65, 'L-MED-79A-25', 'W-002', 'CAN'),
+                                                                                           ('stock_180', 'prod_080', 150, 'L-SUR-80B-25', 'W-003', 'MEX'),
+                                                                                           ('stock_181', 'prod_081', 92, 'L-REA-81C-25', 'W-001', 'USA'),
+                                                                                           ('stock_182', 'prod_082', 22, 'L-EQU-82D-25', 'W-002', 'CAN'),
+                                                                                           ('stock_183', 'prod_083', 80, 'L-MED-83E-25', 'W-003', 'MEX'),
+                                                                                           ('stock_184', 'prod_084', 170, 'L-SUR-84F-25', 'W-001', 'USA'),
+                                                                                           ('stock_185', 'prod_085', 100, 'L-REA-85G-25', 'W-002', 'CAN'),
+                                                                                           ('stock_186', 'prod_086', 18, 'L-EQU-86H-25', 'W-003', 'MEX'),
+                                                                                           ('stock_187', 'prod_087', 310, 'L-OTH-87I-25', 'W-001', 'USA'),
+                                                                                           ('stock_188', 'prod_088', 55, 'L-MED-88J-25', 'W-002', 'CAN'),
+                                                                                           ('stock_189', 'prod_089', 120, 'L-SUR-89K-25', 'W-003', 'MEX'),
+                                                                                           ('stock_190', 'prod_090', 75, 'L-REA-90L-25', 'W-001', 'USA'),
+                                                                                           ('stock_191', 'prod_091', 10, 'L-EQU-91M-25', 'W-002', 'CAN'),
+                                                                                           ('stock_192', 'prod_092', 62, 'L-MED-92N-25', 'W-003', 'MEX'),
+                                                                                           ('stock_193', 'prod_093', 150, 'L-SUR-93O-25', 'W-001', 'USA'),
+                                                                                           ('stock_194', 'prod_094', 88, 'L-REA-94P-25', 'W-002', 'CAN'),
+                                                                                           ('stock_195', 'prod_095', 25, 'L-EQU-95Q-25', 'W-003', 'MEX'),
+                                                                                           ('stock_196', 'prod_096', 350, 'L-OTH-96R-25', 'W-001', 'USA'),
+                                                                                           ('stock_197', 'prod_097', 68, 'L-MED-97S-25', 'W-002', 'CAN'),
+                                                                                           ('stock_198', 'prod_098', 180, 'L-SUR-98T-25', 'W-003', 'MEX'),
+                                                                                           ('stock_199', 'prod_099', 100, 'L-REA-99U-25', 'W-001', 'USA'),
+                                                                                           ('stock_200', 'prod_100', 35, 'L-EQU-100V-25', 'W-002', 'CAN'),
+                                                                                           ('stock_201', 'prod_001', 70, 'L-MED-1A-25', 'W-003', 'MEX'),
+                                                                                           ('stock_202', 'prod_002', 45, 'L-MED-2B-25', 'W-001', 'USA'),
+                                                                                           ('stock_203', 'prod_003', 250, 'L-SUR-3C-25', 'W-002', 'CAN'),
+                                                                                           ('stock_204', 'prod_004', 180, 'L-SUR-4D-25', 'W-003', 'MEX'),
+                                                                                           ('stock_205', 'prod_005', 90, 'L-REA-5E-25', 'W-001', 'USA'),
+                                                                                           ('stock_206', 'prod_006', 15, 'L-EQU-6F-25', 'W-002', 'CAN'),
+                                                                                           ('stock_207', 'prod_007', 350, 'L-OTH-7G-25', 'W-003', 'MEX'),
+                                                                                           ('stock_208', 'prod_008', 70, 'L-MED-8H-25', 'W-001', 'USA'),
+                                                                                           ('stock_209', 'prod_009', 200, 'L-SUR-9I-25', 'W-002', 'CAN'),
+                                                                                           ('stock_210', 'prod_010', 60, 'L-REA-10J-25', 'W-003', 'MEX'),
+                                                                                           ('stock_211', 'prod_011', 7, 'L-EQU-11K-25', 'W-001', 'USA'),
+                                                                                           ('stock_212', 'prod_012', 55, 'L-MED-12L-25', 'W-002', 'CAN'),
+                                                                                           ('stock_213', 'prod_013', 130, 'L-SUR-13M-25', 'W-003', 'MEX'),
+                                                                                           ('stock_214', 'prod_014', 95, 'L-REA-14N-25', 'W-001', 'USA'),
+                                                                                           ('stock_215', 'prod_015', 20, 'L-EQU-15O-25', 'W-002', 'CAN'),
+                                                                                           ('stock_216', 'prod_016', 85, 'L-MED-16P-25', 'W-003', 'MEX'),
+                                                                                           ('stock_217', 'prod_017', 240, 'L-SUR-17Q-25', 'W-001', 'USA'),
+                                                                                           ('stock_218', 'prod_018', 100, 'L-REA-18R-25', 'W-002', 'CAN'),
+                                                                                           ('stock_219', 'prod_019', 30, 'L-EQU-19S-25', 'W-003', 'MEX'),
+                                                                                           ('stock_220', 'prod_020', 450, 'L-OTH-20T-25', 'W-001', 'USA'),
+                                                                                           ('stock_221', 'prod_021', 50, 'L-MED-21U-25', 'W-002', 'CAN'),
+                                                                                           ('stock_222', 'prod_022', 200, 'L-SUR-22V-25', 'W-003', 'MEX'),
+                                                                                           ('stock_223', 'prod_023', 70, 'L-REA-23W-25', 'W-001', 'USA'),
+                                                                                           ('stock_224', 'prod_024', 10, 'L-EQU-24X-25', 'W-002', 'CAN'),
+                                                                                           ('stock_225', 'prod_025', 65, 'L-MED-25Y-25', 'W-003', 'MEX'),
+                                                                                           ('stock_226', 'prod_026', 210, 'L-SUR-26Z-25', 'W-001', 'USA'),
+                                                                                           ('stock_227', 'prod_027', 90, 'L-REA-27A-25', 'W-002', 'CAN'),
+                                                                                           ('stock_228', 'prod_028', 16, 'L-EQU-28B-25', 'W-003', 'MEX'),
+                                                                                           ('stock_229', 'prod_029', 280, 'L-OTH-29C-25', 'W-001', 'USA'),
+                                                                                           ('stock_230', 'prod_030', 80, 'L-MED-30D-25', 'W-002', 'CAN'),
+                                                                                           ('stock_231', 'prod_031', 150, 'L-SUR-31E-25', 'W-003', 'MEX'),
+                                                                                           ('stock_232', 'prod_032', 55, 'L-REA-32F-25', 'W-001', 'USA'),
+                                                                                           ('stock_233', 'prod_033', 5, 'L-EQU-33G-25', 'W-002', 'CAN'),
+                                                                                           ('stock_234', 'prod_034', 75, 'L-MED-34H-25', 'W-003', 'MEX'),
+                                                                                           ('stock_235', 'prod_035', 120, 'L-SUR-35I-25', 'W-001', 'USA'),
+                                                                                           ('stock_236', 'prod_036', 85, 'L-REA-36J-25', 'W-002', 'CAN'),
+                                                                                           ('stock_237', 'prod_037', 14, 'L-EQU-37K-25', 'W-003', 'MEX'),
+                                                                                           ('stock_238', 'prod_038', 400, 'L-OTH-38L-25', 'W-001', 'USA'),
+                                                                                           ('stock_239', 'prod_039', 90, 'L-MED-39M-25', 'W-002', 'CAN'),
+                                                                                           ('stock_240', 'prod_040', 180, 'L-SUR-40N-25', 'W-003', 'MEX'),
+                                                                                           ('stock_241', 'prod_041', 65, 'L-REA-41O-25', 'W-001', 'USA'),
+                                                                                           ('stock_242', 'prod_042', 22, 'L-EQU-42P-25', 'W-002', 'CAN'),
+                                                                                           ('stock_243', 'prod_043', 110, 'L-MED-43Q-25', 'W-003', 'MEX'),
+                                                                                           ('stock_244', 'prod_044', 230, 'L-SUR-44R-25', 'W-001', 'USA'),
+                                                                                           ('stock_245', 'prod_045', 80, 'L-REA-45S-25', 'W-002', 'CAN'),
+                                                                                           ('stock_246', 'prod_046', 30, 'L-EQU-46T-25', 'W-003', 'MEX'),
+                                                                                           ('stock_247', 'prod_047', 500, 'L-OTH-47U-25', 'W-001', 'USA'),
+                                                                                           ('stock_248', 'prod_048', 55, 'L-MED-48V-25', 'W-002', 'CAN'),
+                                                                                           ('stock_249', 'prod_049', 135, 'L-SUR-49W-25', 'W-003', 'MEX'),
+                                                                                           ('stock_250', 'prod_050', 100, 'L-REA-50X-25', 'W-001', 'USA'),
+                                                                                           ('stock_251', 'prod_051', 18, 'L-EQU-51Y-25', 'W-002', 'CAN'),
+                                                                                           ('stock_252', 'prod_052', 60, 'L-MED-52Z-25', 'W-003', 'MEX'),
+                                                                                           ('stock_253', 'prod_053', 220, 'L-SUR-53A-25', 'W-001', 'USA'),
+                                                                                           ('stock_254', 'prod_054', 75, 'L-REA-54B-25', 'W-002', 'CAN'),
+                                                                                           ('stock_255', 'prod_055', 9, 'L-EQU-55C-25', 'W-003', 'MEX'),
+                                                                                           ('stock_256', 'prod_056', 75, 'L-MED-56D-25', 'W-001', 'USA'),
+                                                                                           ('stock_257', 'prod_057', 170, 'L-SUR-57E-25', 'W-002', 'CAN'),
+                                                                                           ('stock_258', 'prod_058', 105, 'L-REA-58F-25', 'W-003', 'MEX'),
+                                                                                           ('stock_259', 'prod_059', 28, 'L-EQU-59G-25', 'W-001', 'USA'),
+                                                                                           ('stock_260', 'prod_060', 380, 'L-OTH-60H-25', 'W-002', 'CAN'),
+                                                                                           ('stock_261', 'prod_061', 85, 'L-MED-61I-25', 'W-003', 'MEX'),
+                                                                                           ('stock_262', 'prod_062', 210, 'L-SUR-62J-25', 'W-001', 'USA'),
+                                                                                           ('stock_263', 'prod_063', 115, 'L-REA-63K-25', 'W-002', 'CAN'),
+                                                                                           ('stock_264', 'prod_064', 40, 'L-EQU-64L-25', 'W-003', 'MEX'),
+                                                                                           ('stock_265', 'prod_065', 65, 'L-MED-65M-25', 'W-001', 'USA'),
+                                                                                           ('stock_266', 'prod_066', 130, 'L-SUR-66N-25', 'W-002', 'CAN'),
+                                                                                           ('stock_267', 'prod_067', 85, 'L-REA-67O-25', 'W-003', 'MEX'),
+                                                                                           ('stock_268', 'prod_068', 15, 'L-EQU-68P-25', 'W-001', 'USA'),
+                                                                                           ('stock_269', 'prod_069', 320, 'L-OTH-69Q-25', 'W-002', 'CAN'),
+                                                                                           ('stock_270', 'prod_070', 52, 'L-MED-70R-25', 'W-003', 'MEX'),
+                                                                                           ('stock_271', 'prod_071', 200, 'L-SUR-71S-25', 'W-001', 'USA'),
+                                                                                           ('stock_272', 'prod_072', 70, 'L-REA-72T-25', 'W-002', 'CAN'),
+                                                                                           ('stock_273', 'prod_073', 25, 'L-EQU-73U-25', 'W-003', 'MEX'),
+                                                                                           ('stock_274', 'prod_074', 95, 'L-MED-74V-25', 'W-001', 'USA'),
+                                                                                           ('stock_275', 'prod_075', 170, 'L-SUR-75W-25', 'W-002', 'CAN'),
+                                                                                           ('stock_276', 'prod_076', 110, 'L-REA-76X-25', 'W-003', 'MEX'),
+                                                                                           ('stock_277', 'prod_077', 35, 'L-EQU-77Y-25', 'W-001', 'USA'),
+                                                                                           ('stock_278', 'prod_078', 420, 'L-OTH-78Z-25', 'W-002', 'CAN'),
+                                                                                           ('stock_279', 'prod_079', 70, 'L-MED-79A-25', 'W-003', 'MEX'),
+                                                                                           ('stock_280', 'prod_080', 160, 'L-SUR-80B-25', 'W-001', 'USA'),
+                                                                                           ('stock_281', 'prod_081', 95, 'L-REA-81C-25', 'W-002', 'CAN'),
+                                                                                           ('stock_282', 'prod_082', 25, 'L-EQU-82D-25', 'W-003', 'MEX'),
+                                                                                           ('stock_283', 'prod_083', 85, 'L-MED-83E-25', 'W-001', 'USA'),
+                                                                                           ('stock_284', 'prod_084', 180, 'L-SUR-84F-25', 'W-002', 'CAN'),
+                                                                                           ('stock_285', 'prod_085', 105, 'L-REA-85G-25', 'W-003', 'MEX'),
+                                                                                           ('stock_286', 'prod_086', 20, 'L-EQU-86H-25', 'W-001', 'USA'),
+                                                                                           ('stock_287', 'prod_087', 330, 'L-OTH-87I-25', 'W-002', 'CAN'),
+                                                                                           ('stock_288', 'prod_088', 60, 'L-MED-88J-25', 'W-003', 'MEX'),
+                                                                                           ('stock_289', 'prod_089', 130, 'L-SUR-89K-25', 'W-001', 'USA'),
+                                                                                           ('stock_290', 'prod_090', 80, 'L-REA-90L-25', 'W-002', 'CAN'),
+                                                                                           ('stock_291', 'prod_091', 12, 'L-EQU-91M-25', 'W-003', 'MEX'),
+                                                                                           ('stock_292', 'prod_092', 65, 'L-MED-92N-25', 'W-001', 'USA'),
+                                                                                           ('stock_293', 'prod_093', 160, 'L-SUR-93O-25', 'W-002', 'CAN'),
+                                                                                           ('stock_294', 'prod_094', 92, 'L-REA-94P-25', 'W-003', 'MEX'),
+                                                                                           ('stock_295', 'prod_095', 28, 'L-EQU-95Q-25', 'W-001', 'USA'),
+                                                                                           ('stock_296', 'prod_096', 380, 'L-OTH-96R-25', 'W-002', 'CAN'),
+                                                                                           ('stock_297', 'prod_097', 72, 'L-MED-97S-25', 'W-003', 'MEX'),
+                                                                                           ('stock_298', 'prod_098', 190, 'L-SUR-98T-25', 'W-001', 'USA'),
+                                                                                           ('stock_299', 'prod_099', 105, 'L-REA-99U-25', 'W-002', 'CAN'),
+                                                                                           ('stock_300', 'prod_100', 40, 'L-EQU-100V-25', 'W-003', 'MEX'),
+                                                                                           ('stock_301', 'prod_001', 75, 'L-MED-1A-25', 'W-001', 'USA'),
+                                                                                           ('stock_302', 'prod_002', 50, 'L-MED-2B-25', 'W-002', 'CAN'),
+                                                                                           ('stock_303', 'prod_003', 280, 'L-SUR-3C-25', 'W-003', 'MEX'),
+                                                                                           ('stock_304', 'prod_004', 190, 'L-SUR-4D-25', 'W-001', 'USA'),
+                                                                                           ('stock_305', 'prod_005', 95, 'L-REA-5E-25', 'W-002', 'CAN'),
+                                                                                           ('stock_306', 'prod_006', 18, 'L-EQU-6F-25', 'W-003', 'MEX'),
+                                                                                           ('stock_307', 'prod_007', 380, 'L-OTH-7G-25', 'W-001', 'USA'),
+                                                                                           ('stock_308', 'prod_008', 75, 'L-MED-8H-25', 'W-002', 'CAN'),
+                                                                                           ('stock_309', 'prod_009', 220, 'L-SUR-9I-25', 'W-003', 'MEX'),
+                                                                                           ('stock_310', 'prod_010', 65, 'L-REA-10J-25', 'W-001', 'USA'),
+                                                                                           ('stock_311', 'prod_011', 8, 'L-EQU-11K-25', 'W-002', 'CAN'),
+                                                                                           ('stock_312', 'prod_012', 60, 'L-MED-12L-25', 'W-003', 'MEX'),
+                                                                                           ('stock_313', 'prod_013', 140, 'L-SUR-13M-25', 'W-001', 'USA'),
+                                                                                           ('stock_314', 'prod_014', 100, 'L-REA-14N-25', 'W-002', 'CAN'),
+                                                                                           ('stock_315', 'prod_015', 22, 'L-EQU-15O-25', 'W-003', 'MEX'),
+                                                                                           ('stock_316', 'prod_016', 90, 'L-MED-16P-25', 'W-001', 'USA'),
+                                                                                           ('stock_317', 'prod_017', 250, 'L-SUR-17Q-25', 'W-002', 'CAN'),
+                                                                                           ('stock_318', 'prod_018', 105, 'L-REA-18R-25', 'W-003', 'MEX'),
+                                                                                           ('stock_319', 'prod_019', 35, 'L-EQU-19S-25', 'W-001', 'USA'),
+                                                                                           ('stock_320', 'prod_020', 480, 'L-OTH-20T-25', 'W-002', 'CAN'),
+                                                                                           ('stock_321', 'prod_021', 55, 'L-MED-21U-25', 'W-003', 'MEX'),
+                                                                                           ('stock_322', 'prod_022', 210, 'L-SUR-22V-25', 'W-001', 'USA'),
+                                                                                           ('stock_323', 'prod_023', 75, 'L-REA-23W-25', 'W-002', 'CAN'),
+                                                                                           ('stock_324', 'prod_024', 12, 'L-EQU-24X-25', 'W-003', 'MEX'),
+                                                                                           ('stock_325', 'prod_025', 70, 'L-MED-25Y-25', 'W-001', 'USA'),
+                                                                                           ('stock_326', 'prod_026', 220, 'L-SUR-26Z-25', 'W-002', 'CAN'),
+                                                                                           ('stock_327', 'prod_027', 95, 'L-REA-27A-25', 'W-003', 'MEX'),
+                                                                                           ('stock_328', 'prod_028', 18, 'L-EQU-28B-25', 'W-001', 'USA'),
+                                                                                           ('stock_329', 'prod_029', 300, 'L-OTH-29C-25', 'W-002', 'CAN'),
+                                                                                           ('stock_330', 'prod_030', 85, 'L-MED-30D-25', 'W-003', 'MEX'),
+                                                                                           ('stock_331', 'prod_031', 160, 'L-SUR-31E-25', 'W-001', 'USA'),
+                                                                                           ('stock_332', 'prod_032', 60, 'L-REA-32F-25', 'W-002', 'CAN'),
+                                                                                           ('stock_333', 'prod_033', 6, 'L-EQU-33G-25', 'W-003', 'MEX'),
+                                                                                           ('stock_334', 'prod_034', 80, 'L-MED-34H-25', 'W-001', 'USA'),
+                                                                                           ('stock_335', 'prod_035', 130, 'L-SUR-35I-25', 'W-002', 'CAN'),
+                                                                                           ('stock_336', 'prod_036', 90, 'L-REA-36J-25', 'W-003', 'MEX'),
+                                                                                           ('stock_337', 'prod_037', 16, 'L-EQU-37K-25', 'W-001', 'USA'),
+                                                                                           ('stock_338', 'prod_038', 420, 'L-OTH-38L-25', 'W-002', 'CAN'),
+                                                                                           ('stock_339', 'prod_039', 95, 'L-MED-39M-25', 'W-003', 'MEX'),
+                                                                                           ('stock_340', 'prod_040', 190, 'L-SUR-40N-25', 'W-001', 'USA'),
+                                                                                           ('stock_341', 'prod_041', 70, 'L-REA-41O-25', 'W-002', 'CAN'),
+                                                                                           ('stock_342', 'prod_042', 25, 'L-EQU-42P-25', 'W-003', 'MEX'),
+                                                                                           ('stock_343', 'prod_043', 120, 'L-MED-43Q-25', 'W-001', 'USA'),
+                                                                                           ('stock_344', 'prod_044', 240, 'L-SUR-44R-25', 'W-002', 'CAN'),
+                                                                                           ('stock_345', 'prod_045', 85, 'L-REA-45S-25', 'W-003', 'MEX'),
+                                                                                           ('stock_346', 'prod_046', 32, 'L-EQU-46T-25', 'W-001', 'USA'),
+                                                                                           ('stock_347', 'prod_047', 550, 'L-OTH-47U-25', 'W-002', 'CAN'),
+                                                                                           ('stock_348', 'prod_048', 60, 'L-MED-48V-25', 'W-003', 'MEX'),
+                                                                                           ('stock_349', 'prod_049', 145, 'L-SUR-49W-25', 'W-001', 'USA'),
+                                                                                           ('stock_350', 'prod_050', 105, 'L-REA-50X-25', 'W-002', 'CAN'),
+                                                                                           ('stock_351', 'prod_051', 20, 'L-EQU-51Y-25', 'W-003', 'MEX'),
+                                                                                           ('stock_352', 'prod_052', 65, 'L-MED-52Z-25', 'W-001', 'USA'),
+                                                                                           ('stock_353', 'prod_053', 230, 'L-SUR-53A-25', 'W-002', 'CAN'),
+                                                                                           ('stock_354', 'prod_054', 80, 'L-REA-54B-25', 'W-003', 'MEX'),
+                                                                                           ('stock_355', 'prod_055', 10, 'L-EQU-55C-25', 'W-001', 'USA'),
+                                                                                           ('stock_356', 'prod_056', 80, 'L-MED-56D-25', 'W-002', 'CAN'),
+                                                                                           ('stock_357', 'prod_057', 180, 'L-SUR-57E-25', 'W-003', 'MEX'),
+                                                                                           ('stock_358', 'prod_058', 110, 'L-REA-58F-25', 'W-001', 'USA'),
+                                                                                           ('stock_359', 'prod_059', 30, 'L-EQU-59G-25', 'W-002', 'CAN'),
+                                                                                           ('stock_360', 'prod_060', 400, 'L-OTH-60H-25', 'W-003', 'MEX'),
+                                                                                           ('stock_361', 'prod_061', 90, 'L-MED-61I-25', 'W-001', 'USA'),
+                                                                                           ('stock_362', 'prod_062', 220, 'L-SUR-62J-25', 'W-002', 'CAN'),
+                                                                                           ('stock_363', 'prod_063', 120, 'L-REA-63K-25', 'W-003', 'MEX'),
+                                                                                           ('stock_364', 'prod_064', 45, 'L-EQU-64L-25', 'W-001', 'USA'),
+                                                                                           ('stock_365', 'prod_065', 70, 'L-MED-65M-25', 'W-002', 'CAN'),
+                                                                                           ('stock_366', 'prod_066', 140, 'L-SUR-66N-25', 'W-003', 'MEX'),
+                                                                                           ('stock_367', 'prod_067', 90, 'L-REA-67O-25', 'W-001', 'USA'),
+                                                                                           ('stock_368', 'prod_068', 18, 'L-EQU-68P-25', 'W-002', 'CAN'),
+                                                                                           ('stock_369', 'prod_069', 350, 'L-OTH-69Q-25', 'W-003', 'MEX'),
+                                                                                           ('stock_370', 'prod_070', 55, 'L-MED-70R-25', 'W-001', 'USA'),
+                                                                                           ('stock_371', 'prod_071', 210, 'L-SUR-71S-25', 'W-002', 'CAN'),
+                                                                                           ('stock_372', 'prod_072', 75, 'L-REA-72T-25', 'W-003', 'MEX'),
+                                                                                           ('stock_373', 'prod_073', 28, 'L-EQU-73U-25', 'W-001', 'USA'),
+                                                                                           ('stock_374', 'prod_074', 100, 'L-MED-74V-25', 'W-002', 'CAN'),
+                                                                                           ('stock_375', 'prod_075', 180, 'L-SUR-75W-25', 'W-003', 'MEX'),
+                                                                                           ('stock_376', 'prod_076', 115, 'L-REA-76X-25', 'W-001', 'USA'),
+                                                                                           ('stock_377', 'prod_077', 40, 'L-EQU-77Y-25', 'W-002', 'CAN'),
+                                                                                           ('stock_378', 'prod_078', 450, 'L-OTH-78Z-25', 'W-003', 'MEX'),
+                                                                                           ('stock_379', 'prod_079', 75, 'L-MED-79A-25', 'W-001', 'USA'),
+                                                                                           ('stock_380', 'prod_080', 170, 'L-SUR-80B-25', 'W-002', 'CAN'),
+                                                                                           ('stock_381', 'prod_081', 100, 'L-REA-81C-25', 'W-003', 'MEX'),
+                                                                                           ('stock_382', 'prod_082', 28, 'L-EQU-82D-25', 'W-001', 'USA'),
+                                                                                           ('stock_383', 'prod_083', 90, 'L-MED-83E-25', 'W-002', 'CAN'),
+                                                                                           ('stock_384', 'prod_084', 190, 'L-SUR-84F-25', 'W-003', 'MEX'),
+                                                                                           ('stock_385', 'prod_085', 110, 'L-REA-85G-25', 'W-001', 'USA'),
+                                                                                           ('stock_386', 'prod_086', 22, 'L-EQU-86H-25', 'W-002', 'CAN'),
+                                                                                           ('stock_387', 'prod_087', 350, 'L-OTH-87I-25', 'W-003', 'MEX'),
+                                                                                           ('stock_388', 'prod_088', 65, 'L-MED-88J-25', 'W-001', 'USA'),
+                                                                                           ('stock_389', 'prod_089', 140, 'L-SUR-89K-25', 'W-002', 'CAN'),
+                                                                                           ('stock_390', 'prod_090', 85, 'L-REA-90L-25', 'W-003', 'MEX'),
+                                                                                           ('stock_391', 'prod_091', 15, 'L-EQU-91M-25', 'W-001', 'USA'),
+                                                                                           ('stock_392', 'prod_092', 70, 'L-MED-92N-25', 'W-002', 'CAN'),
+                                                                                           ('stock_393', 'prod_093', 170, 'L-SUR-93O-25', 'W-003', 'MEX'),
+                                                                                           ('stock_394', 'prod_094', 95, 'L-REA-94P-25', 'W-001', 'USA'),
+                                                                                           ('stock_395', 'prod_095', 30, 'L-EQU-95Q-25', 'W-002', 'CAN'),
+                                                                                           ('stock_396', 'prod_096', 400, 'L-OTH-96R-25', 'W-003', 'MEX'),
+                                                                                           ('stock_397', 'prod_097', 78, 'L-MED-97S-25', 'W-001', 'USA'),
+                                                                                           ('stock_398', 'prod_098', 200, 'L-SUR-98T-25', 'W-002', 'CAN'),
+                                                                                           ('stock_399', 'prod_099', 110, 'L-REA-99U-25', 'W-003', 'MEX'),
+                                                                                           ('stock_400', 'prod_100', 45, 'L-EQU-100V-25', 'W-001', 'USA'),
+                                                                                           ('stock_401', 'prod_001', 80, 'L-MED-1A-25', 'W-002', 'CAN'),
+                                                                                           ('stock_402', 'prod_002', 55, 'L-MED-2B-25', 'W-003', 'MEX'),
+                                                                                           ('stock_403', 'prod_003', 300, 'L-SUR-3C-25', 'W-001', 'USA'),
+                                                                                           ('stock_404', 'prod_004', 200, 'L-SUR-4D-25', 'W-002', 'CAN'),
+                                                                                           ('stock_405', 'prod_005', 100, 'L-REA-5E-25', 'W-003', 'MEX'),
+                                                                                           ('stock_406', 'prod_006', 20, 'L-EQU-6F-25', 'W-001', 'USA'),
+                                                                                           ('stock_407', 'prod_007', 400, 'L-OTH-7G-25', 'W-002', 'CAN'),
+                                                                                           ('stock_408', 'prod_008', 80, 'L-MED-8H-25', 'W-003', 'MEX'),
+                                                                                           ('stock_409', 'prod_009', 240, 'L-SUR-9I-25', 'W-001', 'USA'),
+                                                                                           ('stock_410', 'prod_010', 70, 'L-REA-10J-25', 'W-002', 'CAN'),
+                                                                                           ('stock_411', 'prod_011', 9, 'L-EQU-11K-25', 'W-003', 'MEX'),
+                                                                                           ('stock_412', 'prod_012', 65, 'L-MED-12L-25', 'W-001', 'USA'),
+                                                                                           ('stock_413', 'prod_013', 150, 'L-SUR-13M-25', 'W-002', 'CAN'),
+                                                                                           ('stock_414', 'prod_014', 105, 'L-REA-14N-25', 'W-003', 'MEX'),
+                                                                                           ('stock_415', 'prod_015', 25, 'L-EQU-15O-25', 'W-001', 'USA'),
+                                                                                           ('stock_416', 'prod_016', 95, 'L-MED-16P-25', 'W-002', 'CAN'),
+                                                                                           ('stock_417', 'prod_017', 260, 'L-SUR-17Q-25', 'W-003', 'MEX'),
+                                                                                           ('stock_418', 'prod_018', 110, 'L-REA-18R-25', 'W-001', 'USA'),
+                                                                                           ('stock_419', 'prod_019', 40, 'L-EQU-19S-25', 'W-002', 'CAN'),
+                                                                                           ('stock_420', 'prod_020', 500, 'L-OTH-20T-25', 'W-003', 'MEX'),
+                                                                                           ('stock_421', 'prod_021', 60, 'L-MED-21U-25', 'W-001', 'USA'),
+                                                                                           ('stock_422', 'prod_022', 220, 'L-SUR-22V-25', 'W-002', 'CAN'),
+                                                                                           ('stock_423', 'prod_023', 80, 'L-REA-23W-25', 'W-003', 'MEX'),
+                                                                                           ('stock_424', 'prod_024', 14, 'L-EQU-24X-25', 'W-001', 'USA'),
+                                                                                           ('stock_425', 'prod_025', 75, 'L-MED-25Y-25', 'W-002', 'CAN'),
+                                                                                           ('stock_426', 'prod_026', 230, 'L-SUR-26Z-25', 'W-003', 'MEX'),
+                                                                                           ('stock_427', 'prod_027', 100, 'L-REA-27A-25', 'W-001', 'USA'),
+                                                                                           ('stock_428', 'prod_028', 20, 'L-EQU-28B-25', 'W-002', 'CAN'),
+                                                                                           ('stock_429', 'prod_029', 320, 'L-OTH-29C-25', 'W-003', 'MEX'),
+                                                                                           ('stock_430', 'prod_030', 90, 'L-MED-30D-25', 'W-001', 'USA'),
+                                                                                           ('stock_431', 'prod_031', 170, 'L-SUR-31E-25', 'W-002', 'CAN'),
+                                                                                           ('stock_432', 'prod_032', 65, 'L-REA-32F-25', 'W-003', 'MEX'),
+                                                                                           ('stock_433', 'prod_033', 7, 'L-EQU-33G-25', 'W-001', 'USA'),
+                                                                                           ('stock_434', 'prod_034', 85, 'L-MED-34H-25', 'W-002', 'CAN'),
+                                                                                           ('stock_435', 'prod_035', 140, 'L-SUR-35I-25', 'W-003', 'MEX'),
+                                                                                           ('stock_436', 'prod_036', 95, 'L-REA-36J-25', 'W-001', 'USA'),
+                                                                                           ('stock_437', 'prod_037', 18, 'L-EQU-37K-25', 'W-002', 'CAN'),
+                                                                                           ('stock_438', 'prod_038', 450, 'L-OTH-38L-25', 'W-003', 'MEX'),
+                                                                                           ('stock_439', 'prod_039', 100, 'L-MED-39M-25', 'W-001', 'USA'),
+                                                                                           ('stock_440', 'prod_040', 200, 'L-SUR-40N-25', 'W-002', 'CAN'),
+                                                                                           ('stock_441', 'prod_041', 75, 'L-REA-41O-25', 'W-003', 'MEX'),
+                                                                                           ('stock_442', 'prod_042', 28, 'L-EQU-42P-25', 'W-001', 'USA'),
+                                                                                           ('stock_443', 'prod_043', 130, 'L-MED-43Q-25', 'W-002', 'CAN'),
+                                                                                           ('stock_444', 'prod_044', 250, 'L-SUR-44R-25', 'W-003', 'MEX'),
+                                                                                           ('stock_445', 'prod_045', 90, 'L-REA-45S-25', 'W-001', 'USA'),
+                                                                                           ('stock_446', 'prod_046', 35, 'L-EQU-46T-25', 'W-002', 'CAN'),
+                                                                                           ('stock_447', 'prod_047', 600, 'L-OTH-47U-25', 'W-003', 'MEX'),
+                                                                                           ('stock_448', 'prod_048', 65, 'L-MED-48V-25', 'W-001', 'USA'),
+                                                                                           ('stock_449', 'prod_049', 155, 'L-SUR-49W-25', 'W-002', 'CAN'),
+                                                                                           ('stock_450', 'prod_050', 110, 'L-REA-50X-25', 'W-003', 'MEX'),
+                                                                                           ('stock_451', 'prod_051', 22, 'L-EQU-51Y-25', 'W-001', 'USA'),
+                                                                                           ('stock_452', 'prod_052', 70, 'L-MED-52Z-25', 'W-002', 'CAN'),
+                                                                                           ('stock_453', 'prod_053', 240, 'L-SUR-53A-25', 'W-003', 'MEX'),
+                                                                                           ('stock_454', 'prod_054', 85, 'L-REA-54B-25', 'W-001', 'USA'),
+                                                                                           ('stock_455', 'prod_055', 12, 'L-EQU-55C-25', 'W-002', 'CAN'),
+                                                                                           ('stock_456', 'prod_056', 85, 'L-MED-56D-25', 'W-003', 'MEX'),
+                                                                                           ('stock_457', 'prod_057', 190, 'L-SUR-57E-25', 'W-001', 'USA'),
+                                                                                           ('stock_458', 'prod_058', 120, 'L-REA-58F-25', 'W-002', 'CAN'),
+                                                                                           ('stock_459', 'prod_059', 35, 'L-EQU-59G-25', 'W-003', 'MEX'),
+                                                                                           ('stock_460', 'prod_060', 450, 'L-OTH-60H-25', 'W-001', 'USA'),
+                                                                                           ('stock_461', 'prod_061', 95, 'L-MED-61I-25', 'W-002', 'CAN'),
+                                                                                           ('stock_462', 'prod_062', 230, 'L-SUR-62J-25', 'W-003', 'MEX'),
+                                                                                           ('stock_463', 'prod_063', 125, 'L-REA-63K-25', 'W-001', 'USA'),
+                                                                                           ('stock_464', 'prod_064', 50, 'L-EQU-64L-25', 'W-002', 'CAN'),
+                                                                                           ('stock_465', 'prod_065', 75, 'L-MED-65M-25', 'W-003', 'MEX'),
+                                                                                           ('stock_466', 'prod_066', 150, 'L-SUR-66N-25', 'W-001', 'USA'),
+                                                                                           ('stock_467', 'prod_067', 95, 'L-REA-67O-25', 'W-002', 'CAN'),
+                                                                                           ('stock_468', 'prod_068', 20, 'L-EQU-68P-25', 'W-003', 'MEX'),
+                                                                                           ('stock_469', 'prod_069', 380, 'L-OTH-69Q-25', 'W-001', 'USA'),
+                                                                                           ('stock_470', 'prod_070', 60, 'L-MED-70R-25', 'W-002', 'CAN'),
+                                                                                           ('stock_471', 'prod_071', 220, 'L-SUR-71S-25', 'W-003', 'MEX'),
+                                                                                           ('stock_472', 'prod_072', 80, 'L-REA-72T-25', 'W-001', 'USA'),
+                                                                                           ('stock_473', 'prod_073', 30, 'L-EQU-73U-25', 'W-002', 'CAN'),
+                                                                                           ('stock_474', 'prod_074', 110, 'L-MED-74V-25', 'W-003', 'MEX'),
+                                                                                           ('stock_475', 'prod_075', 190, 'L-SUR-75W-25', 'W-001', 'USA'),
+                                                                                           ('stock_476', 'prod_076', 120, 'L-REA-76X-25', 'W-002', 'CAN'),
+                                                                                           ('stock_477', 'prod_077', 45, 'L-EQU-77Y-25', 'W-003', 'MEX'),
+                                                                                           ('stock_478', 'prod_078', 500, 'L-OTH-78Z-25', 'W-001', 'USA'),
+                                                                                           ('stock_479', 'prod_079', 80, 'L-MED-79A-25', 'W-002', 'CAN'),
+                                                                                           ('stock_480', 'prod_080', 180, 'L-SUR-80B-25', 'W-003', 'MEX'),
+                                                                                           ('stock_481', 'prod_081', 105, 'L-REA-81C-25', 'W-001', 'USA'),
+                                                                                           ('stock_482', 'prod_082', 30, 'L-EQU-82D-25', 'W-002', 'CAN'),
+                                                                                           ('stock_483', 'prod_083', 95, 'L-MED-83E-25', 'W-003', 'MEX'),
+                                                                                           ('stock_484', 'prod_084', 200, 'L-SUR-84F-25', 'W-001', 'USA'),
+                                                                                           ('stock_485', 'prod_085', 115, 'L-REA-85G-25', 'W-002', 'CAN'),
+                                                                                           ('stock_486', 'prod_086', 25, 'L-EQU-86H-25', 'W-003', 'MEX'),
+                                                                                           ('stock_487', 'prod_087', 400, 'L-OTH-87I-25', 'W-001', 'USA'),
+                                                                                           ('stock_488', 'prod_088', 70, 'L-MED-88J-25', 'W-002', 'CAN'),
+                                                                                           ('stock_489', 'prod_089', 150, 'L-SUR-89K-25', 'W-003', 'MEX'),
+                                                                                           ('stock_490', 'prod_090', 90, 'L-REA-90L-25', 'W-001', 'USA'),
+                                                                                           ('stock_491', 'prod_091', 18, 'L-EQU-91M-25', 'W-002', 'CAN'),
+                                                                                           ('stock_492', 'prod_092', 75, 'L-MED-92N-25', 'W-003', 'MEX'),
+                                                                                           ('stock_493', 'prod_093', 180, 'L-SUR-93O-25', 'W-001', 'USA'),
+                                                                                           ('stock_494', 'prod_094', 100, 'L-REA-94P-25', 'W-002', 'CAN'),
+                                                                                           ('stock_495', 'prod_095', 32, 'L-EQU-95Q-25', 'W-003', 'MEX'),
+                                                                                           ('stock_496', 'prod_096', 450, 'L-OTH-96R-25', 'W-001', 'USA'),
+                                                                                           ('stock_497', 'prod_097', 82, 'L-MED-97S-25', 'W-002', 'CAN'),
+                                                                                           ('stock_498', 'prod_098', 210, 'L-SUR-98T-25', 'W-003', 'MEX'),
+                                                                                           ('stock_499', 'prod_099', 115, 'L-REA-99U-25', 'W-001', 'USA'),
+                                                                                           ('stock_500', 'prod_100', 50, 'L-EQU-100V-25', 'W-002', 'CAN');
+------------------------------------------------------
+
+-- Estados (La tabla State fue agregada en el otro script, se usa aquí por consistencia)
+-- Se asume que el script de creación inserta los estados, pero los reinsertamos con validación para mayor seguridad.
+INSERT INTO products.State (state_id, name)
+SELECT 1, 'IN_TRANSIT'
+WHERE NOT EXISTS (SELECT 1 FROM products.State WHERE state_id = 1);
+INSERT INTO products.State (state_id, name)
+SELECT 2, 'DELAYED'
+WHERE NOT EXISTS (SELECT 1 FROM products.State WHERE state_id = 2);
+INSERT INTO products.State (state_id, name)
+SELECT 3, 'DELIVERED'
+WHERE NOT EXISTS (SELECT 1 FROM products.State WHERE state_id = 3);
+INSERT INTO products.State (state_id, name)
+SELECT 4, 'CANCELLED'
+WHERE NOT EXISTS (SELECT 1 FROM products.State WHERE state_id = 4);
+INSERT INTO products.State (state_id, name)
+SELECT 5, 'PROCESSING'
+WHERE NOT EXISTS (SELECT 1 FROM products.State WHERE state_id = 5);
+INSERT INTO products.State (state_id, name)
+SELECT 6, 'PENDING'
+WHERE NOT EXISTS (SELECT 1 FROM products.State WHERE state_id = 6);
+
+-- Pedidos (Order)
+INSERT INTO orders."Order" (order_id, user_id, creation_date, estimated_delivery_date, current_state_id, total_value)
+SELECT 'ORD_2024_001', 'USER_55', '2024-10-01', '2024-10-15', 3, 936.49
+WHERE NOT EXISTS (SELECT 1 FROM orders."Order" WHERE order_id = 'ORD_2024_001');
+
+INSERT INTO orders."Order" (order_id, user_id, creation_date, estimated_delivery_date, current_state_id, total_value)
+SELECT 'ORD_2024_002', 'USER_55', '2024-10-05', '2024-10-20', 1, 122.40
+WHERE NOT EXISTS (SELECT 1 FROM orders."Order" WHERE order_id = 'ORD_2024_002');
+
+INSERT INTO orders."Order" (order_id, user_id, creation_date, estimated_delivery_date, current_state_id, total_value)
+SELECT 'ORD_2024_003', 'USER_66', '2024-10-07', '2024-10-25', 5, 240.00
+WHERE NOT EXISTS (SELECT 1 FROM orders."Order" WHERE order_id = 'ORD_2024_003');
+
+
+-- Líneas de Pedido (OrderLine)
+INSERT INTO orders.OrderLine (order_line_id, order_id, product_id, quantity, value_at_time_of_order)
+SELECT 'LINE_001A', 'ORD_2024_001', 'PROD001', 1, 850.50
+WHERE NOT EXISTS (SELECT 1 FROM orders.OrderLine WHERE order_line_id = 'LINE_001A');
+
+INSERT INTO orders.OrderLine (order_line_id, order_id, product_id, quantity, value_at_time_of_order)
+SELECT 'LINE_001B', 'ORD_2024_001', 'PROD002', 1, 45.99
+WHERE NOT EXISTS (SELECT 1 FROM orders.OrderLine WHERE order_line_id = 'LINE_001B');
+
+
+
+INSERT INTO orders.OrderLine (order_line_id, order_id, product_id, quantity, value_at_time_of_order)
+SELECT 'LINE_002B', 'ORD_2024_002', 'PROD003', 2, 1.20
+WHERE NOT EXISTS (SELECT 1 FROM orders.OrderLine WHERE order_line_id = 'LINE_002B');
+
+-- Insertar datos solo si la tabla User está vacía
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM users.Users LIMIT 1) THEN
+        INSERT INTO users.Users (name, last_name, password, identification, phone, role) VALUES
+        ('Carlos', 'Ramírez', 'hashed_pw_001', 'ID-1001', '3001112233', 'CLIENT'),
+        ('Laura', 'Gómez', 'hashed_pw_002', 'ID-1002', '3002223344', 'CLIENT' ),
+        ('Andrés', 'Martínez', 'hashed_pw_003', 'ID-1003', '3003334455', 'CLIENT'),
+        ('Sofía', 'López', 'hashed_pw_004', 'ID-1004', '3004445566', 'CLIENT'),
+        ('Julián', 'Torres', 'hashed_pw_005', 'ID-1005', '3005556677', 'CLIENT' ),
+        ('Camila', 'Vargas', 'hashed_pw_006', 'ID-1006', '3006667788', 'CLIENT' ),
+        ('Daniel', 'Moreno', 'hashed_pw_007', 'ID-1007', '3007778899', 'CLIENT'),
+        ('Valentina', 'Ríos', 'hashed_pw_008', 'ID-1008', '3008889900', 'CLIENT' ),
+        ('Felipe', 'Castro', 'hashed_pw_009', 'ID-1009', '3009990011', 'CLIENT'),
+        ('Natalia', 'Cárdenas', 'hashed_pw_010', 'ID-1010', '3010001122', 'CLIENT');
+
+        -- Insertar clientes asociados
+        INSERT INTO users.Clientes (user_id, nit, balance, perfil)
+        VALUES
+            (1, '900123456-1', 5000.00, 'Cliente Premium'),
+            (2, '900654321-2', 3000.00, 'Cliente Estándar'),
+            (3, '900789012-3', 1500.00, 'Cliente Básico');
+
+        RAISE NOTICE 'Datos de prueba insertados correctamente.';
+    ELSE
+        RAISE NOTICE 'La tabla User ya contiene datos. No se insertaron datos de prueba.';
+    END IF;
+END $$;
+
+
