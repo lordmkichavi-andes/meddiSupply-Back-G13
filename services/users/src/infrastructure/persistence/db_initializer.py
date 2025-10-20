@@ -45,6 +45,7 @@ def initialize_database():
     ORDER_SCHEMA_SQL = _read_sql_file(SCHEMA_FILE)
     INSERT_DATA_SQL = _read_sql_file(INSERT_DATA_FILE)
 
+
     if not ORDER_SCHEMA_SQL:
         print("ERROR: El script de esquema (schema.sql) está vacío o no se encontró. Abortando inicialización.")
         return
