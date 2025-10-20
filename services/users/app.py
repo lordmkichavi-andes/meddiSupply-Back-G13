@@ -112,7 +112,7 @@ def create_app():
     user_api_bp = create_user_api_blueprint(get_client_users_use_case)
     
     # --- REGISTRO DE RUTAS ---
-    app.register_blueprint(user_api_bp, url_prefix='/api')
+    app.register_blueprint(user_api_bp, url_prefix='/users')
     
     # --- RUTAS LEGACY (Datos quemados) ---
     
