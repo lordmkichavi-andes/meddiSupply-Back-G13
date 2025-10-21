@@ -48,3 +48,6 @@ class Client(User):
     client_id: str
     balance: float
     perfil: str
+    address: str
+    latitude: float
+    longitude: float

@@ -35,7 +35,10 @@ class PgUserRepository(UserRepository):
                     u.role,
                     c.nit,
                     c.balance,
-                    c.perfil
+                    c.perfil,
+                    c.address,
+                    c.latitude,
+                    c.longitude
                 FROM users.Users u
                 INNER JOIN users.Clientes c ON u.user_id = c.user_id
                 WHERE u.role IN (%s)
@@ -57,7 +60,10 @@ class PgUserRepository(UserRepository):
                     role_value,
                     nit,
                     balance,
-                    perfil
+                    perfil,
+                    address,
+                    latitude,
+                    longitude
                 ) = row
 
                 # Mapeo a la entidad del dominio
@@ -72,7 +78,10 @@ class PgUserRepository(UserRepository):
                     role_value=role_value,
                     nit=nit,
                     balance=balance,
-                    perfil=perfil
+                    perfil=perfil,
+                    address = address,
+                    latitude=latitude,
+                    longitude=longitude
                 ))
 
             return users

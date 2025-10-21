@@ -33,6 +33,9 @@ class GetClientUsersUseCase:
                 "password": user.password,
                 "identification": user.identification,
                 "phone": user.phone,
+                "address": user.address,
+                "latitude": user.latitude,
+                "longitude": user.longitude,
                 "rol": user.role.value if hasattr(user.role, 'value') else user.role
             })
 
