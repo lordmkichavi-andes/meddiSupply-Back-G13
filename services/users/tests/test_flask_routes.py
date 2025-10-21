@@ -1,160 +1,118 @@
 import unittest
-import json
 from unittest.mock import MagicMock
-
-# Importa Flask y los componentes necesarios para las pruebas de API
-from flask import Flask, Blueprint, jsonify
-
-
-# ==============================================================================
-# MOCKS Y ESTRUCTURAS MÍNIMAS (Deben estar en el mismo archivo o importadas)
-# ==============================================================================
-
-# 1. Mock de la Interfaz del Caso de Uso (simulamos src.application.use_cases.GetClientUsersUseCase)
-class GetClientUsersUseCase:
-    """Mock de la clase de Caso de Uso."""
-
-    def execute(self):
-        raise NotImplementedError
+from datetime import date
+from typing import Dict, Any
 
 
-# 2. Mock de la Entidad Cliente (Necesitamos un to_dict para serialización)
-class MockClient:
-    """Mock mínimo para simular una entidad Client con un método de serialización."""
+# Asumimos que estas interfaces/entidades existen en src.domain
+# from src.domain.interfaces import UserRepository
+# from src.domain.entities import User
 
-    def __init__(self, user_id, name):
-        self.user_id = user_id
-        self.name = name
+# Redefinición de la clase para hacer el test autocontenido y ejecutable
+# En un entorno real, esta clase se importaría.
+class RegisterVisitUseCase:
+    """
+    Caso de uso: Registrar las visitas de los sellers
+    Depende de UserRepository (patrón de inyección de dependencias).
+    """
 
-    def to_dict(self):
-        """Método necesario para que Flask pueda serializarlo a JSON."""
-        return {"user_id": self.user_id, "name": self.name, "role": "CLIENT"}
+    def __init__(self, user_repository):
+        self.repository = user_repository
 
+    def execute(self, client_id: int, seller_id: int, date: str, findings: str) -> Dict[str, Any]:
+        """
+        Ejecuta la lógica de negocio para registrar una visita.
+        """
+        # 1. Crear el objeto o estructura de datos de la Visita
 
-# Datos serializados de ejemplo para las respuestas esperadas
-EXPECTED_CLIENT_DATA = [
-    MockClient("C001", "Juan").to_dict(),
-    MockClient("C002", "Maria").to_dict(),
-]
+        # 2. Persistir la Visita (Llamando al Repositorio)
+        new_visit = self.repository.save_visit(
+            client_id=client_id,
+            seller_id=seller_id,
+            date=date,
+            findings=findings,
+        )
 
-
-# 3. Código del Blueprint a testear (copiado para ser autocontenido)
-def create_user_api_blueprint(use_case: GetClientUsersUseCase):
-    user_api_bp = Blueprint('api', __name__)
-
-    @user_api_bp.route('/users/clients', methods=['GET'])
-    def get_client_users():
-        try:
-            # NOTA: En tu código anterior, el controlador debería llamar a .to_dict()
-            # si el Caso de Uso retorna entidades. Asumo esta conversión aquí.
-            client_entities = use_case.execute()
-            users = [c.to_dict() for c in client_entities]  # Simulación de la conversión a diccionario
-
-            if not users:
-                return jsonify({
-                    "message": "No se encontraron usuarios con rol CLIENT.",
-                    "users": []
-                }), 404
-
-            return jsonify({
-                "users": users
-            }), 200
-
-        except Exception as e:
-            return jsonify({
-                "message": "No se pudieron obtener los usuarios. Intenta nuevamente.",
-                "error": str(e)
-            }), 500
-
-    return user_api_bp
+        # 3. Retornar el resultado del registro
+        return {
+            "message": "Visita registrada con éxito en la base de datos.",
+            "visit": new_visit
+        }
 
 
-# ==============================================================================
-# CLASE DE TEST
-# ==============================================================================
-
-class TestUserApiBlueprint(unittest.TestCase):
+class TestRegisterVisitUseCase(unittest.TestCase):
+    """
+    Pruebas unitarias para el Caso de Uso RegisterVisitUseCase.
+    """
 
     def setUp(self):
-        """Configuración de mocks y la aplicación Flask."""
+        """Configuración previa a cada prueba."""
+        # Creamos un mock para el repositorio (que implementa UserRepository)
+        self.mock_repo = MagicMock()
+        # Inicializamos el Caso de Uso con el repositorio mockeado
+        self.use_case = RegisterVisitUseCase(self.mock_repo)
 
-        # 1. Crear mock del Caso de Uso que se inyectará
-        self.mock_use_case = MagicMock(spec=GetClientUsersUseCase)
+        # --- Datos de prueba ---
+        self.client_id = 101
+        self.seller_id = 202
+        self.visit_date = date(2025, 11, 25).isoformat()  # Usamos una fecha mockeada
+        self.findings = "El cliente está interesado en el nuevo producto X."
 
-        # 2. Crear la aplicación Flask de prueba
-        app = Flask(__name__)
+        # Datos esperados que devuelve el repositorio al guardar
+        self.mock_visit_return = {
+            "visit_id": 99,
+            "client_id": self.client_id,
+            "seller_id": self.seller_id,
+            "date": self.visit_date,
+            "findings": self.findings
+        }
 
-        # 3. Registrar el Blueprint inyectando el mock
-        api_bp = create_user_api_blueprint(self.mock_use_case)
-        app.register_blueprint(api_bp)
+    def test_successful_visit_registration(self):
+        """Prueba que el registro de una visita se ejecuta correctamente y retorna el mensaje esperado."""
 
-        # 4. Configurar el cliente de prueba para hacer peticiones simuladas
-        self.app = app.test_client()
-        self.app.testing = True
+        # Configurar el mock para que devuelva un valor simulado al llamar a save_visit
+        self.mock_repo.save_visit.return_value = self.mock_visit_return
 
-    # ------------------------------------
-    # Caso 1: Éxito (200 OK)
-    # ------------------------------------
-    def test_get_client_users_success(self):
-        """Debe retornar 200 OK y la lista de usuarios."""
+        # Ejecutar el Caso de Uso
+        result = self.use_case.execute(
+            client_id=self.client_id,
+            seller_id=self.seller_id,
+            date=self.visit_date,
+            findings=self.findings
+        )
 
-        # Simular que el caso de uso retorna dos entidades Cliente
-        client_entities = [MockClient("C001", "Juan"), MockClient("C002", "Maria")]
-        self.mock_use_case.execute.return_value = client_entities
+        # 1. Verificar que el repositorio fue llamado exactamente una vez con los argumentos correctos
+        self.mock_repo.save_visit.assert_called_once_with(
+            client_id=self.client_id,
+            seller_id=self.seller_id,
+            date=self.visit_date,
+            findings=self.findings,
+        )
 
-        # Ejecutar la solicitud GET
-        response = self.app.get('/users/clients')
+        # 2. Verificar el mensaje de éxito y la estructura de la respuesta
+        self.assertIsInstance(result, dict)
+        self.assertEqual(result["message"], "Visita registrada con éxito en la base de datos.")
 
-        # Verificaciones
-        self.assertEqual(response.status_code, 200)
-        self.mock_use_case.execute.assert_called_once()
+        # 3. Verificar que el objeto de visita devuelto es el que simulamos
+        self.assertEqual(result["visit"], self.mock_visit_return)
 
-        data = json.loads(response.data)
-        self.assertIn("users", data)
-        self.assertEqual(data["users"], EXPECTED_CLIENT_DATA)
+    def test_repository_raises_exception(self):
+        """Prueba que si el repositorio lanza una excepción (ej. error de BD), el caso de uso la propaga."""
 
-    # ------------------------------------
-    # Caso 2: No Encontrado (404 Not Found)
-    # ------------------------------------
-    def test_get_client_users_not_found(self):
-        """Debe retornar 404 Not Found cuando la lista de usuarios está vacía."""
+        # Configurar el mock para que lance una excepción específica al llamar a save_visit
+        self.mock_repo.save_visit.side_effect = ConnectionError("Database connection lost.")
 
-        # Simular que el caso de uso retorna una lista vacía
-        self.mock_use_case.execute.return_value = []
+        # Verificar que al ejecutar el caso de uso, se lanza la misma excepción
+        with self.assertRaises(ConnectionError) as cm:
+            self.use_case.execute(
+                client_id=self.client_id,
+                seller_id=self.seller_id,
+                date=self.visit_date,
+                findings=self.findings
+            )
 
-        # Ejecutar la solicitud GET
-        response = self.app.get('/users/clients')
-
-        # Verificaciones
-        self.assertEqual(response.status_code, 404)
-
-        data = json.loads(response.data)
-        self.assertIn("message", data)
-        self.assertEqual(data["message"], "No se encontraron usuarios con rol CLIENT.")
-        self.assertEqual(data["users"], [])
-
-    # ------------------------------------
-    # Caso 3: Error Interno (500 Internal Server Error)
-    # ------------------------------------
-    def test_get_client_users_internal_error(self):
-        """Debe retornar 500 Internal Server Error si el Caso de Uso falla."""
-
-        error_message = "Error de conexión con el repositorio."
-
-        # Simular que el caso de uso lanza una excepción
-        self.mock_use_case.execute.side_effect = Exception(error_message)
-
-        # Ejecutar la solicitud GET
-        response = self.app.get('/users/clients')
-
-        # Verificaciones
-        self.assertEqual(response.status_code, 500)
-
-        data = json.loads(response.data)
-        self.assertIn("message", data)
-        self.assertIn("error", data)
-        self.assertEqual(data["message"], "No se pudieron obtener los usuarios. Intenta nuevamente.")
-        self.assertEqual(data["error"], error_message)
+        # Opcional: verificar el mensaje de la excepción propagada
+        self.assertIn("Database connection lost.", str(cm.exception))
 
 
 if __name__ == '__main__':
