@@ -28,6 +28,7 @@ class TestPgUserRepository:
         return [
             (
                 1,
+                1,
                 "Juan",
                 "Pérez",
                 "hashed_password_123",
@@ -39,10 +40,10 @@ class TestPgUserRepository:
                 "premium",
                 'Calle 72 # 10-30, Bogotá',
                 4.659970,
-                -74.058370,
-                1
+                -74.058370
             ),
             (
+                2,
                 2,
                 "María",
                 "González",
@@ -55,8 +56,7 @@ class TestPgUserRepository:
                 "basic",
                 'Calle 72 # 10-30, Bogotá',
                 4.659970,
-                -74.058370,
-                1
+                -74.058370
             )
         ]
 
