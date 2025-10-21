@@ -246,11 +246,11 @@ INSERT INTO users.seller (user_id, zone) VALUES
 INSERT INTO users.Clientes (user_id, nit, balance, perfil, seller_id, address, latitude, longitude) VALUES
 (3, '800123456-1', 1500.50, 'Farmacia de Barrio A', 1, 'Calle 72 # 10-30, Bogotá', 4.659970, -74.058370),
 (4, '900789012-5', 52000.75, 'Hospital Nivel 3 X', 1, 'Carrera 7 # 120-50, Bogotá', 4.697500, -74.037500),
-(7, '850001002-3', 15000.00, 'Farmacia Los Olivos Principal', 2, 'Carrera 50 # 8-15, Bogotá', 4.580120, -74.103560),
-(8, '900005500-8', 85200.50, 'Centro Médico Especializado D', 2, 'Calle 26 Sur # 78-40, Bogotá', 4.601500, -74.148000),
-(9, '890101010-0', 120000.99, 'Distribuidora Fénix S.A.S.', 2, 'Avenida Boyacá # 60-05, Bogotá', 4.675000, -74.095000),
-(10, '800555666-4', 980.25, 'Droguería El Buen Remedio', 2, 'Carrera 15 # 145-80, Bogotá', 4.729100, -74.037100),
-(11, '777000111-2', 5500.00, 'Consultorio Pediátrico Luna', 2, 'Calle 53 # 18-95, Bogotá', 4.644100, -74.072000);
+(7, '850001002-3', 15000.00, 'Farmacia Los Olivos Principal', 1, 'Carrera 50 # 8-15, Bogotá', 4.580120, -74.103560),
+(8, '900005500-8', 85200.50, 'Centro Médico Especializado D', 1, 'Calle 26 Sur # 78-40, Bogotá', 4.601500, -74.148000),
+(9, '890101010-0', 120000.99, 'Distribuidora Fénix S.A.S.', 1, 'Avenida Boyacá # 60-05, Bogotá', 4.675000, -74.095000),
+(10, '800555666-4', 980.25, 'Droguería El Buen Remedio', 1, 'Carrera 15 # 145-80, Bogotá', 4.729100, -74.037100),
+(11, '777000111-2', 5500.00, 'Consultorio Pediátrico Luna', 1, 'Calle 53 # 18-95, Bogotá', 4.644100, -74.072000);
 
 
 -- --------------------------------------------------------------------------------
