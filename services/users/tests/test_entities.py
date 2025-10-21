@@ -254,6 +254,7 @@ class TestClient:
             "role_value": "CLIENT",
             "nit": "900123456-7",
             "balance": 1500000.50,
+            "client_id": 1,
             "perfil": "premium",
             "address":'Calle 72 # 10-30, Bogotá',
             "latitude":4.659970,
@@ -279,6 +280,7 @@ class TestClient:
         assert client.address == "Calle 72 # 10-30, Bogotá"
         assert client.latitude == 4.659970
         assert client.longitude == -74.058370
+        assert client.client_id == 1
 
     def test_client_inherits_from_user(self, sample_client_data):
         """Test: Client hereda de User"""
