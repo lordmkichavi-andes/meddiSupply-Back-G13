@@ -7,9 +7,9 @@ import os
 from src.infrastructure.persistence.db_connector import init_db_pool, get_connection, release_connection, db_pool
 
 # Definimos la ruta donde se encuentra el objeto psycopg2.pool.SimpleConnectionPool
-# que necesitamos simular. Como se usa directamente en db_manager.py, la ruta es 'db_manager.psycopg2.pool'.
-PSQL_POOL_PATH = 'db_manager.pool.SimpleConnectionPool'
-PSQL_ERROR_PATH = 'db_manager.psycopg2.Error'
+# que necesitamos simular. Como se usa directamente en src.infrastructure.persistence.db_connector.py, la ruta es 'src.infrastructure.persistence.db_connector.psycopg2.pool'.
+PSQL_POOL_PATH = 'src.infrastructure.persistence.db_connector.pool.SimpleConnectionPool'
+PSQL_ERROR_PATH = 'src.infrastructure.persistence.db_connector.psycopg2.Error'
 
 
 class DBManagerTestCase(unittest.TestCase):
@@ -32,7 +32,7 @@ class DBManagerTestCase(unittest.TestCase):
     ## Tests para init_db_pool()
     ## ----------------------------------------------------------------------
 
-    @patch('db_manager.os.getenv')
+    @patch('src.infrastructure.persistence.db_connector.os.getenv')
     @patch(PSQL_POOL_PATH)
     def test_init_db_pool_success(self, MockSimpleConnectionPool, mock_getenv):
         """Prueba que el pool se inicializa exitosamente con variables de entorno."""
@@ -108,7 +108,7 @@ class DBManagerTestCase(unittest.TestCase):
         with self.assertRaisesRegex(ConnectionError, "El pool de la base de datos no está inicializado."):
             get_connection()
 
-    @patch('db_manager.db_pool')
+    @patch('src.infrastructure.persistence.db_connector.db_pool')
     def test_get_connection_success(self, MockDBPool):
         """Prueba que se llama correctamente al método getconn() del pool."""
 
@@ -116,7 +116,7 @@ class DBManagerTestCase(unittest.TestCase):
         mock_conn = MagicMock()
         MockDBPool.getconn.return_value = mock_conn
 
-        # 2. Ejecutar la función (db_manager.db_pool será reemplazado por MockDBPool)
+        # 2. Ejecutar la función (src.infrastructure.persistence.db_connector.db_pool será reemplazado por MockDBPool)
         connection = get_connection()
 
         # 3. Asertar: Se obtuvo la conexión simulada
@@ -129,7 +129,7 @@ class DBManagerTestCase(unittest.TestCase):
     ## Tests para release_connection()
     ## ----------------------------------------------------------------------
 
-    @patch('db_manager.db_pool')
+    @patch('src.infrastructure.persistence.db_connector.db_pool')
     def test_release_connection_success(self, MockDBPool):
         """Prueba que se llama correctamente al método putconn() del pool."""
 
