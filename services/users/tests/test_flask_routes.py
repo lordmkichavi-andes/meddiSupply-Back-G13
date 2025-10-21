@@ -12,21 +12,15 @@ from src.infrastructure.web.flask_user_routes import create_user_api_blueprint
 # y rastrea si fueron llamados.
 
 class MockGetClientUsersUseCase(MagicMock):
-    """Mock para GetClientUsersUseCase"""
-
-    def execute(self):
-        # El valor de retorno debe ser seteado en cada test que lo necesite
-        return self.execute.return_value
-
-    def execute_by_seller(self, seller_id):
-        return self.execute_by_seller.return_value
-
+    """
+    Mock para GetClientUsersUseCase.
+    MagicMock automáticamente expone 'execute.return_value' y 'execute_by_seller.return_value'.
+    """
+    pass
 
 class MockRegisterVisitUseCase(MagicMock):
-    """Mock para RegisterVisitUseCase"""
-
-    def execute(self, client_id, seller_id, date, findings):
-        return self.execute.return_value
+     """Mock para RegisterVisitUseCase"""
+     pass
 
 
 class UserAPITestCase(unittest.TestCase):
