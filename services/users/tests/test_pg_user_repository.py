@@ -36,7 +36,11 @@ class TestPgUserRepository:
                 'CLIENT',
                 "900123456-7",
                 1500000.50,
-                "premium"
+                "premium",
+                'Calle 72 # 10-30, Bogotá',
+                4.659970,
+                -74.058370,
+                1
             ),
             (
                 2,
@@ -48,7 +52,11 @@ class TestPgUserRepository:
                 'CLIENT',
                 "900654321-1",
                 2500000.00,
-                "basic"
+                "basic",
+                'Calle 72 # 10-30, Bogotá',
+                4.659970,
+                -74.058370,
+                1
             )
         ]
 
