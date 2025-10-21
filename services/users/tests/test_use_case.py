@@ -89,18 +89,19 @@ class TestGetClientUsersUseCase(unittest.TestCase):
     def test_execute_by_seller_successful(self):
         """Prueba la obtención exitosa de clientes por seller_id y su correcto formato."""
         test_seller_id = 900
-        mock_role = MagicMock(value="CLIENT_ROL")
+        # Usamos MockRole para asegurar que 'rol' tiene el .value correcto
+        mock_role = MockRole("CLIENT_ROL")
 
-        # Simulamos las entidades de usuario devueltas por el repositorio
-        mock_user_1 = MagicMock(
-            user_id=1, client_id=10, name="Alice", last_name="Smith", password="hashed",
-            identification="12345", phone="555-1234", address="123 Main St",
-            latitude=10.0, longitude=-20.0, role=mock_role
+        # Simulamos las entidades de usuario devueltas por el repositorio usando MockUser
+        mock_user_1 = MockUser(
+            user_id=1, name="Alice", last_name="Smith", password="hashed",
+            identification="12345", phone="555-1234", role=mock_role, address="123 Main St",
+            latitude=10.0, longitude=-20.0, client_id=10
         )
-        mock_user_2 = MagicMock(
-            user_id=2, client_id=11, name="Bob", last_name="Johnson", password="hashed2",
-            identification="67890", phone="555-5678", address="456 Oak Ave",
-            latitude=11.0, longitude=-21.0, role=mock_role
+        mock_user_2 = MockUser(
+            user_id=2, name="Bob", last_name="Johnson", password="hashed2",
+            identification="67890", phone="555-5678", role=mock_role, address="456 Oak Ave",
+            latitude=11.0, longitude=-21.0, client_id=11
         )
 
         # Mockeamos el método específico para obtener usuarios por vendedor
