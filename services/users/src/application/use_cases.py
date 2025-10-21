@@ -43,7 +43,7 @@ class GetClientUsersUseCase:
         Ejecuta la lógica de negocio para obtener la lista de usuarios CLIENT.
         """
         # 1. Obtener usuarios con rol CLIENT (Usando el Repositorio)
-        users = self.repository.get_users_by_role(seller_id)
+        users = self.repository.get_users_by_seller(seller_id)
 
         # 2. Si no hay usuarios
         if not users:
@@ -54,6 +54,7 @@ class GetClientUsersUseCase:
         for user in users:
             formatted_users.append({
                 "user_id": user.user_id,
+                "client_id": user.client_id,
                 "name": user.name,
                 "last_name": user.last_name,
                 "password": user.password,

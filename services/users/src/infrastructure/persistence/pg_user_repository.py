@@ -1,4 +1,4 @@
-from typing import List, Dict, Any
+from typing import List, Any
 from src.domain.interfaces import UserRepository
 from src.domain.entities import Client
 from .db_connector import get_connection, release_connection
@@ -26,6 +26,7 @@ class PgUserRepository(UserRepository):
             query = """
              SELECT
                     u.user_id,
+                    c.client_id,
                     u.name,
                     u.last_name,
                     u.password,
@@ -47,6 +48,7 @@ class PgUserRepository(UserRepository):
             for row in cursor.fetchall():
                 (
                     user_id,
+                    client_id,
                     name,
                     last_name,
                     password,
@@ -61,6 +63,7 @@ class PgUserRepository(UserRepository):
                 # Mapeo a la entidad del dominio
                 users.append(Client(
                     user_id=user_id,
+                    client_id=client_id,
                     name=name,
                     last_name=last_name,
                     password=password,
@@ -110,7 +113,7 @@ class PgUserRepository(UserRepository):
                -- Unimos con la tabla Seller para filtrar por el vendedor
                INNER JOIN users.seller s ON c.seller_id = s.seller_id
                -- El filtro ahora busca por el ID del vendedor, no por el rol.
-               WHERE s.seller_id = %d
+               WHERE s.seller_id = %s
                ORDER BY u.name ASC;
                """
 
@@ -120,6 +123,7 @@ class PgUserRepository(UserRepository):
             for row in cursor.fetchall():
                 (
                     user_id,
+                    client_id,
                     name,
                     last_name,
                     password,
@@ -134,6 +138,7 @@ class PgUserRepository(UserRepository):
                 # Mapeo a la entidad del dominio
                 users.append(Client(
                     user_id=user_id,
+                    client_id=client_id,
                     name=name,
                     last_name=last_name,
                     password=password,
@@ -154,7 +159,7 @@ class PgUserRepository(UserRepository):
             if conn:
                 release_connection(conn)
 
-    def save_visit(self, visit_data: Dict[str, Any]):
+    def save_visit(self, client_id: int, seller_id: int, date: str, findings: str):
         """
         Guarda la información de una nueva visita en la base de datos.
 
@@ -170,17 +175,17 @@ class PgUserRepository(UserRepository):
             # Consulta SQL para insertar la nueva visita
             # RETURNING visit_id es crucial para obtener el ID generado automáticamente
             query = """
-                INSERT INTO Visits (client_id, seller_id, visit_date, findings)
+                INSERT INTO users.Visits (client_id, seller_id, date, findings)
                 VALUES (%s, %s, %s, %s)
                 RETURNING visit_id;
             """
 
             # Los valores se toman del diccionario visit_data
             values = (
-                visit_data['client_id'],
-                visit_data['seller_id'],
-                visit_data['date'],  # La fecha ya viene validada como objeto date o similar
-                visit_data['findings']
+                client_id,
+                seller_id,
+                date,  # La fecha ya viene validada como objeto date o similar
+                findings,
             )
 
             # 1. Ejecutamos la inserción
@@ -197,10 +202,10 @@ class PgUserRepository(UserRepository):
             # Si no tienes una clase, simplemente devuelve el diccionario con el ID:
             return {
                 "visit_id": new_visit_id,
-                "client_id": visit_data['client_id'],
-                "seller_id": visit_data['seller_id'],
-                "date": visit_data['date'],
-                "findings": visit_data['findings']
+                "client_id": client_id,
+                "seller_id": seller_id,
+                "date": date,
+                "findings":findings,
             }
             # Si tienes una clase Visit, sería:
             # return Visit(visit_id=new_visit_id, client_id=..., seller_id=..., findings=...)

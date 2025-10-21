@@ -18,6 +18,6 @@ class UserRepository(ABC):
         pass
 
     @abstractmethod
-    def save_visit(self, visit_data: Dict[str, Any]):
+    def save_visit(self, client_id: int, seller_id: int, date: str, findings: str):
         """Registra visitas"""
         pass

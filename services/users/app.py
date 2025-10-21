@@ -3,10 +3,10 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 import datetime
 
-from services.users.src.application.register_visit_usecase import RegisterVisitUseCase
 # Importaciones de arquitectura limpia
 from src.infrastructure.web.flask_user_routes import create_user_api_blueprint
 from src.application.use_cases import GetClientUsersUseCase
+from src.application.register_visit_usecase import RegisterVisitUseCase
 from src.infrastructure.persistence.pg_user_repository import PgUserRepository
 from src.infrastructure.persistence.db_connector import init_db_pool
 from src.infrastructure.persistence.db_initializer import initialize_database
@@ -81,7 +81,7 @@ def create_app():
     # --- INICIALIZACIÓN DE LA BASE DE DATOS (REQUISITO) ---
     try:
         print("🔌 Inicializando conexión a la base de datos...")
-
+        init_db_pool()
         print("📊 Inicializando esquema de la base de datos...")
         initialize_database()
         print("✅ Base de datos inicializada correctamente")

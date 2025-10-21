@@ -12,7 +12,7 @@ class RegisterVisitUseCase:
     def __init__(self, user_repository: UserRepository):
         self.repository = user_repository
 
-    def execute(self, client_id: int, seller_id: int, fecha: date, findings: str) -> Dict[str, Any]:
+    def execute(self, client_id: int, seller_id: int, date: str, findings: str) -> Dict[str, Any]:
         """
         Ejecuta la lógica de negocio para registrar una visita.
 
@@ -23,21 +23,20 @@ class RegisterVisitUseCase:
         :return: Un diccionario con el resultado del registro.
         """
         # 1. Crear el objeto o estructura de datos de la Visita
-        visit_data = {
-            "client_id": client_id,
-            "seller_id": seller_id,
-            # Aseguramos que la fecha se almacene en el formato adecuado para el repositorio/BD
-            "date": fecha,
-            "findings": findings
-        }
+
 
         # 2. Persistir la Visita (Llamando al Repositorio)
         # Se asume que el método `save_visit` maneja la conexión y el almacenamiento.
-        new_visit = self.repository.save_visit(visit_data)
+        new_visit = self.repository.save_visit(
+            client_id = client_id,
+            seller_id = seller_id,
+            date = date,
+            findings = findings,
+        )
 
         # 3. Retornar el resultado del registro
         # Opcionalmente, puedes retornar el ID o detalles de la visita recién creada
         return {
             "message": "Visita registrada con éxito en la base de datos.",
-            "visit_id": new_visit.visit_id if hasattr(new_visit, 'visit_id') else None
+            "visit": new_visit
         }

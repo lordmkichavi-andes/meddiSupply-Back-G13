@@ -1,7 +1,9 @@
-from flask import Blueprint, jsonify
-from src.application.use_cases import GetClientUsersUseCase
+from flask import Blueprint, jsonify, request
+from datetime import datetime, timedelta
+from dateutil import parser
 
-from services.users.src.application.register_visit_usecase import RegisterVisitUseCase
+from src.application.use_cases import GetClientUsersUseCase
+from src.application.register_visit_usecase import RegisterVisitUseCase
 
 
 def create_user_api_blueprint(
@@ -28,12 +30,12 @@ def create_user_api_blueprint(
             if not users:
                 return jsonify({
                     "message": "No se encontraron usuarios con rol CLIENT.",
-                    "users": []
+                    "clients": []
                 }), 404
 
             # 3. Retornar la respuesta exitosa
             return jsonify({
-                "users": users
+                "clients": users
             }), 200
 
         except Exception as e:
@@ -44,7 +46,7 @@ def create_user_api_blueprint(
             }), 500
 
     @user_api_bp.route('/clients/<int:seller_id>', methods=['GET'])
-    def get_client_users(seller_id):
+    def get_client_users_by_seller(seller_id):
         """
         Maneja la solicitud HTTP para obtener usuarios CLIENT filtrados por seller_id,
         llama al Caso de Uso y retorna la respuesta.
@@ -52,7 +54,7 @@ def create_user_api_blueprint(
         try:
             # 1. Llamar al Caso de Uso (Lógica de Negocio)
             # Se pasa el seller_id para filtrar los clientes
-            users = get_clients_by_seller_use_case.execute_by_seller(seller_id=seller_id)
+            users = use_case.execute_by_seller(seller_id=seller_id)
 
             # 2. Manejo de mensajes específicos
             if not users:
@@ -64,7 +66,7 @@ def create_user_api_blueprint(
 
             # 3. Retornar la respuesta exitosa
             return jsonify({
-                "users": users
+                "clients": users
             }), 200
 
         except Exception as e:
@@ -83,7 +85,7 @@ def create_user_api_blueprint(
         data = request.get_json()
 
         # 1. Extracción y Validación de Campos Vacíos
-        required_fields = ['client_id', 'seller_id', 'fecha', 'findings']
+        required_fields = ['client_id', 'seller_id', 'date', 'findings']
 
         # Verifica que todos los campos requeridos estén en el cuerpo de la petición
         if not all(field in data for field in required_fields):
@@ -101,16 +103,17 @@ def create_user_api_blueprint(
 
         client_id = data.get('client_id')
         seller_id = data.get('seller_id')
-        fecha_str = data.get('fecha')
+        fecha_str = data.get('date')
         findings = data.get('findings')
 
-        # 2. Validación Específica de la Fecha
         try:
-            # Convierte la cadena de fecha a un objeto datetime, usando el formato DD-MM-YYYY
-            visit_date = datetime.strptime(fecha_str, '%d-%m-%Y')
+            # Intenta convertir la cadena de fecha (fecha_str) a un objeto datetime
+            # 'parser.parse' intentará adivinar el formato (DD-MM-YYYY, YYYY-MM-DD, etc.)
+            visit_date = parser.parse(fecha_str)
         except ValueError:
+            # Atrapa el error si la cadena no es una fecha válida en ningún formato reconocido
             return jsonify({
-                "message": "El formato de la fecha es inválido. Utiliza el formato DD-MM-YYYY."
+                "message": "La cadena proporcionada no corresponde a un formato de fecha válido."
             }), 400
 
         now = datetime.now()
@@ -135,14 +138,14 @@ def create_user_api_blueprint(
             response = register_visit_use_case.execute(
                 client_id=client_id,
                 seller_id=seller_id,
-                fecha=visit_date.date(),  # Se pasa como objeto date o str según necesite tu CU
-                findings=findings
+                date=visit_date.date(),  # Se pasa como objeto date o str según necesite tu CU
+                findings=findings,
             )
 
             # 4. Retornar la respuesta exitosa
             return jsonify({
                 "message": "Visita registrada exitosamente.",
-                "visit_id": response.get("visit_id")
+                "visit": response["visit"]
             }), 201  # 201 Created es apropiado para POST de creación
 
         except Exception as e:
