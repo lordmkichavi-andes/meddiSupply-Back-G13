@@ -55,7 +55,7 @@ class SQLiteProductAdapter(ProductRepository):
         conn.close()
         return products
 
-    def get_product_by_id(self, product_id: str) -> List[Product]:
+    def get_product_by_id(self, product_id: int) -> List[Product]:
         """Obtiene un producto por su ID."""
         conn = sqlite3.connect(Config.DB_NAME)
         cursor = conn.cursor()
@@ -97,7 +97,7 @@ class SQLiteProductAdapter(ProductRepository):
             )
         return None
 
-    def update_product(self, product_id: str, price: float, stock: int) -> None:
+    def update_product(self, product_id: int, price: float, stock: int) -> None:
         """
         Actualiza el precio y el stock de un producto por su ID.
         Si el producto no existe, se asume que la operación no es válida y no se hace nada.

@@ -16,7 +16,7 @@ def create_api_blueprint(track_case: TrackOrdersUseCase, create_case: CreateOrde
     api_bp = Blueprint('api', __name__)
 
 
-    @api_bp.route('/track/<client_id>', methods=['GET'])
+    @api_bp.route('/track/<int:client_id>', methods=['GET'])
     def track_orders(client_id):
         """
         Maneja la solicitud HTTP, llama al Caso de Uso y retorna la respuesta.

@@ -80,7 +80,7 @@ def create_app():
     # --- INICIALIZACIÓN DE LA BASE DE DATOS (REQUISITO) ---
     try:
         print("🔌 Inicializando conexión a la base de datos...")
-        init_db_pool()
+
         print("📊 Inicializando esquema de la base de datos...")
         initialize_database()
         print("✅ Base de datos inicializada correctamente")

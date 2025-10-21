@@ -11,6 +11,6 @@ class ProductService:
         """Caso de uso: listar todos los productos disponibles."""
         return self.repository.get_available_products()
 
-    def update_product(self, product_id: str, price: float, stock: int) -> None:
+    def update_product(self, product_id: int, price: float, stock: int, warehouse: int) -> None:
         """Caso de uso: actualizar un producto existente."""
-        self.repository.update_product(product_id=product_id, price=price, stock=stock)
+        self.repository.update_product(product_id=product_id, price=price, stock=stock, warehouse=warehouse)
