@@ -240,8 +240,8 @@ class TestPgUserRepository:
         conn, cursor = mock_connection
         mock_get_conn.return_value = conn
         single_row = [
-            (1, "Carlos", "Ruiz", "pass123", "111222333", "3009876543",
-             'CLIENT', "900111222-3", 5000000.75, "vip", 'Calle 72 # 10-30, Bogotá', 4.659970, -74.058370,2)
+            (1, 2, "Carlos", "Ruiz", "pass123", "111222333", "3009876543",
+             'CLIENT', "900111222-3", 5000000.75, "vip", 'Calle 72 # 10-30, Bogotá', 4.659970, -74.058370)
         ]
         cursor.fetchall.return_value = single_row
 
