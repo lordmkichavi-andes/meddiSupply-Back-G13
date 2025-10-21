@@ -1,7 +1,6 @@
 import unittest
 import json
 from unittest.mock import MagicMock, patch
-from datetime import datetime, date, timedelta
 from flask import Flask
 
 # Importa la función de fábrica desde tu archivo (asume que tu código se llama 'api.py')
@@ -158,6 +157,7 @@ class UserAPITestCase(unittest.TestCase):
 
     # Usamos patch para simular la fecha/hora actual, lo que es CRÍTICO para validar fechas
     # 'datetime.now()' está en el módulo estándar, por lo que mockeamos allí
+    @patch('src.infrastructure.web.flask_user_routes.datetime')
     def test_register_visit_success(self, mock_datetime):
         """Prueba de registro de visita exitoso (código 201)."""
 
@@ -261,6 +261,7 @@ class UserAPITestCase(unittest.TestCase):
         self.assertIn("La cadena proporcionada no corresponde a un formato de fecha válido.", response_data['message'])
         self.mock_register_visit_uc.execute.assert_not_called()
 
+    @patch('src.infrastructure.web.flask_user_routes.datetime')
     def test_register_visit_future_date(self, mock_datetime):
         """Prueba fecha posterior a la actual (código 400)."""
 
@@ -288,6 +289,7 @@ class UserAPITestCase(unittest.TestCase):
         self.assertIn("La fecha de la visita no puede ser posterior a la fecha actual.", response_data['message'])
         self.mock_register_visit_uc.execute.assert_not_called()
 
+    @patch('src.infrastructure.web.flask_user_routes.datetime')
     def test_register_visit_too_old_date(self, mock_datetime):
         """Prueba fecha anterior a 30 días (código 400)."""
 
