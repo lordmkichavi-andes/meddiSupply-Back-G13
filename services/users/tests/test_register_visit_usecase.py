@@ -4,23 +4,36 @@ from datetime import date
 from typing import Dict, Any
 
 
-# Asume que esta es la ruta de tu Caso de Uso
-# from src.application.use_cases import RegisterVisitUseCase
-# He redefinido la clase aquí para que el test sea autocontenido y ejecutable
+# Asumimos que estas interfaces/entidades existen en src.domain
+# from src.domain.interfaces import UserRepository
+# from src.domain.entities import User
+
+# Redefinición de la clase para hacer el test autocontenido y ejecutable
+# En un entorno real, esta clase se importaría.
 class RegisterVisitUseCase:
-    """Caso de uso: Registrar las visitas de los sellers."""
+    """
+    Caso de uso: Registrar las visitas de los sellers
+    Depende de UserRepository (patrón de inyección de dependencias).
+    """
 
     def __init__(self, user_repository):
         self.repository = user_repository
 
     def execute(self, client_id: int, seller_id: int, date: str, findings: str) -> Dict[str, Any]:
-        """Ejecuta la lógica de negocio para registrar una visita."""
+        """
+        Ejecuta la lógica de negocio para registrar una visita.
+        """
+        # 1. Crear el objeto o estructura de datos de la Visita
+
+        # 2. Persistir la Visita (Llamando al Repositorio)
         new_visit = self.repository.save_visit(
             client_id=client_id,
             seller_id=seller_id,
             date=date,
             findings=findings,
         )
+
+        # 3. Retornar el resultado del registro
         return {
             "message": "Visita registrada con éxito en la base de datos.",
             "visit": new_visit
@@ -28,6 +41,9 @@ class RegisterVisitUseCase:
 
 
 class TestRegisterVisitUseCase(unittest.TestCase):
+    """
+    Pruebas unitarias para el Caso de Uso RegisterVisitUseCase.
+    """
 
     def setUp(self):
         """Configuración previa a cada prueba."""
@@ -36,11 +52,11 @@ class TestRegisterVisitUseCase(unittest.TestCase):
         # Inicializamos el Caso de Uso con el repositorio mockeado
         self.use_case = RegisterVisitUseCase(self.mock_repo)
 
-        # Datos de prueba
+        # --- Datos de prueba ---
         self.client_id = 101
         self.seller_id = 202
-        self.visit_date = date(2025, 10, 21).isoformat()  # Formato de fecha estándar
-        self.findings = "El cliente aceptó la propuesta de servicios."
+        self.visit_date = date(2025, 11, 25).isoformat()  # Usamos una fecha mockeada
+        self.findings = "El cliente está interesado en el nuevo producto X."
 
         # Datos esperados que devuelve el repositorio al guardar
         self.mock_visit_return = {
