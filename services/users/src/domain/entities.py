@@ -45,6 +45,7 @@ class User:
 class Client(User):
     """Entidad de Cliente con atributos específicos."""
     nit: str
+    client_id: str
     balance: float
     perfil: str
     address: str

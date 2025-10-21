@@ -105,7 +105,6 @@ CREATE TABLE IF NOT EXISTS users.visits (
     visit_id SERIAL PRIMARY KEY,                       -- Identificador de la visita (visit_id: str)
     seller_id INTEGER NOT NULL,                           -- ID del usuario que realizó la visita (user_id: str)
     date DATE NOT NULL,                              -- Fecha en que se realizó la visita (date: Date)
-    place TEXT,                                      -- Lugar o dirección de la visita (place: str)
     findings TEXT,                                   -- Hallazgos o notas de la visita (findings: str)
 
     -- Nuevo campo para la relación 1:N con Clientes
@@ -282,10 +281,10 @@ INSERT INTO orders.OrderLine (order_id, product_id, quantity, value_at_time_of_o
 -- ('ROUTE-202511-01', '2025-11-05', 'Ruta Centro-Norte Bogotá', '5 horas', '{"seller_name": "Maria Gomez", "user_id": 2}');
 
 -- USERS.VISITS (Visitas)
-INSERT INTO users.visits (seller_id, date, place, findings, client_id) VALUES
-(1, '2025-11-05', 'Farmacia La Esquina', 'El cliente A (Farmacia A) necesita más stock de antibióticos.', 1),
-(1, '2025-11-05', 'Hospital Metropolitano', 'El cliente B (Hospital X) está evaluando la compra de nuevos equipos.', 2),
-(1, '2025-11-06', 'Droguería San Pedro', 'Contacto inicial. Necesita material promocional.', 1);
+INSERT INTO users.visits (seller_id, date, findings, client_id) VALUES
+(1, '2025-11-05',  'El cliente A (Farmacia A) necesita más stock de antibióticos.', 1),
+(1, '2025-11-05',  'El cliente B (Hospital X) está evaluando la compra de nuevos equipos.', 2),
+(1, '2025-11-06',  'Contacto inicial. Necesita material promocional.', 1);
 
 -- USERS.VISIT_PRODUCT_SUGGESTIONS (Sugerencias de Productos en Visitas)
 -- Visita 1 (Farmacia A): Sugerir Tiras Reactivas y Amoxicilina
