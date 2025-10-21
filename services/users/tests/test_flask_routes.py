@@ -5,8 +5,7 @@ from datetime import datetime, date, timedelta
 from flask import Flask
 
 # Importa la función de fábrica desde tu archivo (asume que tu código se llama 'api.py')
-from api import create_user_api_blueprint
-
+from src.infrastructure.web.flask_user_routes import create_user_api_blueprint
 
 # --- Clases de Mock para los Casos de Uso ---
 # Usamos MagicMock porque permite definir métodos sin implementarlos
