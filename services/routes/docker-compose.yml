@@ -4,7 +4,7 @@ services:
   # Servicio de Base de Datos PostgreSQL
   db:
     image: postgres:14-alpine
-    container_name: postgres_rdwo
+    container_name: postgres_rdwr
     restart: always
     environment:
       # Variables usadas por la imagen oficial de PostgreSQL
@@ -23,10 +23,8 @@ services:
 
   # Servicio del Microservicio Flask
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: orders
+    image: 120569610818.dkr.ecr.us-east-1.amazonaws.com/cdk-exp-container-assets-120569610818-us-east-1:59f92b518e6e9e4433275d01381bb34b5c19641d-users
+    container_name: routes
     depends_on: # <--- La dependencia debe ser condicional
       db:
         condition: service_healthy
@@ -35,7 +33,7 @@ services:
       # DB_HOST debe ser el nombre del servicio de la DB (db)
       DB_HOST: db
       DB_PORT: 5432
-      DB_NAME: medisupplydb
+      DB_NAME: postgres
       DB_USER: postgres
       DB_PASSWORD: postgres
       # Asegura que la inicialización se ejecute

@@ -291,8 +291,8 @@ class TestPgUserRepository:
         query = cursor.execute.call_args[0][0]
 
         # Verificar elementos clave de la query
-        assert 'FROM Users u' in query
-        assert 'INNER JOIN Clientes c ON u.user_id = c.user_id' in query
+        assert 'FROM users.Users u' in query
+        assert 'INNER JOIN users.Clientes c ON u.user_id = c.user_id' in query
         assert 'WHERE u.role IN (%s)' in query
         assert 'u.user_id' in query
         assert 'c.nit' in query

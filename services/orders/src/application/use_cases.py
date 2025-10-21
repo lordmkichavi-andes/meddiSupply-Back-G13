@@ -13,7 +13,7 @@ class TrackOrdersUseCase:
     def __init__(self, order_repository: OrderRepository):
         self.repository = order_repository
 
-    def execute(self, client_id: str) -> List[Dict[str, Any]]:
+    def execute(self, client_id: int) -> List[Dict[int, Any]]:
         """
         Ejecuta la lógica de negocio para obtener la lista de pedidos.
         """

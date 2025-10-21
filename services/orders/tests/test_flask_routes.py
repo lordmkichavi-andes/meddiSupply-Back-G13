@@ -10,9 +10,9 @@ MOCK_ORDER_DATA = [
     {"id": "ORD001", "status": "En tránsito", "item": "Medicamento X"},
     {"id": "ORD002", "status": "Entregado", "item": "Suministro Y"}
 ]
-CLIENT_ID_EXISTS = "client_123"
-CLIENT_ID_NOT_FOUND = "client_404"
-CLIENT_ID_ERROR = "client_error"
+CLIENT_ID_EXISTS = 1
+CLIENT_ID_NOT_FOUND = 100
+CLIENT_ID_ERROR = 0
 
 
 class TestFlaskRoutes(unittest.TestCase):
