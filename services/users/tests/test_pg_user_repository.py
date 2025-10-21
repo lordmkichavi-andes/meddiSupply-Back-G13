@@ -212,8 +212,8 @@ class TestPgUserRepository:
         conn, cursor = mock_connection
         mock_get_conn.return_value = conn
         unordered_rows = [
-            (2, "Zoe", "Last", "pass", "123", "phone", 'CLIENT', "nit", 1000, "basic"),
-            (1, "Ana", "Last", "pass", "456", "phone", 'CLIENT', "nit", 2000, "premium"),
+            (2, "Zoe", "Last", "pass", "123", "phone", 'CLIENT', "nit", 1000, "basic", 'Calle 72 # 10-30, Bogotá', 4.659970, -74.058370,2),
+            (1, "Ana", "Last", "pass", "456", "phone", 'CLIENT', "nit", 2000, "premium", 'Calle 72 # 10-30, Bogotá', 4.659970, -74.058370,1),
         ]
         cursor.fetchall.return_value = unordered_rows
 
@@ -241,7 +241,7 @@ class TestPgUserRepository:
         mock_get_conn.return_value = conn
         single_row = [
             (1, "Carlos", "Ruiz", "pass123", "111222333", "3009876543",
-             'CLIENT', "900111222-3", 5000000.75, "vip")
+             'CLIENT', "900111222-3", 5000000.75, "vip", 'Calle 72 # 10-30, Bogotá', 4.659970, -74.058370,2)
         ]
         cursor.fetchall.return_value = single_row
 

@@ -17,7 +17,7 @@ class MockRole:
 
 class MockUser:
     """Simula la entidad de dominio User con los atributos requeridos."""
-    def __init__(self, user_id, name, last_name, password, identification, phone, role, address, latitude, longitude):
+    def __init__(self, user_id, name, last_name, password, identification, phone, role, address, latitude, longitude,client_id):
         self.user_id = user_id
         self.name = name
         self.last_name = last_name
@@ -28,11 +28,12 @@ class MockUser:
         self.address = address
         self.latitude = latitude
         self.longitude = longitude
+        self.client_id = client_id
 
 # Datos simulados
 MOCK_USERS: List[MockUser] = [
-    MockUser("U001", "Ana", "Gómez", "pass123", "123456789", "3001234567", MockRole("CLIENT"), 'Calle 72 # 10-30, Bogotá', 4.659970, -74.058370),
-    MockUser("U002", "Luis", "Pérez", "pass456", "987654321", "3019876543", MockRole("CLIENT"), 'Calle 72 # 10-30, Bogotá', 4.659970, -74.058370)
+    MockUser("U001", "Ana", "Gómez", "pass123", "123456789", "3001234567", MockRole("CLIENT"), 'Calle 72 # 10-30, Bogotá', 4.659970, -74.058370,1),
+    MockUser("U002", "Luis", "Pérez", "pass456", "987654321", "3019876543", MockRole("CLIENT"), 'Calle 72 # 10-30, Bogotá', 4.659970, -74.058370,2)
 ]
 
 
