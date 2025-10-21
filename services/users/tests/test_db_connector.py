@@ -4,7 +4,7 @@ import psycopg2
 import os
 
 # Asegúrate de importar las funciones del archivo que vamos a testear
-from db_manager import init_db_pool, get_connection, release_connection, db_pool
+from src.infrastructure.persistence.db_connector import init_db_pool, get_connection, release_connection, db_pool
 
 # Definimos la ruta donde se encuentra el objeto psycopg2.pool.SimpleConnectionPool
 # que necesitamos simular. Como se usa directamente en db_manager.py, la ruta es 'db_manager.psycopg2.pool'.
