@@ -47,3 +47,6 @@ class Client(User):
     nit: str
     balance: float
     perfil: str
+    address: str
+    latitude: float
+    longitude: float
