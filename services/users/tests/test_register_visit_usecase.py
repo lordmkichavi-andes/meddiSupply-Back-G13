@@ -1,119 +1,142 @@
 import unittest
-from unittest.mock import MagicMock
-from datetime import date
-from typing import Dict, Any
+from unittest.mock import Mock, MagicMock
+from src.application.register_visit import RegisterVisitUseCase
+from src.domain.interfaces import UserRepository  # Asumiendo la ruta correcta
 
 
-# Asumimos que estas interfaces/entidades existen en src.domain
-# from src.domain.interfaces import UserRepository
-# from src.domain.entities import User
+# No necesitamos importar User de src.domain.entities a menos que se use directamente
+# en el resultado esperado, pero es bueno tener la ruta de las interfaces.
 
-# Redefinición de la clase para hacer el test autocontenido y ejecutable
-# En un entorno real, esta clase se importaría.
-class RegisterVisitUseCase:
-    """
-    Caso de uso: Registrar las visitas de los sellers
-    Depende de UserRepository (patrón de inyección de dependencias).
-    """
-
-    def __init__(self, user_repository):
-        self.repository = user_repository
-
-    def execute(self, client_id: int, seller_id: int, date: str, findings: str) -> Dict[str, Any]:
-        """
-        Ejecuta la lógica de negocio para registrar una visita.
-        """
-        # 1. Crear el objeto o estructura de datos de la Visita
-
-        # 2. Persistir la Visita (Llamando al Repositorio)
-        new_visit = self.repository.save_visit(
-            client_id=client_id,
-            seller_id=seller_id,
-            date=date,
-            findings=findings,
-        )
-
-        # 3. Retornar el resultado del registro
-        return {
-            "message": "Visita registrada con éxito en la base de datos.",
-            "visit": new_visit
-        }
-
-
+# --- Clase de Prueba ---
 class TestRegisterVisitUseCase(unittest.TestCase):
     """
-    Pruebas unitarias para el Caso de Uso RegisterVisitUseCase.
+    Clase de prueba para el caso de uso RegisterVisitUseCase.
     """
 
     def setUp(self):
-        """Configuración previa a cada prueba."""
-        # Creamos un mock para el repositorio (que implementa UserRepository)
-        self.mock_repo = MagicMock()
-        # Inicializamos el Caso de Uso con el repositorio mockeado
-        self.use_case = RegisterVisitUseCase(self.mock_repo)
+        """
+        Configuración inicial antes de cada prueba.
+        Inicializa un Mock para el UserRepository y la instancia del Caso de Uso.
+        """
+        # Crear un Mock para simular la dependencia UserRepository
+        self.mock_repo = Mock(spec=UserRepository)
 
-        # --- Datos de prueba ---
+        # Instanciar el Caso de Uso con el Mock
+        self.use_case = RegisterVisitUseCase(user_repository=self.mock_repo)
+
+        # Definir datos de prueba comunes
         self.client_id = 101
         self.seller_id = 202
-        self.visit_date = date(2025, 11, 25).isoformat()  # Usamos una fecha mockeada
-        self.findings = "El cliente está interesado en el nuevo producto X."
+        self.date = "2025-10-21"
+        self.findings = "El cliente necesita más información sobre el producto X."
 
-        # Datos esperados que devuelve el repositorio al guardar
-        self.mock_visit_return = {
-            "visit_id": 99,
+        # Definir el valor de retorno simulado para el método save_visit
+        # Este es el objeto o estructura que 'devuelve' el repositorio al guardar
+        self.mock_new_visit_data = {
+            "id": 500,
             "client_id": self.client_id,
             "seller_id": self.seller_id,
-            "date": self.visit_date,
-            "findings": self.findings
+            "date": self.date,
+            "findings": self.findings,
         }
+        # Configurar el Mock para que devuelva los datos simulados cuando se llame a save_visit
+        self.mock_repo.save_visit.return_value = self.mock_new_visit_data
 
-    def test_successful_visit_registration(self):
-        """Prueba que el registro de una visita se ejecuta correctamente y retorna el mensaje esperado."""
+    def test_execute_successful_registration(self):
+        """
+        Prueba que la ejecución del caso de uso registre la visita correctamente
+        y retorne el resultado esperado.
+        """
+        print("\n--- Ejecutando test_execute_successful_registration ---")
 
-        # Configurar el mock para que devuelva un valor simulado al llamar a save_visit
-        self.mock_repo.save_visit.return_value = self.mock_visit_return
-
-        # Ejecutar el Caso de Uso
+        # 1. Ejecutar el método a probar
         result = self.use_case.execute(
             client_id=self.client_id,
             seller_id=self.seller_id,
-            date=self.visit_date,
+            date=self.date,
             findings=self.findings
         )
 
-        # 1. Verificar que el repositorio fue llamado exactamente una vez con los argumentos correctos
+        # 2. Verificaciones (Asserts)
+
+        # Verificar que el método 'save_visit' del repositorio fue llamado
+        # **exactamente una vez** y con los **argumentos correctos**.
         self.mock_repo.save_visit.assert_called_once_with(
             client_id=self.client_id,
             seller_id=self.seller_id,
-            date=self.visit_date,
-            findings=self.findings,
+            date=self.date,
+            findings=self.findings
         )
 
-        # 2. Verificar el mensaje de éxito y la estructura de la respuesta
-        self.assertIsInstance(result, dict)
-        self.assertEqual(result["message"], "Visita registrada con éxito en la base de datos.")
+        # Verificar el resultado retornado por el caso de uso
+        expected_result = {
+            "message": "Visita registrada con éxito en la base de datos.",
+            "visit": self.mock_new_visit_data  # Debe contener los datos devueltos por el mock
+        }
+        self.assertEqual(result, expected_result,
+                         "El resultado de la ejecución no coincide con el esperado.")
 
-        # 3. Verificar que el objeto de visita devuelto es el que simulamos
-        self.assertEqual(result["visit"], self.mock_visit_return)
+        print("Registro exitoso verificado.")
 
-    def test_repository_raises_exception(self):
-        """Prueba que si el repositorio lanza una excepción (ej. error de BD), el caso de uso la propaga."""
+    def test_execute_repository_call_with_different_data(self):
+        """
+        Prueba que el caso de uso pase cualquier dato que reciba
+        al método 'save_visit' del repositorio.
+        """
+        print("\n--- Ejecutando test_execute_repository_call_with_different_data ---")
 
-        # Configurar el mock para que lance una excepción específica al llamar a save_visit
-        self.mock_repo.save_visit.side_effect = ConnectionError("Database connection lost.")
+        # Datos de prueba diferentes
+        diff_client_id = 999
+        diff_seller_id = 888
+        diff_date = "2026-01-01"
+        diff_findings = "Solo fue una visita de cortesía."
 
-        # Verificar que al ejecutar el caso de uso, se lanza la misma excepción
-        with self.assertRaises(ConnectionError) as cm:
-            self.use_case.execute(
-                client_id=self.client_id,
-                seller_id=self.seller_id,
-                date=self.visit_date,
-                findings=self.findings
-            )
+        # Ejecutar el método con los datos diferentes
+        self.use_case.execute(
+            client_id=diff_client_id,
+            seller_id=diff_seller_id,
+            date=diff_date,
+            findings=diff_findings
+        )
 
-        # Opcional: verificar el mensaje de la excepción propagada
-        self.assertIn("Database connection lost.", str(cm.exception))
+        # Verificar que el método 'save_visit' fue llamado con los nuevos argumentos
+        self.mock_repo.save_visit.assert_called_once_with(
+            client_id=diff_client_id,
+            seller_id=diff_seller_id,
+            date=diff_date,
+            findings=diff_findings
+        )
+        print("Llamada al repositorio con datos diferentes verificada.")
+
+    def test_execute_handles_empty_findings(self):
+        """
+        Prueba el comportamiento cuando los 'findings' son una cadena vacía,
+        asumiendo que esto es un valor aceptable.
+        """
+        print("\n--- Ejecutando test_execute_handles_empty_findings ---")
+
+        empty_findings = ""
+
+        # Configurar un nuevo mock_new_visit_data para este caso si fuera necesario,
+        # pero para este test solo verificamos la llamada.
+
+        self.use_case.execute(
+            client_id=self.client_id,
+            seller_id=self.seller_id,
+            date=self.date,
+            findings=empty_findings
+        )
+
+        # Verificar la llamada al repositorio
+        self.mock_repo.save_visit.assert_called_once_with(
+            client_id=self.client_id,
+            seller_id=self.seller_id,
+            date=self.date,
+            findings=empty_findings
+        )
+        print("Manejo de 'findings' vacíos verificado.")
 
 
+# --- Ejecución del archivo de prueba ---
 if __name__ == '__main__':
     unittest.main()

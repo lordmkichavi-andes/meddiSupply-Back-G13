@@ -1,119 +1,310 @@
 import unittest
-from unittest.mock import MagicMock
-from datetime import date
-from typing import Dict, Any
+import json
+from unittest.mock import Mock, MagicMock
+from datetime import datetime, timedelta
+# Importar la función a probar y las clases/interfaces necesarias para el mocking
+from src.presentation.api import create_user_api_blueprint
+# Asumimos que los use cases están en estas rutas para el spec
+from src.application.use_cases import GetClientUsersUseCase
+from src.application.register_visit_usecase import RegisterVisitUseCase
 
 
-# Asumimos que estas interfaces/entidades existen en src.domain
-# from src.domain.interfaces import UserRepository
-# from src.domain.entities import User
-
-# Redefinición de la clase para hacer el test autocontenido y ejecutable
-# En un entorno real, esta clase se importaría.
-class RegisterVisitUseCase:
-    """
-    Caso de uso: Registrar las visitas de los sellers
-    Depende de UserRepository (patrón de inyección de dependencias).
-    """
-
-    def __init__(self, user_repository):
-        self.repository = user_repository
-
-    def execute(self, client_id: int, seller_id: int, date: str, findings: str) -> Dict[str, Any]:
-        """
-        Ejecuta la lógica de negocio para registrar una visita.
-        """
-        # 1. Crear el objeto o estructura de datos de la Visita
-
-        # 2. Persistir la Visita (Llamando al Repositorio)
-        new_visit = self.repository.save_visit(
-            client_id=client_id,
-            seller_id=seller_id,
-            date=date,
-            findings=findings,
-        )
-
-        # 3. Retornar el resultado del registro
-        return {
-            "message": "Visita registrada con éxito en la base de datos.",
-            "visit": new_visit
-        }
-
-
-class TestRegisterVisitUseCase(unittest.TestCase):
-    """
-    Pruebas unitarias para el Caso de Uso RegisterVisitUseCase.
-    """
+# --- Clase de Prueba ---
+class TestUserApiBlueprint(unittest.TestCase):
 
     def setUp(self):
-        """Configuración previa a cada prueba."""
-        # Creamos un mock para el repositorio (que implementa UserRepository)
-        self.mock_repo = MagicMock()
-        # Inicializamos el Caso de Uso con el repositorio mockeado
-        self.use_case = RegisterVisitUseCase(self.mock_repo)
+        """
+        Configuración inicial antes de cada prueba.
+        Crea Mocks para los casos de uso y la aplicación de prueba de Flask.
+        """
+        # Mocks para las dependencias (Casos de Uso)
+        self.mock_get_client_users_uc = Mock(spec=GetClientUsersUseCase)
+        self.mock_register_visit_uc = Mock(spec=RegisterVisitUseCase)
 
-        # --- Datos de prueba ---
-        self.client_id = 101
-        self.seller_id = 202
-        self.visit_date = date(2025, 11, 25).isoformat()  # Usamos una fecha mockeada
-        self.findings = "El cliente está interesado en el nuevo producto X."
+        # 1. Crear el Blueprint inyectando los mocks
+        blueprint = create_user_api_blueprint(
+            use_case=self.mock_get_client_users_uc,
+            register_visit_use_case=self.mock_register_visit_uc
+        )
 
-        # Datos esperados que devuelve el repositorio al guardar
-        self.mock_visit_return = {
-            "visit_id": 99,
-            "client_id": self.client_id,
-            "seller_id": self.seller_id,
-            "date": self.visit_date,
-            "findings": self.findings
+        # 2. Crear una aplicación de prueba de Flask
+        self.app = MagicMock()  # Usamos MagicMock para simular la app
+        self.app.register_blueprint(blueprint)  # Registrar el Blueprint en la app mockeada
+
+        # 3. Crear el cliente de prueba de Flask
+        # Esto permite enviar solicitudes HTTP simuladas
+        self.client = self.app.test_client()
+
+        # 4. Configurar la aplicación de prueba (necesario para la funcionalidad de Flask)
+        self.app.testing = True
+
+    # -----------------------------------------------
+    #              Tests para la ruta GET /clients
+    # -----------------------------------------------
+
+    def test_get_client_users_success(self):
+        """
+        Prueba la ruta GET /clients cuando el Caso de Uso devuelve datos.
+        Debe retornar 200 y la lista de clientes.
+        """
+        print("\n--- Ejecutando test_get_client_users_success ---")
+
+        # Datos de retorno simulados
+        mock_users = [{"id": 1, "name": "Cliente A"}, {"id": 2, "name": "Cliente B"}]
+        self.mock_get_client_users_uc.execute.return_value = mock_users
+
+        # Enviar la solicitud de prueba
+        response = self.client.get('/clients')
+        data = json.loads(response.data.decode('utf-8'))
+
+        # Verificaciones
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(data["clients"], mock_users)
+        self.mock_get_client_users_uc.execute.assert_called_once()
+        print("Obtención de clientes exitosa verificada (código 200).")
+
+    def test_get_client_users_not_found(self):
+        """
+        Prueba la ruta GET /clients cuando el Caso de Uso no devuelve datos.
+        Debe retornar 404.
+        """
+        print("\n--- Ejecutando test_get_client_users_not_found ---")
+
+        # Simular que no hay clientes
+        self.mock_get_client_users_uc.execute.return_value = []
+
+        # Enviar la solicitud de prueba
+        response = self.client.get('/clients')
+        data = json.loads(response.data.decode('utf-8'))
+
+        # Verificaciones
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(data["message"], "No se encontraron usuarios con rol CLIENT.")
+        print("No se encontraron clientes verificado (código 404).")
+
+    # -----------------------------------------------
+    #        Tests para la ruta GET /clients/<seller_id>
+    # -----------------------------------------------
+
+    def test_get_client_users_by_seller_success(self):
+        """
+        Prueba la ruta GET /clients/<seller_id> cuando se encuentran clientes.
+        Debe retornar 200 y los clientes filtrados.
+        """
+        print("\n--- Ejecutando test_get_client_users_by_seller_success ---")
+
+        seller_id = 50
+        mock_users = [{"id": 3, "name": "Cliente C", "seller_id": seller_id}]
+
+        # Simular el retorno del Caso de Uso filtrado
+        self.mock_get_client_users_uc.execute_by_seller.return_value = mock_users
+
+        # Enviar la solicitud de prueba
+        response = self.client.get(f'/clients/{seller_id}')
+        data = json.loads(response.data.decode('utf-8'))
+
+        # Verificaciones
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(data["clients"], mock_users)
+        # Verificar que se llamó al método correcto con el argumento correcto
+        self.mock_get_client_users_uc.execute_by_seller.assert_called_once_with(seller_id=seller_id)
+        print(f"Obtención de clientes por seller_id {seller_id} exitosa verificada.")
+
+    # -----------------------------------------------
+    #              Tests para la ruta POST /visit
+    # -----------------------------------------------
+
+    def test_register_visit_success(self):
+        """
+        Prueba la ruta POST /visit con datos válidos.
+        Debe retornar 201 y los detalles de la visita.
+        """
+        print("\n--- Ejecutando test_register_visit_success ---")
+
+        today = datetime.now().strftime("%Y-%m-%d")  # Fecha de hoy para que pase la validación
+
+        # Datos de entrada para la petición
+        valid_payload = {
+            "client_id": 10,
+            "seller_id": 20,
+            "date": today,
+            "findings": "Todo excelente."
         }
 
-    def test_successful_visit_registration(self):
-        """Prueba que el registro de una visita se ejecuta correctamente y retorna el mensaje esperado."""
+        # Simular la respuesta del Caso de Uso (que contiene la visita guardada)
+        mock_visit_data = {"id": 100, **valid_payload}
+        self.mock_register_visit_uc.execute.return_value = {
+            "message": "Visita registrada con éxito en la base de datos.",
+            "visit": mock_visit_data
+        }
 
-        # Configurar el mock para que devuelva un valor simulado al llamar a save_visit
-        self.mock_repo.save_visit.return_value = self.mock_visit_return
-
-        # Ejecutar el Caso de Uso
-        result = self.use_case.execute(
-            client_id=self.client_id,
-            seller_id=self.seller_id,
-            date=self.visit_date,
-            findings=self.findings
+        # Enviar la solicitud POST
+        response = self.client.post(
+            '/visit',
+            data=json.dumps(valid_payload),
+            content_type='application/json'
         )
+        data = json.loads(response.data.decode('utf-8'))
 
-        # 1. Verificar que el repositorio fue llamado exactamente una vez con los argumentos correctos
-        self.mock_repo.save_visit.assert_called_once_with(
-            client_id=self.client_id,
-            seller_id=self.seller_id,
-            date=self.visit_date,
-            findings=self.findings,
+        # Verificaciones
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(data["message"], "Visita registrada exitosamente.")
+        self.assertEqual(data["visit"]["id"], 100)
+
+        # Verificar que el Caso de Uso fue llamado (nota: el CU recibe un objeto date)
+        self.mock_register_visit_uc.execute.assert_called_once()
+        print("Registro de visita exitoso verificado (código 201).")
+
+    def test_register_visit_missing_fields(self):
+        """
+        Prueba la validación de campos requeridos faltantes.
+        Debe retornar 400.
+        """
+        print("\n--- Ejecutando test_register_visit_missing_fields ---")
+
+        # Payload donde falta 'findings'
+        invalid_payload = {
+            "client_id": 10,
+            "seller_id": 20,
+            "date": "2025-10-21",
+        }
+
+        response = self.client.post(
+            '/visit',
+            data=json.dumps(invalid_payload),
+            content_type='application/json'
         )
+        data = json.loads(response.data.decode('utf-8'))
 
-        # 2. Verificar el mensaje de éxito y la estructura de la respuesta
-        self.assertIsInstance(result, dict)
-        self.assertEqual(result["message"], "Visita registrada con éxito en la base de datos.")
+        # Verificaciones
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(data["message"], "Faltan campos requeridos.")
+        self.assertIn("findings", data["missing"])
+        # Verificar que el Caso de Uso *no* fue llamado
+        self.mock_register_visit_uc.execute.assert_not_called()
+        print("Validación de campos faltantes verificada (código 400).")
 
-        # 3. Verificar que el objeto de visita devuelto es el que simulamos
-        self.assertEqual(result["visit"], self.mock_visit_return)
+    def test_register_visit_invalid_date_format(self):
+        """
+        Prueba la validación de formato de fecha incorrecto.
+        Debe retornar 400.
+        """
+        print("\n--- Ejecutando test_register_visit_invalid_date_format ---")
 
-    def test_repository_raises_exception(self):
-        """Prueba que si el repositorio lanza una excepción (ej. error de BD), el caso de uso la propaga."""
+        # Fecha con formato incorrecto que parser.parse no puede manejar
+        invalid_payload = {
+            "client_id": 10,
+            "seller_id": 20,
+            "date": "no-es-una-fecha",
+            "findings": "Test."
+        }
 
-        # Configurar el mock para que lance una excepción específica al llamar a save_visit
-        self.mock_repo.save_visit.side_effect = ConnectionError("Database connection lost.")
+        response = self.client.post(
+            '/visit',
+            data=json.dumps(invalid_payload),
+            content_type='application/json'
+        )
+        data = json.loads(response.data.decode('utf-8'))
 
-        # Verificar que al ejecutar el caso de uso, se lanza la misma excepción
-        with self.assertRaises(ConnectionError) as cm:
-            self.use_case.execute(
-                client_id=self.client_id,
-                seller_id=self.seller_id,
-                date=self.visit_date,
-                findings=self.findings
-            )
+        # Verificaciones
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(data["message"], "La cadena proporcionada no corresponde a un formato de fecha válido.")
+        self.mock_register_visit_uc.execute.assert_not_called()
+        print("Validación de formato de fecha inválido verificada (código 400).")
 
-        # Opcional: verificar el mensaje de la excepción propagada
-        self.assertIn("Database connection lost.", str(cm.exception))
+    def test_register_visit_future_date(self):
+        """
+        Prueba la validación de fecha futura.
+        Debe retornar 400.
+        """
+        print("\n--- Ejecutando test_register_visit_future_date ---")
+
+        # Fecha en el futuro (+1 día)
+        future_date = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+
+        invalid_payload = {
+            "client_id": 10,
+            "seller_id": 20,
+            "date": future_date,
+            "findings": "Test."
+        }
+
+        response = self.client.post(
+            '/visit',
+            data=json.dumps(invalid_payload),
+            content_type='application/json'
+        )
+        data = json.loads(response.data.decode('utf-8'))
+
+        # Verificaciones
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(data["message"], "La fecha de la visita no puede ser posterior a la fecha actual.")
+        self.mock_register_visit_uc.execute.assert_not_called()
+        print("Validación de fecha futura verificada (código 400).")
+
+    def test_register_visit_old_date(self):
+        """
+        Prueba la validación de fecha demasiado antigua (más de 30 días).
+        Debe retornar 400.
+        """
+        print("\n--- Ejecutando test_register_visit_old_date ---")
+
+        # Fecha hace 31 días
+        old_date = (datetime.now() - timedelta(days=31)).strftime("%Y-%m-%d")
+
+        invalid_payload = {
+            "client_id": 10,
+            "seller_id": 20,
+            "date": old_date,
+            "findings": "Test."
+        }
+
+        response = self.client.post(
+            '/visit',
+            data=json.dumps(invalid_payload),
+            content_type='application/json'
+        )
+        data = json.loads(response.data.decode('utf-8'))
+
+        # Verificaciones
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(data["message"], "La fecha de la visita no puede ser anterior a 30 días.")
+        self.mock_register_visit_uc.execute.assert_not_called()
+        print("Validación de fecha antigua verificada (código 400).")
+
+    def test_register_visit_use_case_exception(self):
+        """
+        Prueba el manejo de excepciones cuando el Caso de Uso falla.
+        Debe retornar 500.
+        """
+        print("\n--- Ejecutando test_register_visit_use_case_exception ---")
+
+        today = datetime.now().strftime("%Y-%m-%d")
+
+        valid_payload = {
+            "client_id": 10,
+            "seller_id": 20,
+            "date": today,
+            "findings": "Test."
+        }
+
+        # Simular una excepción lanzada por el Caso de Uso (ej. error de base de datos)
+        self.mock_register_visit_uc.execute.side_effect = Exception("Error de conexión a BD")
+
+        response = self.client.post(
+            '/visit',
+            data=json.dumps(valid_payload),
+            content_type='application/json'
+        )
+        data = json.loads(response.data.decode('utf-8'))
+
+        # Verificaciones
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(data["message"], "No se pudo registrar la visita. Intenta nuevamente.")
+        self.assertIn("Error de conexión a BD", data["error"])
+        print("Manejo de excepción del Caso de Uso verificado (código 500).")
 
 
+# --- Ejecución del archivo de prueba ---
 if __name__ == '__main__':
     unittest.main()
