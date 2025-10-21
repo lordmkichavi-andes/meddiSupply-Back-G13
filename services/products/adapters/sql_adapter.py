@@ -3,7 +3,7 @@ from psycopg2.extras import RealDictCursor, register_uuid
 from typing import List, Optional
 from repositories.product_repository import ProductRepository
 from domain.models import Product
-from config import DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASS
+from config import Config
 
 class PostgreSQLProductAdapter(ProductRepository):
     """Implementación del repositorio de productos para PostgreSQL (RDS)."""
@@ -11,11 +11,11 @@ class PostgreSQLProductAdapter(ProductRepository):
     def _get_connection(self):
         """Método helper para establecer la conexión a PostgreSQL y devolver un cursor de diccionario."""
         conn = psycopg2.connect(
-            host=DB_HOST,
-            port=DB_PORT,
-            database=DB_NAME,
-            user=DB_USER,
-            password=DB_PASS
+            host=Config.DB_HOST,
+            port=Config.DB_PORT,
+            database=Config.DB_NAME,
+            user=Config.DB_USER,
+            password=Config.DB_PASSWORD
         )
         # Usamos RealDictCursor para obtener resultados como diccionarios (nombre de columna: valor),
         # similar a sqlite3.Row.
@@ -32,14 +32,16 @@ class PostgreSQLProductAdapter(ProductRepository):
             p.product_id,
             p.sku,
             p.value,
+            p.name,
+            p.image_url,
             c.name AS category_name,
             SUM(ps.quantity) AS total_quantity
         FROM 
-            Product p
+            products.Product p
         JOIN 
-            Category c ON p.category_id = c.category_id
+            products.Category c ON p.category_id = c.category_id
         JOIN 
-            ProductStock ps ON p.product_id = ps.product_id
+            products.ProductStock ps ON p.product_id = ps.product_id
         WHERE
             ps.quantity > 0
         GROUP BY
@@ -57,6 +59,8 @@ class PostgreSQLProductAdapter(ProductRepository):
                     product_id=row['product_id'],
                     sku=row['sku'],
                     value=row['value'],
+                    name=row['name'],
+                    image_url=row['image_url'],
                     category_name=row['category_name'],
                     total_quantity=row['total_quantity']
                 ) for row in results
@@ -80,6 +84,8 @@ class PostgreSQLProductAdapter(ProductRepository):
             p.product_id,
             p.sku,
             p.value,
+            p.name,
+            p.image_url,
             c.name AS category_name,
             SUM(ps.quantity) AS total_quantity
         FROM 
@@ -107,6 +113,8 @@ class PostgreSQLProductAdapter(ProductRepository):
                     product_id=row['product_id'],
                     sku=row['sku'],
                     value=row['value'],
+                    name=row['name'],
+                    image_url=row['image_url'],
                     category_name=row['category_name'],
                     total_quantity=row['total_quantity']
                 )
@@ -119,37 +127,28 @@ class PostgreSQLProductAdapter(ProductRepository):
     # -------------------------------------------------------------
     # Implementación de update_product
     # -------------------------------------------------------------
-    def update_product(self, product_id: str, price: float, stock: int) -> None:
+    def update_product(self, product_id: int, price: float, stock: int, warehouse: int) -> None:
         """
         Actualiza el precio y el stock de un producto por su ID.
+        Si el producto no existe, se asume que la operación no es válida y no se hace nada.
         """
         conn, cursor = self._get_connection()
+        queryProduct =  """
+                 UPDATE products.Product
+                    SET value = %s
+                    WHERE product_id = %s;
+                 """
 
-        query_product = '''
-            UPDATE products.Product
-            SET value = %s
-            WHERE product_id = %s;
-        '''
-        query_stock = '''
-            UPDATE products.ProductStock
-            SET quantity = %s
-            WHERE product_id = %s 
-            AND warehouse_id = 'W-003';
-        '''
 
-        try:
-            # 💡 Parámetros como tupla para psycopg2
-            cursor.execute(query_product, (price, product_id))
-            cursor.execute(query_stock, (stock, product_id))
+        queryStock =  """
+                         UPDATE products.ProductStock
+                            SET quantity =  %s
+                            WHERE product_id =  %s 
+                            AND warehouse_id =  %s;
+                         """
 
-            # Confirmar la transacción
-            conn.commit()
 
-        except Exception as e:
-            # Revertir si hay un error en cualquier operación
-            conn.rollback()
-            raise e
-
-        finally:
-            cursor.close()
-            conn.close()
+        cursor.execute(queryProduct, (price, product_id,))
+        cursor.execute(queryStock, (stock, product_id, warehouse, ))
+        conn.commit()
+        conn.close()

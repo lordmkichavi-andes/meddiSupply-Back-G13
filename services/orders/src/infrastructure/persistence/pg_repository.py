@@ -14,7 +14,7 @@ class PgOrderRepository(OrderRepository):
     para obtener los datos.
     """
 
-    def get_orders_by_client_id(self, client_id: str) -> List[Order]:
+    def get_orders_by_client_id(self, client_id: int) -> List[Order]:
         """
         Recupera pedidos de la base de datos para el cliente dado.
         """
@@ -98,4 +98,3 @@ class PgOrderRepository(OrderRepository):
         cur.close()
         order.order_id = order_id
         return order
-

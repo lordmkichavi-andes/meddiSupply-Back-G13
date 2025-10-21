@@ -4,7 +4,7 @@ services:
   # Servicio de Base de Datos PostgreSQL
   db:
     image: postgres:14-alpine
-    container_name: postgres_rdwo
+    container_name: postgres_rdw
     restart: always
     environment:
       # Variables usadas por la imagen oficial de PostgreSQL
@@ -26,7 +26,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: orders
+    container_name: products
     depends_on: # <--- La dependencia debe ser condicional
       db:
         condition: service_healthy
@@ -38,6 +38,9 @@ services:
       DB_NAME: medisupplydb
       DB_USER: postgres
       DB_PASSWORD: postgres
+      CACHE_DB: 0
+      CACHE_HOST: med-me-mrp9qeogurvj.ozabfh.0001.use1.cache.amazonaws.com
+      CACHE_PORT: 6379
       # Asegura que la inicialización se ejecute
       RUN_DB_INIT_ON_STARTUP: "True"
     ports:

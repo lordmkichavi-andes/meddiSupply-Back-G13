@@ -1,62 +1,106 @@
 # database_setup.py
-import sqlite3
+import os
+import psycopg2
+from psycopg2 import pool
 from config import Config
 
-
+db_pool = None
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+INSERT_DATA_FILE = 'insert_data.sql'
 
 def setup_database():
-    """Crea la base de datos y las tablas si no existen, y las puebla con datos."""
-    conn = sqlite3.connect(Config.DB_NAME)
-    cursor = conn.cursor()
+    init_db_pool()
+    initialize_database()
 
-    with open('insert_data.sql', 'r') as f:
-        sql_script = f.read()
 
-    # Creación de tablas
-    cursor.executescript('''
-        CREATE TABLE IF NOT EXISTS Category (
-                          category_id INT PRIMARY KEY,
-                          name VARCHAR(50) NOT NULL
-        );
-         CREATE TABLE IF NOT EXISTS Provider (
-                                  provider_id VARCHAR(50) PRIMARY KEY,
-                                  name VARCHAR(100) NOT NULL
-        );
-        CREATE TABLE IF NOT EXISTS Product (
-                                 product_id VARCHAR(50) PRIMARY KEY,
-                                 sku VARCHAR(50) NOT NULL UNIQUE,
-                                 name VARCHAR(100) NOT NULL,
-                                 value FLOAT NOT NULL,
-                                 provider_id VARCHAR(50) NOT NULL,
-                                 image_url VARCHAR(255),
-                                 category_id INT NOT NULL,
-                                 objective_profile VARCHAR(255) NOT NULL,
-                                 FOREIGN KEY (provider_id) REFERENCES Provider(provider_id),
-                                 FOREIGN KEY (category_id) REFERENCES Category(category_id)
-        );
-         CREATE TABLE IF NOT EXISTS ProductStock (
-                              stock_id VARCHAR(50) PRIMARY KEY,
-                              product_id VARCHAR(50) NOT NULL,
-                              quantity INT NOT NULL,
-                              lote VARCHAR(50) NOT NULL,
-                              warehouse_id VARCHAR(50) NOT NULL,
-                              country VARCHAR(50) NOT NULL,
-                              FOREIGN KEY (product_id) REFERENCES Product(product_id)
-                              );
-    ''')
+def _read_sql_file(filepath: str) -> str:
+    """Lee el contenido de un archivo SQL."""
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            return f.read()
+    except FileNotFoundError:
+        print(f"ERROR: Archivo SQL no encontrado: {filepath}")
+        return ""
 
-    # Para este ejemplo, omitimos las DDLs para no repetirlas
-    # y asumimos que ya existen. En un entorno real, estarían aquí.
 
-    # Llenado de datos solo si la tabla está vacía
-    cursor.execute("SELECT COUNT(*) FROM Product")
-    if cursor.fetchone()[0] == 0:
-        print("Creando registros de base de datos...")
-        cursor.executescript(sql_script)
-        print("Registros creados exitosamente.")
+def initialize_database():
+    """
+    Crea las tablas y las puebla con datos si están vacías, leyendo los scripts de archivos.
+    """
+    if not Config.RUN_DB_INIT_ON_STARTUP:
+        print("INFO: Inicialización de la base de datos omitida por configuración.")
+        return
 
-    conn.commit()
-    conn.close()
+    # DEBUG: Verificar rutas
+    print(f"🔍 BASE_DIR: {BASE_DIR}")
+    print(f"🔍 INSERT_DATA_FILE: {INSERT_DATA_FILE}")
+
+    # Verificar que los archivos existan
+    if not os.path.exists(INSERT_DATA_FILE):
+        print(f"⚠️  ADVERTENCIA: No se encuentra {INSERT_DATA_FILE}")
+
+    # Cargar los scripts SQL desde archivos
+    INSERT_DATA_SQL = _read_sql_file(INSERT_DATA_FILE)
+
+
+    conn = None
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        print("📊 Ejecutando scripts de creación de esquema...")
+
+        # 1. Crear Tablas
+        if INSERT_DATA_SQL:
+            try:
+                cursor.execute(INSERT_DATA_SQL)
+                conn.commit()
+                print("✅ Datos de prueba insertados correctamente.")
+            except psycopg2.Error as pe:
+                print(f"⚠️  ADVERTENCIA: Error al insertar datos (posiblemente ya existen): {pe}")
+                conn.rollback()
+
+        cursor.close()
+
+    except psycopg2.Error as e:
+        print(f"❌ ERROR: Fallo durante la inicialización de la base de datos: {e}")
+        if conn:
+            conn.rollback()
+    except ConnectionError as e:
+        print(f"❌ ERROR: {e}")
+    finally:
+        if conn:
+            release_connection(conn)
+
+
+def init_db_pool():
+    global db_pool
+    if db_pool is None:
+        try:
+            db_pool = pool.SimpleConnectionPool(
+                minconn=1,
+                maxconn=10,
+                host=os.getenv("DB_HOST", "localhost"),
+                port=os.getenv("DB_PORT", "5432"),
+                database=os.getenv("DB_NAME", "postgres"),
+                user=os.getenv("DB_USER", "postgres"),
+                password=os.getenv("DB_PASSWORD", "postgres")
+            )
+            print("✅ Pool de conexiones a la base de datos inicializado.")
+        except psycopg2.Error as e:
+            print(f"❌ Error al conectar a la base de datos: {e}")
+            raise ConnectionError("Fallo en la conexión inicial a la base de datos.")
+
+def get_connection():
+    """Obtiene una conexión del pool."""
+    if db_pool is None:
+        raise ConnectionError("El pool de la base de datos no está inicializado.")
+    return db_pool.getconn()
+
+def release_connection(conn):
+    """Devuelve una conexión al pool."""
+    if db_pool:
+        db_pool.putconn(conn)
 
 if __name__ == '__main__':
     setup_database()

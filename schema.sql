@@ -1,6 +1,7 @@
 -- Creación esquema de Productos
 CREATE SCHEMA IF NOT EXISTS products;
-
+CREATE SCHEMA IF NOT EXISTS users;
+CREATE SCHEMA IF NOT EXISTS orders;
 -- Creación de la tabla 'Category' (Categoría)
 -- Esta tabla almacena los tipos de categorías de productos.
  CREATE TABLE IF NOT EXISTS products.Category (
@@ -11,7 +12,7 @@ CREATE SCHEMA IF NOT EXISTS products;
 -- Creación de la tabla 'Provider' (Proveedor)
 -- Esta tabla se crea para soportar la relación con la tabla 'Product'.
  CREATE TABLE IF NOT EXISTS products.Provider (
-                          provider_id VARCHAR(50) PRIMARY KEY,
+                          provider_id SERIAL PRIMARY KEY,
                           name VARCHAR(100) NOT NULL
 );
 
@@ -55,53 +56,16 @@ CREATE TABLE IF NOT EXISTS products.Inventory (
                               warehouse_id INTEGER NOT NULL,
                               country VARCHAR(50) NOT NULL,
                               FOREIGN KEY (product_id) REFERENCES products.Product(product_id),
-                              FOREIGN KEY (warehouse_id) REFERENCES products.Warehouse(warehouse_id),
+                              FOREIGN KEY (warehouse_id) REFERENCES products.Warehouse(warehouse_id)
 );
 
  CREATE TABLE IF NOT EXISTS products.State (
                          state_id SERIAL PRIMARY KEY,
                          name VARCHAR(50) NOT NULL UNIQUE
 );
-
-
--- Creación de la tabla 'Order' (Pedido)
-    CREATE SCHEMA IF NOT EXISTS orders;
-
--- Almacena la cabecera del pedido y su información general.
- CREATE TABLE IF NOT EXISTS orders."Order" (
-                          order_id SERIAL PRIMARY KEY,
-                          user_id INTEGER, -- Asumiendo que hay una tabla 'User' o 'Customer' externa
-                          creation_date DATE NOT NULL,
-                          estimated_delivery_date DATE,
-                          current_state_id INTEGER NOT NULL,
-                          total_value FLOAT NOT NULL,
-
-                          FOREIGN KEY (current_state_id) REFERENCES products.State(state_id),
-                          FOREIGN KEY (user_id) REFERENCES users.Users(user_id)
-);
-
-
--- Creación de la tabla 'OrderLine' (Línea de Pedido / Detalle)
--- Almacena los productos específicos dentro de un pedido, su cantidad y precio en el momento de la compra.
- CREATE TABLE IF NOT EXISTS orders.OrderLine (
-                             order_line_id SERIAL PRIMARY KEY,
-                             order_id INTEGER NOT NULL,
-                             product_id INTEGER NOT NULL,
-                             quantity INT NOT NULL,
-                             value_at_time_of_order FLOAT NOT NULL,
-
-                             FOREIGN KEY (order_id) REFERENCES orders."Order"(order_id),
-                             FOREIGN KEY (product_id) REFERENCES products.Product(product_id)
-);
-
-
-CREATE INDEX IF NOT EXISTS idx_order_state ON orders."Order"(current_state_id);
-CREATE INDEX IF NOT EXISTS idx_line_order ON orders.OrderLine(order_id);
-CREATE INDEX IF NOT EXISTS idx_line_product ON orders.OrderLine(product_id);
-
-
 -- Crear tabla User
-    CREATE SCHEMA IF NOT EXISTS users;
+
+
 CREATE TABLE IF NOT EXISTS users.Users(
     user_id SERIAL PRIMARY KEY,
     name VARCHAR NOT NULL,
@@ -145,7 +109,7 @@ CREATE TABLE IF NOT EXISTS users.visits (
     client_id INTEGER NOT NULL,
     -- Relaciones
     FOREIGN KEY (client_id) REFERENCES users.Clientes(client_id) ON DELETE RESTRICT,
-    FOREIGN KEY (seller_id) REFERENCES users.seller(seller_id) ON DELETE RESTRICT,
+    FOREIGN KEY (seller_id) REFERENCES users.seller(seller_id) ON DELETE RESTRICT
 );
 
 CREATE TABLE IF NOT EXISTS users.visit_product_suggestions (
@@ -167,6 +131,38 @@ CREATE TABLE IF NOT EXISTS users.visual_evidences (
     FOREIGN KEY (visit_id) REFERENCES users.visits(visit_id) ON DELETE CASCADE
 );
 
+-- Creación de la tabla 'Order' (Pedido)
+-- Almacena la cabecera del pedido y su información general.
+ CREATE TABLE IF NOT EXISTS orders."Order" (
+                          order_id SERIAL PRIMARY KEY,
+                          user_id INTEGER, -- Asumiendo que hay una tabla 'User' o 'Customer' externa
+                          creation_date DATE NOT NULL,
+                          estimated_delivery_date DATE,
+                          current_state_id INTEGER NOT NULL,
+                          total_value FLOAT NOT NULL,
+
+                          FOREIGN KEY (current_state_id) REFERENCES products.State(state_id),
+                          FOREIGN KEY (user_id) REFERENCES users.Users(user_id)
+);
+
+
+-- Creación de la tabla 'OrderLine' (Línea de Pedido / Detalle)
+-- Almacena los productos específicos dentro de un pedido, su cantidad y precio en el momento de la compra.
+ CREATE TABLE IF NOT EXISTS orders.OrderLine (
+                             order_line_id SERIAL PRIMARY KEY,
+                             order_id INTEGER NOT NULL,
+                             product_id INTEGER NOT NULL,
+                             quantity INT NOT NULL,
+                             value_at_time_of_order FLOAT NOT NULL,
+
+                             FOREIGN KEY (order_id) REFERENCES orders."Order"(order_id),
+                             FOREIGN KEY (product_id) REFERENCES products.Product(product_id)
+);
+
+
+CREATE INDEX IF NOT EXISTS idx_order_state ON orders."Order"(current_state_id);
+CREATE INDEX IF NOT EXISTS idx_line_order ON orders.OrderLine(order_id);
+CREATE INDEX IF NOT EXISTS idx_line_product ON orders.OrderLine(product_id);
 -- --------------------------------------------------------------------------------
 -- SCRIPT DE INSERCIÓN DE DATOS DE PRUEBA (MEDICAMENTOS Y LOGÍSTICA)
 -- NOTA: Asume que las tablas con SERIAL PRIMARY KEY se inician en 1.
@@ -186,9 +182,9 @@ INSERT INTO products.Category (category_id, name) VALUES
 
 -- PRODUCTS.PROVIDER (Proveedores)
 INSERT INTO products.Provider (provider_id, name) VALUES
-('P-PHARMA', 'PharmaGlobal Labs S.A.'),
-('P-MEDS', 'MedSupply Distributors'),
-('P-TECH', 'TecnoHealth Solutions');
+(1, 'PharmaGlobal Labs S.A.'),
+(2, 'MedSupply Distributors'),
+(3, 'TecnoHealth Solutions');
 
 -- PRODUCTS.WAREHOUSE (Bodegas)
 INSERT INTO products.Warehouse (name, location) VALUES
@@ -197,12 +193,12 @@ INSERT INTO products.Warehouse (name, location) VALUES
 
 -- PRODUCTS.PRODUCT (Productos)
 INSERT INTO products.Product (sku, name, value, provider_id, category_id, objective_profile) VALUES
-('MED-001', 'Acetaminofén 500mg (Caja x100)', 8.50, 'P-PHARMA', 1, 'Droguerías, Farmacias'),
-('MED-002', 'Amoxicilina 250mg/5ml (Frasco)', 12.30, 'P-PHARMA', 1, 'Pediátrico, Clínicas'),
-('SURG-001', 'Kit Sutura Desechable', 25.00, 'P-MEDS', 2, 'Hospitales, Salas de Cirugía'),
-('SURG-002', 'Guantes Nitrilo Talla M (Caja x50)', 4.99, 'P-MEDS', 2, 'Clínicas, Consultorios'),
-('REAG-001', 'Tiras Reactivas Glucosa (Caja x50)', 15.75, 'P-TECH', 3, 'Laboratorios Clínicos'),
-('EQUIP-001', 'Termómetro Infrarrojo Digital', 45.90, 'P-TECH', 4, 'Clínicas, Hospitales');
+('MED-001', 'Acetaminofén 500mg (Caja x100)', 8.50, 1, 1, 'Droguerías, Farmacias'),
+('MED-002', 'Amoxicilina 250mg/5ml (Frasco)', 12.30, 1, 1, 'Pediátrico, Clínicas'),
+('SURG-001', 'Kit Sutura Desechable', 25.00, 2, 2, 'Hospitales, Salas de Cirugía'),
+('SURG-002', 'Guantes Nitrilo Talla M (Caja x50)', 4.99,2, 2, 'Clínicas, Consultorios'),
+('REAG-001', 'Tiras Reactivas Glucosa (Caja x50)', 15.75, 3, 3, 'Laboratorios Clínicos'),
+('EQUIP-001', 'Termómetro Infrarrojo Digital', 45.90, 3, 4, 'Clínicas, Hospitales');
 
 -- PRODUCTS.INVENTORY (Inventario en Bodegas)
 INSERT INTO products.Inventory (product_id, warehouse_id, stock_quantity) VALUES
@@ -273,14 +269,14 @@ INSERT INTO orders.OrderLine (order_id, product_id, quantity, value_at_time_of_o
 -- --------------------------------------------------------------------------------
 
 -- USERS.VISIT_ROUTES (Rutas de Venta)
-INSERT INTO users.visit_routes (route_id, date, map, estimated_travel_time, seller_data) VALUES
-('ROUTE-202511-01', '2025-11-05', 'Ruta Centro-Norte Bogotá', '5 horas', '{"seller_name": "Maria Gomez", "user_id": 2}');
+-- INSERT INTO users.visit_routes (route_id, date, map, estimated_travel_time, seller_data) VALUES
+-- ('ROUTE-202511-01', '2025-11-05', 'Ruta Centro-Norte Bogotá', '5 horas', '{"seller_name": "Maria Gomez", "user_id": 2}');
 
 -- USERS.VISITS (Visitas)
-INSERT INTO users.visits (user_id, date, place, findings, client_id) VALUES
-(2, '2025-11-05', 'Farmacia La Esquina', 'El cliente A (Farmacia A) necesita más stock de antibióticos.', 1),
-(2, '2025-11-05', 'Hospital Metropolitano', 'El cliente B (Hospital X) está evaluando la compra de nuevos equipos.', 2),
-(2, '2025-11-06', 'Droguería San Pedro', 'Contacto inicial. Necesita material promocional.', 1);
+INSERT INTO users.visits (seller_id, date, place, findings, client_id) VALUES
+(1, '2025-11-05', 'Farmacia La Esquina', 'El cliente A (Farmacia A) necesita más stock de antibióticos.', 1),
+(1, '2025-11-05', 'Hospital Metropolitano', 'El cliente B (Hospital X) está evaluando la compra de nuevos equipos.', 2),
+(1, '2025-11-06', 'Droguería San Pedro', 'Contacto inicial. Necesita material promocional.', 1);
 
 -- USERS.VISIT_PRODUCT_SUGGESTIONS (Sugerencias de Productos en Visitas)
 -- Visita 1 (Farmacia A): Sugerir Tiras Reactivas y Amoxicilina
