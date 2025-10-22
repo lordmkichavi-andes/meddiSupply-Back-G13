@@ -47,14 +47,7 @@ def create_api_blueprint(track_case: TrackOrdersUseCase, create_case: CreateOrde
         # Validaciones mínimas
         if "user_id" not in data or "products" not in data:
             return jsonify({"error": "user_id and products are required"}), 400
-        # Crear la orden base
-        order = Order(
-            order_id=None,
-            user_id=data["user_id"],
-            creation_date=datetime.utcnow(),
-            status_id=data.get("status_id"),
-            estimated_delivery_date=data.get("estimated_delivery_time")
-        )
+
         # Procesar los productos
         order_items = []
         for item in data["products"]:
@@ -65,9 +58,19 @@ def create_api_blueprint(track_case: TrackOrdersUseCase, create_case: CreateOrde
             order_item = OrderItem(
                 product_id=product_id,
                 quantity=quantity,
+                price_unit=0,
                 # Puedes incluir price_at_purchase si tu modelo lo requiere
             )
             order_items.append(order_item)
+            # Crear la orden base
+            order = Order(
+                order_id=None,
+                user_id=data["user_id"],
+                creation_date=datetime.utcnow(),
+                status_id=data.get("status_id"),
+                estimated_delivery_date=data.get("estimated_delivery_time"),
+                orders=order_items
+            )
         # Ejecutar el caso de uso para guardar la orden y los productos
         created_order = create_case.execute(order, order_items)
         return jsonify({

@@ -1,5 +1,7 @@
 # src/infrastructure/persistence/pg_repository.py
 from typing import List
+import random
+
 from datetime import datetime
 from src.domain.interfaces import OrderRepository
 from src.domain.entities import Order, OrderItem
@@ -41,7 +43,7 @@ class PgOrderRepository(OrderRepository):
                 FROM "Order" o
                 WHERE o.user_id = %s
                 GROUP BY o.order_id, o.creation_date, o.estimated_delivery_date, o.current_state_id, o.total_value
-                ORDER BY creation_date DESC;
+                ORDER BY o.creation_date DESC;
             """
 
             # Ejecutamos la consulta
@@ -77,28 +79,44 @@ class PgOrderRepository(OrderRepository):
     def insert_order(self, order: Order, order_items: List[OrderItem]) -> Order:
         conn = get_connection()
         cur = conn.cursor()
-        
+        ## TODO: Remove
+        current_year = datetime.now().year
+
+        # Generar un número secuencial aleatorio entre 1 y 999
+        # Usamos '{:03d}' para asegurar que tenga tres dígitos, rellenando con ceros a la izquierda.
+        random_sequence = random.randint(1, 999)
+        sequence_str = f"{random_sequence:03d}"
+        # Construir el ID completo
+        random_order_id = f"ORD_{current_year}_{sequence_str}"
+
         try:
             cur.execute(
                 """
-                INSERT INTO "Order" (user_id, creation_date, status_id, estimated_delivery_date)
-                VALUES (%s, %s, %s, %s, %s)
+                INSERT INTO "Order" (order_id, user_id, creation_date, current_state_id, estimated_delivery_date, total_value)
+                VALUES (%s, %s, %s, %s, %s, %s)
                 RETURNING order_id;
                 """,
                 (
+                    random_order_id,
                     order.user_id,
                     order.creation_date or datetime.now(),
                     order.status_id,
-                    order.estimated_delivery_date
+                    order.estimated_delivery_date,
+                    order.total_value
                 )
             )
             order_id = cur.fetchone()[0]
             order.order_id = order_id
+            print(order_id)
             
             if order_items:
                 items_to_insert = []
                 for item in order_items:
+                    random_sequence = random.randint(1, 999)
+                    sequence_str = f"{random_sequence:03d}"
+                    random_order_line_id = f"LINE_{sequence_str}"
                     items_to_insert.append((
+                        random_order_line_id,
                         order_id,
                         item.product_id,
                         item.quantity,
@@ -106,8 +124,8 @@ class PgOrderRepository(OrderRepository):
                     ))
                 
                 sql_insert_items = """
-                    INSERT INTO "OrderItem" (order_id, product_id, quantity, price_unit)
-                    VALUES (%s, %s, %s, %s);
+                    INSERT INTO OrderLine (order_line_id,order_id, product_id, quantity, value_at_time_of_order)
+                    VALUES (%s, %s, %s, %s,%s);
                 """
                 
                 cur.executemany(sql_insert_items, items_to_insert)

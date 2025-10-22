@@ -94,15 +94,15 @@ SELECT 6, 'PENDING'
 WHERE NOT EXISTS (SELECT 1 FROM State WHERE state_id = 6);
 
 -- Pedidos (Order)
-INSERT INTO "Order" (order_id, client_id, creation_date, estimated_delivery_date, current_state_id, total_value)
+INSERT INTO "Order" (order_id, user_id, creation_date, estimated_delivery_date, current_state_id, total_value)
 SELECT 'ORD_2024_001', 'USER_55', '2024-10-01', '2024-10-15', 3, 936.49
 WHERE NOT EXISTS (SELECT 1 FROM "Order" WHERE order_id = 'ORD_2024_001');
 
-INSERT INTO "Order" (order_id, client_id, creation_date, estimated_delivery_date, current_state_id, total_value)
+INSERT INTO "Order" (order_id, user_id, creation_date, estimated_delivery_date, current_state_id, total_value)
 SELECT 'ORD_2024_002', 'USER_55', '2024-10-05', '2024-10-20', 1, 122.40
 WHERE NOT EXISTS (SELECT 1 FROM "Order" WHERE order_id = 'ORD_2024_002');
 
-INSERT INTO "Order" (order_id, client_id, creation_date, estimated_delivery_date, current_state_id, total_value)
+INSERT INTO "Order" (order_id, user_id, creation_date, estimated_delivery_date, current_state_id, total_value)
 SELECT 'ORD_2024_003', 'USER_66', '2024-10-07', '2024-10-25', 5, 240.00
 WHERE NOT EXISTS (SELECT 1 FROM "Order" WHERE order_id = 'ORD_2024_003');
 
