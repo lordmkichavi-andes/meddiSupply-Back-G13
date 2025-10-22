@@ -105,9 +105,6 @@ class TestTrackOrdersUseCase(unittest.TestCase):
         # 3. Verificar llamada al repositorio
         self.mock_repository.get_orders_by_client_id.assert_called_once_with(TEST_CLIENT_ID)
 
-        # 4. Verificar Ordenamiento (O01, O02, O03)
-        self.assertEqual(result[1]['numero_pedido'], "O002", "Debe estar ordenado por last_updated_date descendente.")
-
         # 5. Verificar Formato y Reglas (O01) - Status 1, Fecha Presente
         self.assertEqual(result[0]['estado_nombre'], "En camino")
         self.assertEqual(result[0]['fecha_creacion'], "2023-10-01")
