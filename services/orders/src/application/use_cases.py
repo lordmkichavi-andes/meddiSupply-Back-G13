@@ -58,7 +58,7 @@ class CreateOrderUseCase:
     def __init__(self, order_repository: OrderRepository):
         self.repository = order_repository
 
-    def execute(self, order: Order) -> Order:
+    def execute(self, order: Order, order_items: List[OrderItem]) -> Order:
         """
         Ejecuta la lógica para insertar una nueva orden.
         """
