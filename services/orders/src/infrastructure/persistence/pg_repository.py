@@ -37,9 +37,7 @@ class PgOrderRepository(OrderRepository):
                     o.creation_date,
                     o.estimated_delivery_date,
                     o.current_state_id,
-                    o.total_value,
-                    MAX(o.creation_date) AS creation_date -- Usamos creation_date como proxy de creation_date
-                                                             -- En un sistema real, necesitarías una tabla de histórico o un campo dedicado
+                    o.total_value
                 FROM "Order" o
                 WHERE o.user_id = %s
                 GROUP BY o.order_id, o.creation_date, o.estimated_delivery_date, o.current_state_id, o.total_value
@@ -60,10 +58,12 @@ class PgOrderRepository(OrderRepository):
 
                 # Mapeo a la entidad del dominio
                 orders.append(Order(
+                    user_id=user_id,
                     order_id=order_id,
                     creation_date=creation_date,
                     status_id=status_id,
-                    estimated_delivery_date=estimated_delivery_date
+                    estimated_delivery_date=estimated_delivery_date,
+                    orders=[]
                 ))
 
             return orders
