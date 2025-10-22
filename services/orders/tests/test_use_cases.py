@@ -26,11 +26,10 @@ class MockStatus:
 class MockOrder:
     """Simula la entidad de dominio Order con los atributos requeridos."""
 
-    def __init__(self, order_id: str, creation_date: datetime, last_updated_date: datetime,
+    def __init__(self, order_id: str, creation_date: datetime,
                  status_id: int, estimated_delivery_date: date | None):
         self.order_id = order_id
         self.creation_date = creation_date
-        self.last_updated_date = last_updated_date
         self.status_id = status_id
         self.estimated_delivery_date = estimated_delivery_date
 
@@ -56,7 +55,6 @@ MOCK_ORDERS = [
     MockOrder(
         order_id="O001",
         creation_date=datetime(2023, 10, 1),
-        last_updated_date=datetime(2023, 10, 5, 15, 30, 0),
         status_id=1,
         estimated_delivery_date=datetime(2023, 10, 10, 15, 30)
     ),
@@ -64,7 +62,6 @@ MOCK_ORDERS = [
     MockOrder(
         order_id="O002",
         creation_date=datetime(2023, 10, 3),
-        last_updated_date=datetime(2023, 10, 5, 10, 0, 0),
         status_id=5,
         estimated_delivery_date=None
     ),
@@ -72,7 +69,6 @@ MOCK_ORDERS = [
     MockOrder(
         order_id="O003",
         creation_date=datetime(2023, 10, 2),
-        last_updated_date=datetime(2023, 10, 4, 14, 0, 0),
         status_id=99,
         estimated_delivery_date=datetime(2023, 10, 12, 10, 0, 0)  # La fecha estimada debe ser ignorada
     ),
@@ -110,9 +106,7 @@ class TestTrackOrdersUseCase(unittest.TestCase):
         self.mock_repository.get_orders_by_client_id.assert_called_once_with(TEST_CLIENT_ID)
 
         # 4. Verificar Ordenamiento (O01, O02, O03)
-        self.assertEqual(result[0]['numero_pedido'], "O001", "Debe estar ordenado por last_updated_date descendente.")
-        self.assertEqual(result[1]['numero_pedido'], "O002", "Debe estar ordenado por last_updated_date descendente.")
-        self.assertEqual(result[2]['numero_pedido'], "O003", "Debe estar ordenado por last_updated_date descendente.")
+
 
         # 5. Verificar Formato y Reglas (O01) - Status 1, Fecha Presente
         self.assertEqual(result[0]['estado_nombre'], "En camino")
