@@ -31,7 +31,19 @@ class TestFlaskRoutes(unittest.TestCase):
         # Usamos la función de fábrica para inyectar el mock en el Blueprint
         # Se asume que el mismo mock_use_case se usa para ambos Casos de Uso (track y create)
         self.app.register_blueprint(create_api_blueprint(self.mock_use_case, self.mock_use_case))
+        
+        # Opcional: Si tu Blueprint tiene un prefijo (ej: '/api'), deberías hacer:
+        # self.app.register_blueprint(create_api_blueprint(self.mock_use_case, self.mock_use_case), url_prefix='/api')
+        # Y luego cambiar las llamadas en los tests a f'/api/track/{...}'
+        
         self.client = self.app.test_client()
+
+    def tearDown(self):
+        """
+        Limpia el mock después de cada test. Es crucial para que los side_effects 
+        y return_values de una prueba no afecten a la siguiente.
+        """
+        self.mock_use_case.reset_mock()
 
 
     # --- Tests de la ruta /track/<client_id> ---
@@ -39,15 +51,13 @@ class TestFlaskRoutes(unittest.TestCase):
     def test_track_orders_success(self):
         """
         Prueba el escenario de éxito: el Caso de Uso devuelve datos.
-        Debe retornar 200 y los datos de las órdenes.
+        Debe retornar 200 y los datos de las órdenes (la lista).
         """
         print(f"Ejecutando test_track_orders_success para ID: {CLIENT_ID_EXISTS}")
         # Configurar el mock para devolver datos de prueba
         self.mock_use_case.execute.return_value = MOCK_ORDER_DATA
 
         response = self.client.get(f'/track/{CLIENT_ID_EXISTS}')
-        
-        # El error original se corrige en la ruta, por lo que esta línea ahora debe funcionar.
         response_data = json.loads(response.data) 
 
         # 1. Verificar la llamada al Caso de Uso
@@ -60,15 +70,13 @@ class TestFlaskRoutes(unittest.TestCase):
     def test_track_orders_not_found(self):
         """
         Prueba el escenario "no hay pedidos": el Caso de Uso devuelve una lista vacía.
-        Debe retornar 404 y un mensaje específico.
+        Debe retornar 404 y el diccionario de respuesta con los campos 'message' y 'orders'.
         """
         print(f"Ejecutando test_track_orders_not_found para ID: {CLIENT_ID_NOT_FOUND}")
         # Configurar el mock para devolver una lista vacía
         self.mock_use_case.execute.return_value = []
 
         response = self.client.get(f'/track/{CLIENT_ID_NOT_FOUND}')
-        
-        # El error original se corrige en la ruta, por lo que esta línea ahora debe funcionar.
         response_data = json.loads(response.data)
 
         # 1. Verificar la llamada al Caso de Uso
@@ -77,24 +85,21 @@ class TestFlaskRoutes(unittest.TestCase):
         # 2. Verificar el código de estado y el mensaje
         self.assertEqual(response.status_code, 404)
         
-        # *** CAMBIO APLICADO AQUÍ ***
-        # Se actualiza para coincidir con el mensaje exacto de la ruta: "¡Ups! Aún no tienes pedidos registrados."
-        self.assertEqual(response_data['message'], "¡Ups! Aún no tienes pedidos registrados.")
-        
+        # *** CORRECCIÓN: Usar el mensaje exacto de tu función Flask ***
+        expected_message = "¡Ups! Aún no tienes pedidos registrados."
+        self.assertEqual(response_data['message'], expected_message)
         self.assertEqual(response_data['orders'], [])
 
     def test_track_orders_internal_server_error(self):
         """
         Prueba el escenario de error del sistema: el Caso de Uso lanza una excepción.
-        Debe retornar 500 y un mensaje de error genérico.
+        Debe retornar 500 y el diccionario de respuesta con el campo 'message'.
         """
         print(f"Ejecutando test_track_orders_internal_server_error para ID: {CLIENT_ID_ERROR}")
-        # Configurar el mock para lanzar una excepción (simulando un fallo de DB, API externa, etc.)
+        # Configurar el mock para lanzar una excepción
         self.mock_use_case.execute.side_effect = Exception("Simulated DB connection error")
 
         response = self.client.get(f'/track/{CLIENT_ID_ERROR}')
-        
-        # El error original se corrige en la ruta, por lo que esta línea ahora debe funcionar.
         response_data = json.loads(response.data)
 
         # 1. Verificar la llamada al Caso de Uso
@@ -103,9 +108,9 @@ class TestFlaskRoutes(unittest.TestCase):
         # 2. Verificar el código de estado y el mensaje
         self.assertEqual(response.status_code, 500)
         
-        # *** CAMBIO APLICADO AQUÍ ***
-        # Se actualiza para coincidir con el mensaje exacto de la ruta: "¡Ups! No pudimos obtener los pedidos. Intenta nuevamente."
-        self.assertEqual(response_data['message'], "¡Ups! No pudimos obtener los pedidos. Intenta nuevamente.")
+        # *** CORRECCIÓN: Usar el mensaje exacto de tu función Flask ***
+        expected_message = "¡Ups! No pudimos obtener los pedidos. Intenta nuevamente."
+        self.assertEqual(response_data['message'], expected_message)
 
 
 if __name__ == '__main__':
