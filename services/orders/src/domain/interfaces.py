@@ -14,6 +14,6 @@ class OrderRepository(ABC):
         pass
 
     @abstractmethod
-    def insert_order(self, order: Order) -> Order:
+    def insert_order(self, order: Order, , order_items: List[OrderItem]) -> Order:
         """Inserta una nueva orden en la base de datos y retorna la entidad creada."""
         pass
