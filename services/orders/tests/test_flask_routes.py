@@ -29,6 +29,7 @@ class TestFlaskRoutes(unittest.TestCase):
         self.mock_use_case = Mock()  # Creamos un mock del Caso de Uso
 
         # Usamos la función de fábrica para inyectar el mock en el Blueprint
+        # Se asume que el mismo mock_use_case se usa para ambos Casos de Uso (track y create)
         self.app.register_blueprint(create_api_blueprint(self.mock_use_case, self.mock_use_case))
         self.client = self.app.test_client()
 
@@ -45,7 +46,9 @@ class TestFlaskRoutes(unittest.TestCase):
         self.mock_use_case.execute.return_value = MOCK_ORDER_DATA
 
         response = self.client.get(f'/track/{CLIENT_ID_EXISTS}')
-        response_data = json.loads(response.data)
+        
+        # El error original se corrige en la ruta, por lo que esta línea ahora debe funcionar.
+        response_data = json.loads(response.data) 
 
         # 1. Verificar la llamada al Caso de Uso
         self.mock_use_case.execute.assert_called_once_with(CLIENT_ID_EXISTS)
@@ -64,6 +67,8 @@ class TestFlaskRoutes(unittest.TestCase):
         self.mock_use_case.execute.return_value = []
 
         response = self.client.get(f'/track/{CLIENT_ID_NOT_FOUND}')
+        
+        # El error original se corrige en la ruta, por lo que esta línea ahora debe funcionar.
         response_data = json.loads(response.data)
 
         # 1. Verificar la llamada al Caso de Uso
@@ -71,7 +76,11 @@ class TestFlaskRoutes(unittest.TestCase):
 
         # 2. Verificar el código de estado y el mensaje
         self.assertEqual(response.status_code, 404)
-        self.assertIn("Aún no tienes pedidos registrados", response_data['message'])
+        
+        # *** CAMBIO APLICADO AQUÍ ***
+        # Se actualiza para coincidir con el mensaje exacto de la ruta: "¡Ups! Aún no tienes pedidos registrados."
+        self.assertEqual(response_data['message'], "¡Ups! Aún no tienes pedidos registrados.")
+        
         self.assertEqual(response_data['orders'], [])
 
     def test_track_orders_internal_server_error(self):
@@ -84,6 +93,8 @@ class TestFlaskRoutes(unittest.TestCase):
         self.mock_use_case.execute.side_effect = Exception("Simulated DB connection error")
 
         response = self.client.get(f'/track/{CLIENT_ID_ERROR}')
+        
+        # El error original se corrige en la ruta, por lo que esta línea ahora debe funcionar.
         response_data = json.loads(response.data)
 
         # 1. Verificar la llamada al Caso de Uso
@@ -91,7 +102,10 @@ class TestFlaskRoutes(unittest.TestCase):
 
         # 2. Verificar el código de estado y el mensaje
         self.assertEqual(response.status_code, 500)
-        self.assertIn("No pudimos obtener los pedidos", response_data['message'])
+        
+        # *** CAMBIO APLICADO AQUÍ ***
+        # Se actualiza para coincidir con el mensaje exacto de la ruta: "¡Ups! No pudimos obtener los pedidos. Intenta nuevamente."
+        self.assertEqual(response_data['message'], "¡Ups! No pudimos obtener los pedidos. Intenta nuevamente.")
 
 
 if __name__ == '__main__':
