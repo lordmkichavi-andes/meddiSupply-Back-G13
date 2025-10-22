@@ -14,7 +14,7 @@ class PgOrderRepository(OrderRepository):
     para obtener los datos.
     """
 
-    def get_orders_by_client_id(self, client_id: str) -> List[Order]:
+    def get_orders_by_client_id(self, user_id: str) -> List[Order]:
         """
         Recupera pedidos de la base de datos para el cliente dado.
         """
@@ -45,7 +45,7 @@ class PgOrderRepository(OrderRepository):
             """
 
             # Ejecutamos la consulta
-            cursor.execute(query, (client_id,))
+            cursor.execute(query, (user_id,))
 
             for row in cursor.fetchall():
                 (
@@ -83,12 +83,12 @@ class PgOrderRepository(OrderRepository):
         try:
             cur.execute(
                 """
-                INSERT INTO "Order" (client_id, creation_date, last_updated_date, status_id, estimated_delivery_date)
+                INSERT INTO "Order" (user_id, creation_date, last_updated_date, status_id, estimated_delivery_date)
                 VALUES (%s, %s, %s, %s, %s)
                 RETURNING order_id;
                 """,
                 (
-                    order.client_id,
+                    order.user_id,
                     order.creation_date or datetime.now(),
                     order.last_updated_date or datetime.now(),
                     order.status_id,

@@ -17,13 +17,13 @@ def create_api_blueprint(track_case: TrackOrdersUseCase, create_case: CreateOrde
 
 
     @api_bp.route('/track/<client_id>', methods=['GET'])
-    def track_orders(client_id):
+    def track_orders(user_id):
         """
         Maneja la solicitud HTTP, llama al Caso de Uso y retorna la respuesta.
         """
         try:
             # 1. Llamar al Caso de Uso (Lógica de Negocio)
-            orders = track_case.execute(client_id)
+            orders = track_case.execute(user_id)
 
             # 2. Manejo de mensajes específicos (Requisito del Frontend)
             if not orders:
@@ -45,12 +45,12 @@ def create_api_blueprint(track_case: TrackOrdersUseCase, create_case: CreateOrde
     def create_order():
         data = request.json
         # Validaciones mínimas
-        if "client_id" not in data or "products" not in data:
-            return jsonify({"error": "client_id and products are required"}), 400
+        if "user_id" not in data or "products" not in data:
+            return jsonify({"error": "user_id and products are required"}), 400
         # Crear la orden base
         order = Order(
             order_id=None,
-            client_id=data["client_id"],
+            user_id=data["user_id"],
             creation_date=datetime.utcnow(),
             last_updated_date=datetime.utcnow(),
             status_id=data.get("status_id"),

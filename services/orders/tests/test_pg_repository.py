@@ -11,9 +11,9 @@ try:
 except ImportError:
     # Mocks de emergencia si la estructura de carpetas no está completa
     class Order:
-        def __init__(self, order_id, client_id, creation_date, last_updated_date, status_id, estimated_delivery_date):
+        def __init__(self, order_id, user_id, creation_date, last_updated_date, status_id, estimated_delivery_date):
             self.order_id = order_id
-            self.client_id = client_id
+            self.user_id = user_id
             self.creation_date = creation_date
             self.last_updated_date = last_updated_date
             self.status_id = status_id
@@ -25,7 +25,7 @@ except ImportError:
         def __init__(self):
             pass
 
-        def get_orders_by_client_id(self, client_id):
+        def get_orders_by_client_id(self, user_id):
             pass  # Implementación dummy para evitar errores de importación en el IDE
 
 
@@ -113,13 +113,13 @@ def test_get_orders_by_client_id_db_error(pg_repo_with_mocks):
     """
     Verifica que se lance una excepción cuando psycopg2.Error ocurra (ej. timeout de DB).
     """
-    client_id = "ERROR_CLIENT"
+    user_id = "ERROR_CLIENT"
     # Mockeamos que .execute() lance una excepción de psycopg2
     pg_repo_with_mocks.cursor_mock.execute.side_effect = psycopg2.Error("Simulated DB error")
 
     # Se espera que el método lance la excepción personalizada
     with pytest.raises(Exception, match="Database error during order retrieval."):
-        pg_repo_with_mocks.get_orders_by_client_id(client_id)
+        pg_repo_with_mocks.get_orders_by_client_id(user_id)
 
     # 1. Verificación de que la conexión fue liberada A PESAR del error (CRÍTICO para cobertura)
     pg_repo_with_mocks.release_connection_mock.assert_called_once_with(pg_repo_with_mocks.conn_mock)

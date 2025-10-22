@@ -25,7 +25,7 @@ class OrderStatus:
 class Order:
     """Entidad central de Pedido."""
     order_id: Optional[str]
-    client_id: str
+    user_id: str
     creation_date: datetime
     last_updated_date: datetime
     status_id: int

@@ -13,12 +13,12 @@ class TrackOrdersUseCase:
     def __init__(self, order_repository: OrderRepository):
         self.repository = order_repository
 
-    def execute(self, client_id: str) -> List[Dict[str, Any]]:
+    def execute(self, user_id: str) -> List[Dict[str, Any]]:
         """
         Ejecuta la lógica de negocio para obtener la lista de pedidos.
         """
         # 1. Obtener datos (Usando el Repositorio - Capa de Infraestructura)
-        orders = self.repository.get_orders_by_client_id(client_id)
+        orders = self.repository.get_orders_by_client_id(user_id)
 
         # 2. Requisito: Si no hay pedidos
         if not orders:
