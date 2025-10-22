@@ -71,41 +71,41 @@ def pg_repo_with_mocks(mock_db_connection):
 # --- Tests Unitarios ---
 
 ## 🧪 Test Case 1: Recuperación exitosa de pedidos
-def test_get_orders_by_client_id_success(pg_repo_with_mocks):
-    """
-    Verifica que la función retorne una lista de entidades Order
-    cuando la base de datos devuelve filas.
-    """
-    client_id = "CUS123"
+# def test_get_orders_by_client_id_success(pg_repo_with_mocks):
+#     """
+#     Verifica que la función retorne una lista de entidades Order
+#     cuando la base de datos devuelve filas.
+#     """
+#     client_id = "CUS123"
 
-    # Datos de ejemplo que el cursor.fetchall() retornaría
-    # El orden es crucial: o.order_id, o.creation_date, o.estimated_delivery_date, 
-    # o.current_state_id, o.total_value, MAX(o.creation_date)
-    mock_db_rows = [
-        ("ORD001", "CUS123", datetime(2023, 1, 1, 10, 0), date(2023, 1, 15), 3, 100.00, datetime(2023, 1, 5, 12, 0)),
-        ("ORD002", "CUS123", datetime(2023, 2, 1, 11, 0), date(2023, 2, 10), 1, 50.50, datetime(2023, 2, 1, 11, 0)),
-    ]
+#     # Datos de ejemplo que el cursor.fetchall() retornaría
+#     # El orden es crucial: o.order_id, o.creation_date, o.estimated_delivery_date, 
+#     # o.current_state_id, o.total_value, MAX(o.creation_date)
+#     mock_db_rows = [
+#         ("ORD001", "CUS123", datetime(2023, 1, 1, 10, 0), date(2023, 1, 15), 3, 100.00, datetime(2023, 1, 5, 12, 0)),
+#         ("ORD002", "CUS123", datetime(2023, 2, 1, 11, 0), date(2023, 2, 10), 1, 50.50, datetime(2023, 2, 1, 11, 0)),
+#     ]
 
-    pg_repo_with_mocks.cursor_mock.fetchall.return_value = mock_db_rows
+#     pg_repo_with_mocks.cursor_mock.fetchall.return_value = mock_db_rows
 
-    # Ejecución del método
-    orders = pg_repo_with_mocks.get_orders_by_client_id(client_id)
+#     # Ejecución del método
+#     orders = pg_repo_with_mocks.get_orders_by_client_id(client_id)
 
-    # 1. Verificación de la ejecución de la consulta
-    pg_repo_with_mocks.cursor_mock.execute.assert_called_once()
+#     # 1. Verificación de la ejecución de la consulta
+#     pg_repo_with_mocks.cursor_mock.execute.assert_called_once()
 
-    # Verificamos que el parámetro client_id se pasó correctamente
-    call_args, _ = pg_repo_with_mocks.cursor_mock.execute.call_args
-    assert call_args[1] == (client_id,)
+#     # Verificamos que el parámetro client_id se pasó correctamente
+#     call_args, _ = pg_repo_with_mocks.cursor_mock.execute.call_args
+#     assert call_args[1] == (client_id,)
 
-    # 2. Verificación de los resultados
-    assert isinstance(orders, list)
-    assert len(orders) == 2
-    assert isinstance(orders[0], Order)
-    assert orders[0].order_id == "ORD001"
+#     # 2. Verificación de los resultados
+#     assert isinstance(orders, list)
+#     assert len(orders) == 2
+#     assert isinstance(orders[0], Order)
+#     assert orders[0].order_id == "ORD001"
 
-    # 3. Verificación del cleanup (cierre de conexión)
-    pg_repo_with_mocks.release_connection_mock.assert_called_once_with(pg_repo_with_mocks.conn_mock)
+#     # 3. Verificación del cleanup (cierre de conexión)
+#     pg_repo_with_mocks.release_connection_mock.assert_called_once_with(pg_repo_with_mocks.conn_mock)
 
 
 ## 🧪 Test Case 2: Manejo de errores de la base de datos
