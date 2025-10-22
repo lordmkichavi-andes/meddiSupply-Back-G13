@@ -11,8 +11,9 @@ try:
 except ImportError:
     # Mocks de emergencia si la estructura de carpetas no está completa
     class Order:
-        def __init__(self, order_id, creation_date, last_updated_date, status_id, estimated_delivery_date):
+        def __init__(self, order_id, client_id, creation_date, last_updated_date, status_id, estimated_delivery_date):
             self.order_id = order_id
+            self.client_id = client_id
             self.creation_date = creation_date
             self.last_updated_date = last_updated_date
             self.status_id = status_id
