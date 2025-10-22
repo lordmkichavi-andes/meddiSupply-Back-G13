@@ -77,7 +77,7 @@ class PgOrderRepository(OrderRepository):
                 release_connection(conn)
 
     def insert_order(self, order: Order) -> Order:
-        conn = get_db_connection()
+        conn = get_connection()
         cur = conn.cursor()
         cur.execute(
             """
