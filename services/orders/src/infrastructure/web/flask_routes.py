@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request
 from src.application.use_cases import TrackOrdersUseCase, CreateOrderUseCase
-
+from src.domain.entities import Order
 
 
 # ELIMINAMOS la declaración global de api_bp.
@@ -53,7 +53,7 @@ def create_api_blueprint(track_case: TrackOrdersUseCase, create_case: CreateOrde
             client_id=data["client_id"],
             creation_date=datetime.utcnow(),
             last_updated_date=datetime.utcnow(),
-            status_id=data.get("status_id", 6),  # Por defecto "Pending"
+            status_id=data.get("status_id"),
             estimated_delivery_date=data.get("estimated_delivery_time")
         )
         # Procesar los productos
