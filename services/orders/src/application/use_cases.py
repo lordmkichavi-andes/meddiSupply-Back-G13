@@ -62,4 +62,4 @@ class CreateOrderUseCase:
         """
         Ejecuta la lógica para insertar una nueva orden.
         """
-        return self.repository.insert_order(order, order_items)
+        return self.repository.insert_order(self, order, order_items)
