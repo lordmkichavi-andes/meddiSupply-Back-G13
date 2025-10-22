@@ -77,11 +77,11 @@ class PgOrderRepository(OrderRepository):
                 release_connection(conn)
 
     def insert_order(self, order: Order) -> Order:
-        conn = get_connection()
+        conn = get_db_connection()
         cur = conn.cursor()
         cur.execute(
             """
-            INSERT INTO orders."Order" (client_id, creation_date, last_updated_date, status_id, estimated_delivery_date)
+            INSERT INTO "Order" (client_id, creation_date, last_updated_date, status_id, estimated_delivery_date)
             VALUES (%s, %s, %s, %s, %s)
             RETURNING order_id
             """,
