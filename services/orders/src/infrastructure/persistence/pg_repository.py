@@ -81,7 +81,7 @@ class PgOrderRepository(OrderRepository):
         cur = conn.cursor()
         cur.execute(
             """
-            INSERT INTO "Order" (client_id, creation_date, last_updated_date, status_id, estimated_delivery_date)
+            INSERT INTO "Order" (user_id, creation_date, last_updated_date, status_id, estimated_delivery_date)
             VALUES (%s, %s, %s, %s, %s)
             RETURNING order_id
             """,
