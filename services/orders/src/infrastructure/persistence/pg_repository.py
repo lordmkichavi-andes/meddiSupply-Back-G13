@@ -2,7 +2,7 @@
 from typing import List
 from datetime import datetime
 from src.domain.interfaces import OrderRepository
-from src.domain.entities import Order
+from src.domain.entities import Order, OrderItem
 from .db_connector import get_connection, release_connection
 
 import psycopg2
