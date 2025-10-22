@@ -82,8 +82,8 @@ def test_get_orders_by_client_id_success(pg_repo_with_mocks):
     # El orden es crucial: o.order_id, o.creation_date, o.estimated_delivery_date, 
     # o.current_state_id, o.total_value, MAX(o.creation_date)
     mock_db_rows = [
-        ("ORD001", datetime(2023, 1, 1, 10, 0), date(2023, 1, 15), 3, 100.00, datetime(2023, 1, 5, 12, 0)),
-        ("ORD002", datetime(2023, 2, 1, 11, 0), date(2023, 2, 10), 1, 50.50, datetime(2023, 2, 1, 11, 0)),
+        ("ORD001", "CUS123", datetime(2023, 1, 1, 10, 0), date(2023, 1, 15), 3, 100.00, datetime(2023, 1, 5, 12, 0)),
+        ("ORD002", "CUS123", datetime(2023, 2, 1, 11, 0), date(2023, 2, 10), 1, 50.50, datetime(2023, 2, 1, 11, 0)),
     ]
 
     pg_repo_with_mocks.cursor_mock.fetchall.return_value = mock_db_rows
