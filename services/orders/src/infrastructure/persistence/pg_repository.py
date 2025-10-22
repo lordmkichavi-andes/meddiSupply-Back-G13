@@ -75,13 +75,14 @@ class PgOrderRepository(OrderRepository):
         finally:
             if conn:
                 release_connection(conn)
+<<<<<<< HEAD
 
     def insert_order(self, order: Order) -> Order:
-        conn = get_connection()
+        conn = get_db_connection()
         cur = conn.cursor()
         cur.execute(
             """
-            INSERT INTO "Order" (user_id, creation_date, last_updated_date, status_id, estimated_delivery_date)
+            INSERT INTO "Order" (client_id, creation_date, last_updated_date, status_id, estimated_delivery_date)
             VALUES (%s, %s, %s, %s, %s)
             RETURNING order_id
             """,
@@ -99,3 +100,5 @@ class PgOrderRepository(OrderRepository):
         order.order_id = order_id
         return order
 
+=======
+>>>>>>> 5ce957f (add follow order logic)
