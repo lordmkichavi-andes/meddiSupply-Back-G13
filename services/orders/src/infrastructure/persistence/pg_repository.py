@@ -76,26 +76,51 @@ class PgOrderRepository(OrderRepository):
             if conn:
                 release_connection(conn)
 
-    def insert_order(self, order: Order) -> Order:
+    def insert_order(self, order: Order, order_items: List[OrderItem]) -> Order:
         conn = get_connection()
         cur = conn.cursor()
-        cur.execute(
-            """
-            INSERT INTO "Order" (client_id, creation_date, last_updated_date, status_id, estimated_delivery_date)
-            VALUES (%s, %s, %s, %s, %s)
-            RETURNING order_id
-            """,
-            (
-                order.client_id,
-                order.creation_date or datetime.now(),
-                order.last_updated_date or datetime.now(),
-                order.status_id,
-                order.estimated_delivery_date
+        
+        try:
+            cur.execute(
+                """
+                INSERT INTO "Order" (client_id, creation_date, last_updated_date, status_id, estimated_delivery_date)
+                VALUES (%s, %s, %s, %s, %s)
+                RETURNING order_id;
+                """,
+                (
+                    order.client_id,
+                    order.creation_date or datetime.now(),
+                    order.last_updated_date or datetime.now(),
+                    order.status_id,
+                    order.estimated_delivery_date
+                )
             )
-        )
-        order_id = cur.fetchone()[0]
-        conn.commit()
-        cur.close()
-        order.order_id = order_id
+            order_id = cur.fetchone()[0]
+            order.order_id = order_id
+            
+            if order_items:
+                items_to_insert = []
+                for item in order_items:
+                    items_to_insert.append((
+                        order_id,
+                        item.product_id,
+                        item.quantity,
+                        item.price_unit
+                    ))
+                
+                sql_insert_items = """
+                    INSERT INTO "OrderItem" (order_id, product_id, quantity, price_unit)
+                    VALUES (%s, %s, %s, %s);
+                """
+                
+                cur.executemany(sql_insert_items, items_to_insert)
+            conn.commit()
+            
+        except Exception as e:
+            conn.rollback()
+            raise e 
+            
+        finally:
+            cur.close()
         return order
 
