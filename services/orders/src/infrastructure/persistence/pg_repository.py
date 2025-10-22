@@ -36,12 +36,12 @@ class PgOrderRepository(OrderRepository):
                     o.estimated_delivery_date,
                     o.current_state_id,
                     o.total_value,
-                    MAX(o.creation_date) AS last_updated_date -- Usamos creation_date como proxy de last_updated_date
+                    MAX(o.creation_date) AS creation_date -- Usamos creation_date como proxy de creation_date
                                                              -- En un sistema real, necesitarías una tabla de histórico o un campo dedicado
                 FROM "Order" o
                 WHERE o.user_id = %s
                 GROUP BY o.order_id, o.creation_date, o.estimated_delivery_date, o.current_state_id, o.total_value
-                ORDER BY last_updated_date DESC;
+                ORDER BY creation_date DESC;
             """
 
             # Ejecutamos la consulta
@@ -53,15 +53,13 @@ class PgOrderRepository(OrderRepository):
                     creation_date,
                     estimated_delivery_date,
                     status_id,
-                    total_value,
-                    last_updated_date
+                    total_value
                 ) = row
 
                 # Mapeo a la entidad del dominio
                 orders.append(Order(
                     order_id=order_id,
                     creation_date=creation_date,
-                    last_updated_date=last_updated_date or creation_date,  # Usamos la fecha de la DB
                     status_id=status_id,
                     estimated_delivery_date=estimated_delivery_date
                 ))
@@ -83,14 +81,13 @@ class PgOrderRepository(OrderRepository):
         try:
             cur.execute(
                 """
-                INSERT INTO "Order" (user_id, creation_date, last_updated_date, status_id, estimated_delivery_date)
+                INSERT INTO "Order" (user_id, creation_date, status_id, estimated_delivery_date)
                 VALUES (%s, %s, %s, %s, %s)
                 RETURNING order_id;
                 """,
                 (
                     order.user_id,
                     order.creation_date or datetime.now(),
-                    order.last_updated_date or datetime.now(),
                     order.status_id,
                     order.estimated_delivery_date
                 )

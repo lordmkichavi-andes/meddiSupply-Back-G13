@@ -27,7 +27,6 @@ class Order:
     order_id: Optional[str]
     user_id: str
     creation_date: datetime
-    last_updated_date: datetime
     status_id: int
     estimated_delivery_date: Optional[datetime] = None
 

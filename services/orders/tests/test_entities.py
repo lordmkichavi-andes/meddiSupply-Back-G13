@@ -36,7 +36,6 @@ class TestDomainEntities:
             order_id="ORD-123",
             user_id="1",
             creation_date=MOCK_DATE,
-            last_updated_date=MOCK_DATE,
             status_id=3,
             estimated_delivery_date=MOCK_DELIVERY_DATE
         )
@@ -50,7 +49,6 @@ class TestDomainEntities:
             order_id="ORD-456",
             user_id="1",
             creation_date=MOCK_DATE,
-            last_updated_date=MOCK_DATE,
             status_id=1,
             estimated_delivery_date=None
         )
@@ -67,7 +65,6 @@ class TestDomainEntities:
             order_id="ORD-789",
             user_id="1",
             creation_date=MOCK_DATE,
-            last_updated_date=MOCK_DATE,
             status_id=status_id
         )
         # La propiedad .status debe devolver OrderStatus
@@ -83,7 +80,6 @@ class TestDomainEntities:
             order_id="ORD-000",
             user_id="1",
             creation_date=MOCK_DATE,
-            last_updated_date=MOCK_DATE,
             status_id=UNKNOWN_ID
         )
         # Debe devolver el ID desconocido y el nombre 'Desconocido'

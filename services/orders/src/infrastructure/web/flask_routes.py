@@ -52,7 +52,6 @@ def create_api_blueprint(track_case: TrackOrdersUseCase, create_case: CreateOrde
             order_id=None,
             user_id=data["user_id"],
             creation_date=datetime.utcnow(),
-            last_updated_date=datetime.utcnow(),
             status_id=data.get("status_id"),
             estimated_delivery_date=data.get("estimated_delivery_time")
         )
