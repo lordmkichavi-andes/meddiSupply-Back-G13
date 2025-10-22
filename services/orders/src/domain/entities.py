@@ -24,7 +24,8 @@ class OrderStatus:
 @dataclass
 class Order:
     """Entidad central de Pedido."""
-    order_id: str
+    order_id: Optional[str]
+    client_id: str
     creation_date: datetime
     last_updated_date: datetime
     status_id: int
@@ -38,3 +39,9 @@ class Order:
             {"name": "Desconocido"}
         )
         return OrderStatus(self.status_id, status_info["name"])
+
+@dataclass
+class OrderItem:
+    """Entidad que representa un producto dentro de una orden."""
+    product_id: str
+    quantity: int
