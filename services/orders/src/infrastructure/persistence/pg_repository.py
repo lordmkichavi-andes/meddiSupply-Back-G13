@@ -70,7 +70,9 @@ class PgOrderRepository(OrderRepository):
 
         except psycopg2.Error as e:
             print(f"ERROR de base de datos al recuperar pedidos: {e}")
-            # En lugar de retornar vacío, lanzamos una excepción para que el controlador la maneje
+            if conn:
+                conn.rollback()
+                # En lugar de retornar vacío, lanzamos una excepción para que el controlador la maneje
             raise Exception("Database error during order retrieval.")
         finally:
             if conn:
@@ -137,5 +139,7 @@ class PgOrderRepository(OrderRepository):
             
         finally:
             cur.close()
+            if conn:
+                release_connection(conn)
         return order
 
