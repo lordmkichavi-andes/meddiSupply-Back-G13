@@ -19,7 +19,7 @@ services:
       retries: 5
 
   orders-service:
-    image: 120569610818.dkr.ecr.us-east-1.amazonaws.com/cdk-exp-container-assets-120569610818-us-east-1:0413bae4cebe3e1a063b129d930201bdcac967fc-orders
+    image: 120569610818.dkr.ecr.us-east-1.amazonaws.com/cdk-exp-container-assets-120569610818-us-east-1:d45971b679dbd5b43fc38113e9d43dc32c622071-orders
     container_name: orders_service
     platform: linux/amd64
     ports:
