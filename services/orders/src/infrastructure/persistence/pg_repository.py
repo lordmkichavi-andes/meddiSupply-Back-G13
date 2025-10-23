@@ -1,8 +1,10 @@
 # src/infrastructure/persistence/pg_repository.py
 from typing import List
+import random
+
 from datetime import datetime
 from src.domain.interfaces import OrderRepository
-from src.domain.entities import Order
+from src.domain.entities import Order, OrderItem
 from .db_connector import get_connection, release_connection
 
 import psycopg2
@@ -41,11 +43,11 @@ class PgOrderRepository(OrderRepository):
                 FROM orders."Order" o
                 WHERE o.user_id = %s
                 GROUP BY o.order_id, o.creation_date, o.estimated_delivery_date, o.current_state_id, o.total_value
-                ORDER BY last_updated_date DESC;
+                ORDER BY o.creation_date DESC;
             """
 
             # Ejecutamos la consulta
-            cursor.execute(query, (client_id,))
+            cursor.execute(query, (user_id,))
 
             for row in cursor.fetchall():
                 (
@@ -53,31 +55,33 @@ class PgOrderRepository(OrderRepository):
                     creation_date,
                     estimated_delivery_date,
                     status_id,
-                    total_value,
-                    last_updated_date
+                    total_value
                 ) = row
 
                 # Mapeo a la entidad del dominio
                 orders.append(Order(
+                    user_id=user_id,
                     order_id=order_id,
                     creation_date=creation_date,
-                    last_updated_date=last_updated_date or creation_date,  # Usamos la fecha de la DB
                     status_id=status_id,
-                    estimated_delivery_date=estimated_delivery_date
+                    estimated_delivery_date=estimated_delivery_date,
+                    orders=[]
                 ))
 
             return orders
 
         except psycopg2.Error as e:
             print(f"ERROR de base de datos al recuperar pedidos: {e}")
-            # En lugar de retornar vacío, lanzamos una excepción para que el controlador la maneje
+            if conn:
+                conn.rollback()
+                # En lugar de retornar vacío, lanzamos una excepción para que el controlador la maneje
             raise Exception("Database error during order retrieval.")
         finally:
             if conn:
                 release_connection(conn)
 
-    def insert_order(self, order: Order) -> Order:
-        conn = get_db_connection()
+    def insert_order(self, order: Order, order_items: List[OrderItem]) -> Order:
+        conn = get_connection()
         cur = conn.cursor()
         cur.execute(
             """
@@ -92,9 +96,38 @@ class PgOrderRepository(OrderRepository):
                 order.status_id,
                 order.estimated_delivery_date
             )
-        )
-        order_id = cur.fetchone()[0]
-        conn.commit()
-        cur.close()
-        order.order_id = order_id
+            order_id = cur.fetchone()[0]
+            order.order_id = order_id
+            print(order_id)
+            
+            if order_items:
+                items_to_insert = []
+                for item in order_items:
+                    random_sequence = random.randint(1, 999)
+                    sequence_str = f"{random_sequence:03d}"
+                    random_order_line_id = f"LINE_{sequence_str}"
+                    items_to_insert.append((
+                        random_order_line_id,
+                        order_id,
+                        item.product_id,
+                        item.quantity,
+                        item.price_unit
+                    ))
+                
+                sql_insert_items = """
+                    INSERT INTO OrderLine (order_line_id,order_id, product_id, quantity, value_at_time_of_order)
+                    VALUES (%s, %s, %s, %s,%s);
+                """
+                
+                cur.executemany(sql_insert_items, items_to_insert)
+            conn.commit()
+            
+        except Exception as e:
+            conn.rollback()
+            raise e 
+            
+        finally:
+            cur.close()
+            if conn:
+                release_connection(conn)
         return order

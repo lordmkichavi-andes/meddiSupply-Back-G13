@@ -1,7 +1,7 @@
 # src/application/use_cases.py
 from typing import List, Dict, Any
 from src.domain.interfaces import OrderRepository
-from src.domain.entities import Order
+from src.domain.entities import Order, OrderItem
 
 
 class TrackOrdersUseCase:
@@ -13,19 +13,19 @@ class TrackOrdersUseCase:
     def __init__(self, order_repository: OrderRepository):
         self.repository = order_repository
 
-    def execute(self, client_id: int) -> List[Dict[int, Any]]:
+    def execute(self, user_id: str) -> List[Dict[str, Any]]:
         """
         Ejecuta la lógica de negocio para obtener la lista de pedidos.
         """
         # 1. Obtener datos (Usando el Repositorio - Capa de Infraestructura)
-        orders = self.repository.get_orders_by_client_id(client_id)
+        orders = self.repository.get_orders_by_client_id(user_id)
 
         # 2. Requisito: Si no hay pedidos
         if not orders:
             return []
 
         # 3. Requisito: Ordenar por fecha de última actualización descendente
-        orders.sort(key=lambda order: order.last_updated_date, reverse=True)
+        orders.sort(key=lambda order: order.creation_date, reverse=True)
 
         # 4. Formatear y aplicar reglas de negocio (estados, fechas)
         formatted_orders = []
@@ -43,7 +43,7 @@ class TrackOrdersUseCase:
             formatted_orders.append({
                 "numero_pedido": order.order_id,
                 "fecha_creacion": order.creation_date.strftime('%Y-%m-%d'),
-                "fecha_ultima_actualizacion": order.last_updated_date.strftime('%Y-%m-%d %H:%M:%S'),
+                "fecha_ultima_actualizacion": order.creation_date.strftime('%Y-%m-%d %H:%M:%S'),
                 "estado_nombre": order.status.name,
                 "fecha_entrega_estimada": estimated_delivery
             })
@@ -58,8 +58,8 @@ class CreateOrderUseCase:
     def __init__(self, order_repository: OrderRepository):
         self.repository = order_repository
 
-    def execute(self, order: Order) -> Order:
+    def execute(self, order: Order, order_items: List[OrderItem]) -> Order:
         """
         Ejecuta la lógica para insertar una nueva orden.
         """
-        return self.repository.insert_order(order)
+        return self.repository.insert_order(order, order_items)

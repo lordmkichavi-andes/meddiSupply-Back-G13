@@ -1,7 +1,7 @@
 # src/domain/entities.py
 from datetime import datetime
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, List
 
 # Mapeo de estados de pedido a colores (Regla de Negocio Central)
 # Utilizamos constantes para los IDs para mantener el dominio limpio.
@@ -16,6 +16,13 @@ ORDER_STATUS_MAP = {
 }
 
 @dataclass
+class OrderItem:
+    """Entidad que representa un producto dentro de una orden."""
+    product_id: str
+    quantity: int
+    price_unit: float
+
+@dataclass
 class OrderStatus:
     """Entidad para el estado de un pedido."""
     id: int
@@ -24,11 +31,13 @@ class OrderStatus:
 @dataclass
 class Order:
     """Entidad central de Pedido."""
-    order_id: str
+    order_id: Optional[str]
+    user_id: str
     creation_date: datetime
-    last_updated_date: datetime
     status_id: int
+    orders: List[OrderItem]
     estimated_delivery_date: Optional[datetime] = None
+
 
     @property
     def status(self) -> OrderStatus:
@@ -38,3 +47,14 @@ class Order:
             {"name": "Desconocido"}
         )
         return OrderStatus(self.status_id, status_info["name"])
+
+
+    @property
+    def total_value(self) -> float:
+        total_value = 0
+        if self.orders is not None:
+            for item in self.orders:
+                total_value += item.price_unit
+
+        return total_value
+

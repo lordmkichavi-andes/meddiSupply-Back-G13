@@ -1,7 +1,7 @@
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 from src.application.use_cases import TrackOrdersUseCase, CreateOrderUseCase
-
-
+from src.domain.entities import Order, OrderItem
+from datetime import datetime
 
 # ELIMINAMOS la declaración global de api_bp.
 # Ya no necesitamos el comentario sobre la inyección de dependencias aquí,
@@ -23,7 +23,7 @@ def create_api_blueprint(track_case: TrackOrdersUseCase, create_case: CreateOrde
         """
         try:
             # 1. Llamar al Caso de Uso (Lógica de Negocio)
-            orders = track_case.execute(client_id)
+            orders = track_case.execute(user_id)
 
             # 2. Manejo de mensajes específicos (Requisito del Frontend)
             if not orders:
@@ -43,37 +43,45 @@ def create_api_blueprint(track_case: TrackOrdersUseCase, create_case: CreateOrde
 
     @api_bp.route('/', methods=['POST'])
     def create_order():
-        data = request.json
-        # Validaciones mínimas
-        if "client_id" not in data or "products" not in data:
-            return jsonify({"error": "client_id and products are required"}), 400
-        # Crear la orden base
-        order = Order(
-            order_id=None,
-            client_id=data["client_id"],
-            creation_date=datetime.utcnow(),
-            last_updated_date=datetime.utcnow(),
-            status_id=data.get("status_id", 6),  # Por defecto "Pending"
-            estimated_delivery_date=data.get("estimated_delivery_time")
-        )
-        # Procesar los productos
-        order_items = []
-        for item in data["products"]:
-            product_id = item.get("product_id")
-            quantity = item.get("quantity")
-            if not product_id or not quantity:
-                return jsonify({"error": "Each product must have product_id and quantity"}), 400
-            order_item = OrderItem(
-                product_id=product_id,
-                quantity=quantity,
-                # Puedes incluir price_at_purchase si tu modelo lo requiere
-            )
-            order_items.append(order_item)
-        # Ejecutar el caso de uso para guardar la orden y los productos
-        created_order = create_case.execute(order, order_items)
-        return jsonify({
-            "order_id": created_order.order_id,
-            "message": "Order created successfully"
-        }), 201
+        try:
+            data = request.json
+            # Validaciones mínimas
+            if "user_id" not in data or "products" not in data:
+                return jsonify({"error": "user_id and products are required"}), 400
+
+            # Procesar los productos
+            order_items = []
+            for item in data["products"]:
+                product_id = item.get("product_id")
+                quantity = item.get("quantity")
+                if not product_id or not quantity:
+                    return jsonify({"error": "Each product must have product_id and quantity"}), 400
+                order_item = OrderItem(
+                    product_id=product_id,
+                    quantity=quantity,
+                    price_unit=0,
+                    # Puedes incluir price_at_purchase si tu modelo lo requiere
+                )
+                order_items.append(order_item)
+                # Crear la orden base
+                order = Order(
+                    order_id=None,
+                    user_id=data["user_id"],
+                    creation_date=datetime.utcnow(),
+                    status_id=data.get("status_id"),
+                    estimated_delivery_date=data.get("estimated_delivery_time"),
+                    orders=order_items
+                )
+            # Ejecutar el caso de uso para guardar la orden y los productos
+            created_order = create_case.execute(order, order_items)
+            return jsonify({
+                "order_id": created_order.order_id,
+                "message": "Order created successfully"
+            }), 201
+        except Exception:
+            # Requisito: Si el sistema no puede recuperar la información
+            return jsonify({
+                "message": "¡Ups! No pudimos crear el pedido. Intenta nuevamente."
+            }), 500
 
     return api_bp

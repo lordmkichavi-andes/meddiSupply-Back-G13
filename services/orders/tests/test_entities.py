@@ -34,10 +34,11 @@ class TestDomainEntities:
         """Verifica que la entidad Order se instancia correctamente con fecha de entrega."""
         order = Order(
             order_id="ORD-123",
+            user_id="1",
             creation_date=MOCK_DATE,
-            last_updated_date=MOCK_DATE,
             status_id=3,
-            estimated_delivery_date=MOCK_DELIVERY_DATE
+            estimated_delivery_date=MOCK_DELIVERY_DATE,
+            orders=[]
         )
         assert order.order_id == "ORD-123"
         assert order.status_id == 3
@@ -47,10 +48,11 @@ class TestDomainEntities:
         """Verifica que la entidad Order se instancia correctamente sin fecha de entrega (None)."""
         order = Order(
             order_id="ORD-456",
+            user_id="1",
             creation_date=MOCK_DATE,
-            last_updated_date=MOCK_DATE,
             status_id=1,
-            estimated_delivery_date=None
+            estimated_delivery_date=None,
+            orders=[]
         )
         assert order.order_id == "ORD-456"
         assert order.estimated_delivery_date is None
@@ -63,9 +65,10 @@ class TestDomainEntities:
         """
         order = Order(
             order_id="ORD-789",
+            user_id="1",
             creation_date=MOCK_DATE,
-            last_updated_date=MOCK_DATE,
-            status_id=status_id
+            status_id=status_id,
+            orders=[]
         )
         # La propiedad .status debe devolver OrderStatus
         assert isinstance(order.status, OrderStatus)
@@ -78,9 +81,10 @@ class TestDomainEntities:
         UNKNOWN_ID = 99
         order = Order(
             order_id="ORD-000",
+            user_id="1",
             creation_date=MOCK_DATE,
-            last_updated_date=MOCK_DATE,
-            status_id=UNKNOWN_ID
+            status_id=UNKNOWN_ID,
+            orders=[]
         )
         # Debe devolver el ID desconocido y el nombre 'Desconocido'
         assert order.status.id == UNKNOWN_ID
