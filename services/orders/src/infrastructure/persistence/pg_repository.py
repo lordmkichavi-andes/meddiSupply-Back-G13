@@ -1,8 +1,10 @@
 # src/infrastructure/persistence/pg_repository.py
 from typing import List
+import random
+
 from datetime import datetime
 from src.domain.interfaces import OrderRepository
-from src.domain.entities import Order
+from src.domain.entities import Order, OrderItem
 from .db_connector import get_connection, release_connection
 
 import psycopg2
@@ -34,14 +36,14 @@ class PgOrderRepository(OrderRepository):
                     o.order_id,
                     o.creation_date,
                     o.estimated_delivery_date,
-                    o.current_state_id,
+                    o.status_id,
                     o.total_value,
-                    MAX(o.creation_date) AS last_updated_date -- Usamos creation_date como proxy de last_updated_date
+                    o.last_updated_date
                                                              -- En un sistema real, necesitarías una tabla de histórico o un campo dedicado
                 FROM orders."Order" o
-                WHERE o.user_id = %s
-                GROUP BY o.order_id, o.creation_date, o.estimated_delivery_date, o.current_state_id, o.total_value
-                ORDER BY last_updated_date DESC;
+                WHERE o.client_id = %s
+                GROUP BY o.order_id, o.creation_date, o.estimated_delivery_date, o.status_id, o.total_value
+                ORDER BY o.creation_date DESC;
             """
 
             # Ejecutamos la consulta
@@ -59,42 +61,75 @@ class PgOrderRepository(OrderRepository):
 
                 # Mapeo a la entidad del dominio
                 orders.append(Order(
+                    client_id=client_id,
                     order_id=order_id,
                     creation_date=creation_date,
-                    last_updated_date=last_updated_date or creation_date,  # Usamos la fecha de la DB
                     status_id=status_id,
-                    estimated_delivery_date=estimated_delivery_date
+                    estimated_delivery_date=estimated_delivery_date,
+                    last_updated_date=last_updated_date,
+                    order_value=total_value,
+                    orders=[]
                 ))
 
             return orders
 
         except psycopg2.Error as e:
             print(f"ERROR de base de datos al recuperar pedidos: {e}")
-            # En lugar de retornar vacío, lanzamos una excepción para que el controlador la maneje
+            if conn:
+                conn.rollback()
+                # En lugar de retornar vacío, lanzamos una excepción para que el controlador la maneje
             raise Exception("Database error during order retrieval.")
         finally:
             if conn:
                 release_connection(conn)
 
-    def insert_order(self, order: Order) -> Order:
-        conn = get_db_connection()
+    def insert_order(self, order: Order, order_items: List[OrderItem]) -> Order:
+        conn = get_connection()
         cur = conn.cursor()
-        cur.execute(
-            """
-            INSERT INTO orders."Order" (client_id, creation_date, last_updated_date, status_id, estimated_delivery_date)
-            VALUES (%s, %s, %s, %s, %s)
-            RETURNING order_id
-            """,
-            (
-                order.client_id,
-                order.creation_date or datetime.now(),
-                order.last_updated_date or datetime.now(),
-                order.status_id,
-                order.estimated_delivery_date
+        try:
+            cur.execute(
+                """
+                INSERT INTO orders."Order" (client_id, creation_date, last_updated_date, status_id, estimated_delivery_date, total_value)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                RETURNING order_id
+                """,
+                (
+                    order.client_id,
+                    order.creation_date or datetime.now(),
+                    order.creation_date or datetime.now(),
+                    order.status_id,
+                    order.estimated_delivery_date,
+                    order.order_value
+                )
             )
-        )
-        order_id = cur.fetchone()[0]
-        conn.commit()
-        cur.close()
-        order.order_id = order_id
+            order_id = cur.fetchone()[0]
+            order.order_id = order_id
+            print(order_id)
+            
+            if order_items:
+                items_to_insert = []
+                for item in order_items:
+                    items_to_insert.append((
+                        order_id,
+                        item.product_id,
+                        item.quantity,
+                        item.price_unit,
+                    ))
+                
+                sql_insert_items = """
+                    INSERT INTO orders.OrderLine (order_id, product_id, quantity, price_unit )
+                    VALUES (%s, %s, %s,%s);
+                """
+                
+                cur.executemany(sql_insert_items, items_to_insert)
+            conn.commit()
+            
+        except Exception as e:
+            conn.rollback()
+            raise e 
+            
+        finally:
+            cur.close()
+            if conn:
+                release_connection(conn)
         return order

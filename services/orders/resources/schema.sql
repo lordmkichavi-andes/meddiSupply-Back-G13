@@ -135,14 +135,15 @@ CREATE TABLE IF NOT EXISTS users.visual_evidences (
 -- Almacena la cabecera del pedido y su información general.
  CREATE TABLE IF NOT EXISTS orders."Order" (
                           order_id SERIAL PRIMARY KEY,
-                          user_id INTEGER, -- Asumiendo que hay una tabla 'User' o 'Customer' externa
+                          client_id INTEGER, -- Asumiendo que hay una tabla 'User' o 'Customer' externa
                           creation_date DATE NOT NULL,
+                          last_updated_date DATE NOT NULL,
                           estimated_delivery_date DATE,
-                          current_state_id INTEGER NOT NULL,
+                          status_id INTEGER NOT NULL,
                           total_value FLOAT NOT NULL,
 
-                          FOREIGN KEY (current_state_id) REFERENCES products.State(state_id),
-                          FOREIGN KEY (user_id) REFERENCES users.Users(user_id)
+                          FOREIGN KEY (status_id) REFERENCES products.State(state_id),
+                          FOREIGN KEY (client_id) REFERENCES users.Clientes(client_id)
 );
 
 
@@ -153,14 +154,14 @@ CREATE TABLE IF NOT EXISTS users.visual_evidences (
                              order_id INTEGER NOT NULL,
                              product_id INTEGER NOT NULL,
                              quantity INT NOT NULL,
-                             value_at_time_of_order FLOAT NOT NULL,
+                             price_unit FLOAT NOT NULL,
 
                              FOREIGN KEY (order_id) REFERENCES orders."Order"(order_id),
                              FOREIGN KEY (product_id) REFERENCES products.Product(product_id)
 );
 
 
-CREATE INDEX IF NOT EXISTS idx_order_state ON orders."Order"(current_state_id);
+CREATE INDEX IF NOT EXISTS idx_order_state ON orders."Order"(status_id);
 CREATE INDEX IF NOT EXISTS idx_line_order ON orders.OrderLine(order_id);
 CREATE INDEX IF NOT EXISTS idx_line_product ON orders.OrderLine(product_id);
 -- --------------------------------------------------------------------------------
@@ -249,18 +250,18 @@ INSERT INTO users.Clientes (user_id, nit, balance, perfil, seller_id) VALUES
 -- --------------------------------------------------------------------------------
 
 -- ORDERS."ORDER" (Pedidos)
-INSERT INTO orders."Order" (user_id, creation_date, estimated_delivery_date, current_state_id, total_value) VALUES
-(3, '2025-10-15', '2025-10-20', 3, 150.50), -- Pedido entregado (Cliente Farmacia A)
-(4, '2025-10-18', '2025-10-25', 2, 550.90); -- Pedido en progreso (Cliente Hospital X)
+INSERT INTO orders."Order" (client_id, creation_date,last_updated_date,  estimated_delivery_date, status_id, total_value) VALUES
+(1, '2025-10-15', '2025-10-20','2025-10-20', 3, 150.50), -- Pedido entregado (Cliente Farmacia A)
+(2, '2025-10-18','2025-10-18', '2025-10-25', 2, 550.90); -- Pedido en progreso (Cliente Hospital X)
 
 -- ORDERS.ORDERLINE (Detalles de Pedido)
 -- Pedido 1 (Farmacia A): Acetaminofén y Guantes
-INSERT INTO orders.OrderLine (order_id, product_id, quantity, value_at_time_of_order) VALUES
+INSERT INTO orders.OrderLine (order_id, product_id, quantity, price_unit) VALUES
 (1, 1, 100, 8.50),
 (1, 4, 10, 4.99);
 
 -- Pedido 2 (Hospital X): Kit Sutura y Amoxicilina
-INSERT INTO orders.OrderLine (order_id, product_id, quantity, value_at_time_of_order) VALUES
+INSERT INTO orders.OrderLine (order_id, product_id, quantity, price_unit) VALUES
 (2, 3, 20, 25.00),
 (2, 2, 15, 12.30);
 
