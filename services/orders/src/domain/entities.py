@@ -32,11 +32,14 @@ class OrderStatus:
 class Order:
     """Entidad central de Pedido."""
     order_id: Optional[str]
-    user_id: str
+    client_id: str
     creation_date: datetime
+    last_updated_date: datetime
     status_id: int
     orders: List[OrderItem]
+    order_value: int
     estimated_delivery_date: Optional[datetime] = None
+
 
 
     @property
@@ -48,13 +51,4 @@ class Order:
         )
         return OrderStatus(self.status_id, status_info["name"])
 
-
-    @property
-    def total_value(self) -> float:
-        total_value = 0
-        if self.orders is not None:
-            for item in self.orders:
-                total_value += item.price_unit
-
-        return total_value
 
