@@ -39,9 +39,9 @@ class MockUser:
 # Datos simulados
 MOCK_USERS: List[MockUser] = [
     MockUser("U001", "Ana", "Gómez", "pass123", "123456789", "3001234567", MockRole("CLIENT"),
-             'Calle 72 # 10-30, Bogotá', 4.659970, -74.058370, 1),
+             'Calle 72 # 10-30, Bogotá', 4.659970, -74.058370, 1,"900111222-3"),
     MockUser("U002", "Luis", "Pérez", "pass456", "987654321", "3019876543", MockRole("CLIENT"),
-             'Calle 72 # 10-30, Bogotá', 4.659970, -74.058370, 2)
+             'Calle 72 # 10-30, Bogotá', 4.659970, -74.058370, 2, "900111222-3")
 ]
 
 
