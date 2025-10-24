@@ -23,7 +23,9 @@ services:
 
   # Servicio del Microservicio Flask
   app:
-    image: 120569610818.dkr.ecr.us-east-1.amazonaws.com/cdk-exp-container-assets-120569610818-us-east-1:418a6cda16ec60e5013a048b1a951b08eec2f5c9-products
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: products
     depends_on: # <--- La dependencia debe ser condicional
       db:
