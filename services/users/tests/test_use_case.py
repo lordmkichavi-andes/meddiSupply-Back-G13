@@ -121,16 +121,13 @@ class TestGetClientUsersUseCase(unittest.TestCase):
 
         # Verificar que el primer elemento tiene el formato correcto
         self.assertDictEqual(result[0], {
-            "user_id": 1,
-            "client_id": 10,
-            "name": "Alice",
-            "last_name": "Smith",
-            "password": "hashed",
-            "identification": "12345",
-            "phone": "555-1234",
             "address": "123 Main St",
+            "client_id": 10,
             "latitude": 10.0,
             "longitude": -20.0,
+            "name": "La tienda",
+            "nit": "900111222-3",
+            "phone": "555-1234",
             "rol": "CLIENT_ROL"
         })
 
