@@ -29,88 +29,88 @@ Cliente = import_from_file("cliente", cliente_path).Cliente
 class TestDirectVehiculo:
     """Tests directos para Vehiculo."""
 
-    def test_vehiculo_creation_with_etiqueta(self):
-        """Test creación con etiqueta."""
+    def test_vehiculo_creation_with_label(self):
+        """Test creación con label."""
         vehiculo = Vehiculo(
             id="V001",
-            capacidad=100,
+            capacity=100,
             color="rojo",
-            etiqueta="refrigerado"
+            label="refrigerado"
         )
         assert vehiculo.id == "V001"
-        assert vehiculo.capacidad == 100
+        assert vehiculo.capacity == 100
         assert vehiculo.color == "rojo"
-        assert vehiculo.etiqueta == "refrigerado"
+        assert vehiculo.label == "refrigerado"
 
-    def test_vehiculo_creation_without_etiqueta(self):
-        """Test creación sin etiqueta."""
+    def test_vehiculo_creation_without_label(self):
+        """Test creación sin label."""
         vehiculo = Vehiculo(
             id="V002",
-            capacidad=50,
+            capacity=50,
             color="azul"
         )
         assert vehiculo.id == "V002"
-        assert vehiculo.capacidad == 50
+        assert vehiculo.capacity == 50
         assert vehiculo.color == "azul"
-        assert vehiculo.etiqueta is None
+        assert vehiculo.label is None
 
-    def test_vehiculo_from_dict_with_etiqueta(self):
-        """Test from_dict con etiqueta."""
+    def test_vehiculo_from_dict_with_label(self):
+        """Test from_dict con label."""
         data = {
-            "id": "V003",
-            "capacidad": 75,
+            "vehicle_id": "V003",
+            "capacity": 75,
             "color": "verde",
-            "etiqueta": "normal"
+            "label": "normal"
         }
         vehiculo = Vehiculo.from_dict(data)
         assert vehiculo.id == "V003"
-        assert vehiculo.capacidad == 75
+        assert vehiculo.capacity == 75
         assert vehiculo.color == "verde"
-        assert vehiculo.etiqueta == "normal"
+        assert vehiculo.label == "normal"
 
-    def test_vehiculo_from_dict_without_etiqueta(self):
-        """Test from_dict sin etiqueta."""
+    def test_vehiculo_from_dict_without_label(self):
+        """Test from_dict sin label."""
         data = {
-            "id": "V004",
-            "capacidad": 25,
+            "vehicle_id": "V004",
+            "capacity": 25,
             "color": "amarillo"
         }
         vehiculo = Vehiculo.from_dict(data)
         assert vehiculo.id == "V004"
-        assert vehiculo.capacidad == 25
+        assert vehiculo.capacity == 25
         assert vehiculo.color == "amarillo"
-        assert vehiculo.etiqueta is None
+        assert vehiculo.label is None
 
     def test_vehiculo_to_dict_complete(self):
         """Test to_dict completo."""
         vehiculo = Vehiculo(
             id="V005",
-            capacidad=120,
+            capacity=120,
             color="blanco",
-            etiqueta="especial"
+            label="especial"
         )
         result = vehiculo.to_dict()
         expected = {
-            "id": "V005",
-            "capacidad": 120,
+            "vehicle_id": "V005",
+            "capacity": 120,
             "color": "blanco",
-            "etiqueta": "especial"
+            "label": "especial"
         }
         assert result == expected
 
-    def test_vehiculo_to_dict_without_etiqueta(self):
-        """Test to_dict sin etiqueta."""
+    def test_vehiculo_to_dict_without_label(self):
+        """Test to_dict sin label."""
         vehiculo = Vehiculo(
             id="V006",
-            capacidad=80,
+            capacity=80,
             color="gris"
         )
         result = vehiculo.to_dict()
         expected = {
-            "id": "V006",
-            "capacidad": 80,
+            "vehicle_id": "V006",
+            "capacity": 80,
             "color": "gris",
-            "etiqueta": None
+            "label": None
         }
         assert result == expected
 
