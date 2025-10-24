@@ -71,8 +71,6 @@ def get_clientes() -> List[Dict[str, Any]]:
     c.address AS direccion,
     c.latitude AS latitud,
     c.longitude AS longitud,
-    -- La 'demanda' se calcula contando las órdenes cuyo estado indica que están pendientes.
-    -- Utilizamos SUM(CASE...) para contar las órdenes con status_id = 2 ('In Progress' o pendiente de entrega).
     SUM(CASE WHEN o.status_id = 2 THEN 1 ELSE 0 END) AS demanda
     FROM
         users.Clients c
