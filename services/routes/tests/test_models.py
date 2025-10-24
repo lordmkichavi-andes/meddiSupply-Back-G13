@@ -110,7 +110,7 @@ class TestDirectVehiculo:
             "id": "V006",
             "capacidad": 80,
             "color": "gris",
-            "etiquta": None
+            "etiqueta": None
         }
         assert result == expected
 
