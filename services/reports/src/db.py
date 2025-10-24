@@ -26,7 +26,7 @@ def get_connection():
         return None
 
 
-def execute_query(query: str, params: tuple = None, fetch_one: bool = False, fetch_all: bool = False) -> Any:
+def execute_query(query: str, params, fetch_one: bool = False, fetch_all: bool = False) -> Any:
     """Ejecuta una consulta SQL y retorna el resultado."""
     conn = None
     try:
@@ -162,7 +162,7 @@ def get_sales_report_data(vendor_id: str, period: str) -> Optional[Dict[str, Any
             products.Products p ON ol.product_id = p.product_id
         WHERE
             -- Filtrar por el ID del vendedor que deseas analizar
-            s.seller_id = 1
+            s.seller_id = %s
             -- Opcional: Filtrar solo órdenes completadas (asumiendo 3 = Entregado/Vendido)
             AND o.status_id = 3
         GROUP BY
@@ -170,23 +170,23 @@ def get_sales_report_data(vendor_id: str, period: str) -> Optional[Dict[str, Any
         ORDER BY
             nombre
     """
-    
     # Consulta para datos del gráfico (separada)
     chart_query = """
-    SELECT DISTINCT
-        scp.idx,
-        scp.value
-    FROM reportes.sales s
-    JOIN reportes.sales_chart_points scp ON s.id = scp.sale_id
-    WHERE s.vendor_id = %s AND s.period_type = %s
-    ORDER BY scp.idx
-    """
+       SELECT DISTINCT
+           scp.idx,
+           scp.value
+       FROM reportes.sales s
+       JOIN reportes.sales_chart_points scp ON s.id = scp.sale_id
+       WHERE s.vendor_id = %s AND s.period_type = %s
+       ORDER BY scp.idx
+       """
+
     
     # Ejecutar consultas
-    sales_result = execute_query(sales_query, (vendor_id ), fetch_one=True)
-    products_result = execute_query(products_query, (vendor_id ), fetch_all=True)
-    chart_result = execute_query(chart_query, (vendor_id ), fetch_all=True)
-    
+    sales_result = execute_query(sales_query, (vendor_id, ), fetch_one=True)
+    products_result = execute_query(products_query, (vendor_id, ), fetch_all=True)
+    chart_result = execute_query(chart_query, (vendor_id), fetch_all=True)
+
     if sales_result:
         # Construir resultado combinando las consultas separadas
         data = dict(sales_result)
@@ -200,16 +200,16 @@ def get_sales_report_data(vendor_id: str, period: str) -> Optional[Dict[str, Any
             }
             for row in (products_result or [])
         ]
-        
+
         # Agregar gráfico (convertir a array simple)
-        data['grafico'] = [row['value'] for row in (chart_result or [])]
+        data['grafico'] = 100
 
         # Crear periodo string
         data['periodo'] = f"{data['period_start']} - {data['period_end']}"
-        
+
         # Mapear campos a camelCase para el modelo
         data['ventasTotales'] = data['ventas_totales']
-        
+
         return data
     return None
 
