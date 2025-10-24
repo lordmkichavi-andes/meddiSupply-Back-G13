@@ -10,10 +10,9 @@ MOCK_ORDER_DATA = [
     {"id": "ORD001", "status": "En tránsito", "item": "Medicamento X"},
     {"id": "ORD002", "status": "Entregado", "item": "Suministro Y"}
 ]
-# Renombramos las constantes para reflejar la URL de la ruta: /track/<user_id>
-USER_ID_EXISTS = "client_123" 
-USER_ID_NOT_FOUND = "client_404"
-USER_ID_ERROR = "client_error"
+CLIENT_ID_EXISTS = 1
+CLIENT_ID_NOT_FOUND = 100
+CLIENT_ID_ERROR = 0
 
 
 class TestFlaskRoutes(unittest.TestCase):
@@ -49,16 +48,16 @@ class TestFlaskRoutes(unittest.TestCase):
         Prueba el escenario de éxito: el Caso de Uso devuelve datos.
         Debe retornar 200 y los datos de las órdenes.
         """
-        print(f"Ejecutando test_track_orders_success para ID: {USER_ID_EXISTS}")
+        print(f"Ejecutando test_track_orders_success para ID: {CLIENT_ID_EXISTS}")
         # Configurar el mock para devolver datos de prueba
         self.mock_use_case.execute.return_value = MOCK_ORDER_DATA
 
         # Llamada a la URL corregida (el ID de la constante se usa en la ruta /track/...)
-        response = self.client.get(f'/track/{USER_ID_EXISTS}') 
+        response = self.client.get(f'/track/{CLIENT_ID_EXISTS}') 
         response_data = json.loads(response.data)
 
         # 1. Verificar la llamada al Caso de Uso
-        self.mock_use_case.execute.assert_called_once_with(USER_ID_EXISTS)
+        self.mock_use_case.execute.assert_called_once_with(CLIENT_ID_EXISTS)
 
         # 2. Verificar el código de estado y la respuesta
         self.assertEqual(response.status_code, 200)
@@ -69,15 +68,15 @@ class TestFlaskRoutes(unittest.TestCase):
         Prueba el escenario "no hay pedidos": el Caso de Uso devuelve una lista vacía.
         Debe retornar 404 y un mensaje específico (el diccionario JSON).
         """
-        print(f"Ejecutando test_track_orders_not_found para ID: {USER_ID_NOT_FOUND}")
+        print(f"Ejecutando test_track_orders_not_found para ID: {CLIENT_ID_NOT_FOUND}")
         # Configurar el mock para devolver una lista vacía
         self.mock_use_case.execute.return_value = []
 
-        response = self.client.get(f'/track/{USER_ID_NOT_FOUND}')
+        response = self.client.get(f'/track/{CLIENT_ID_NOT_FOUND}')
         response_data = json.loads(response.data)
 
         # 1. Verificar la llamada al Caso de Uso
-        self.mock_use_case.execute.assert_called_once_with(USER_ID_NOT_FOUND)
+        self.mock_use_case.execute.assert_called_once_with(CLIENT_ID_NOT_FOUND)
 
         # 2. Verificar el código de estado y el mensaje
         self.assertEqual(response.status_code, 404)
@@ -90,15 +89,15 @@ class TestFlaskRoutes(unittest.TestCase):
         Prueba el escenario de error del sistema: el Caso de Uso lanza una excepción.
         Debe retornar 500 y un mensaje de error genérico (el diccionario JSON).
         """
-        print(f"Ejecutando test_track_orders_internal_server_error para ID: {USER_ID_ERROR}")
+        print(f"Ejecutando test_track_orders_internal_server_error para ID: {CLIENT_ID_ERROR}")
         # Configurar el mock para lanzar una excepción
         self.mock_use_case.execute.side_effect = Exception("Simulated DB connection error")
 
-        response = self.client.get(f'/track/{USER_ID_ERROR}')
+        response = self.client.get(f'/track/{CLIENT_ID_ERROR}')
         response_data = json.loads(response.data)
 
         # 1. Verificar la llamada al Caso de Uso
-        self.mock_use_case.execute.assert_called_once_with(USER_ID_ERROR)
+        self.mock_use_case.execute.assert_called_once_with(CLIENT_ID_ERROR)
 
         # 2. Verificar el código de estado y el mensaje
         self.assertEqual(response.status_code, 500)

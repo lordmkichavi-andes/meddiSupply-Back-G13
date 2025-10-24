@@ -34,8 +34,10 @@ class TestDomainEntities:
         """Verifica que la entidad Order se instancia correctamente con fecha de entrega."""
         order = Order(
             order_id="ORD-123",
-            user_id="1",
+            client_id="1",
             creation_date=MOCK_DATE,
+            last_updated_date=MOCK_DATE,
+            order_value=100,
             status_id=3,
             estimated_delivery_date=MOCK_DELIVERY_DATE,
             orders=[]
@@ -48,8 +50,10 @@ class TestDomainEntities:
         """Verifica que la entidad Order se instancia correctamente sin fecha de entrega (None)."""
         order = Order(
             order_id="ORD-456",
-            user_id="1",
+            client_id="1",
             creation_date=MOCK_DATE,
+            last_updated_date=MOCK_DATE,
+            order_value=100,
             status_id=1,
             estimated_delivery_date=None,
             orders=[]
@@ -65,8 +69,10 @@ class TestDomainEntities:
         """
         order = Order(
             order_id="ORD-789",
-            user_id="1",
+            client_id="1",
             creation_date=MOCK_DATE,
+            last_updated_date=MOCK_DATE,
+            order_value=100,
             status_id=status_id,
             orders=[]
         )
@@ -81,8 +87,10 @@ class TestDomainEntities:
         UNKNOWN_ID = 99
         order = Order(
             order_id="ORD-000",
-            user_id="1",
+            client_id="1",
             creation_date=MOCK_DATE,
+            last_updated_date=MOCK_DATE,
+            order_value=100,
             status_id=UNKNOWN_ID,
             orders=[]
         )

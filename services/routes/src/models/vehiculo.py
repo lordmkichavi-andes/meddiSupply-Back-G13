@@ -16,10 +16,10 @@ class Vehiculo:
     def from_dict(cls, data: dict) -> 'Vehiculo':
         """Crear instancia desde diccionario."""
         return cls(
-            id=data['id'],
-            capacidad=data['capacidad'],
+            id=data['vehicle_id'],
+            capacidad=data['capacity'],
             color=data['color'],
-            etiqueta=data.get('etiqueta')
+            etiqueta=data.get('label')
         )
 
     def to_dict(self) -> dict:

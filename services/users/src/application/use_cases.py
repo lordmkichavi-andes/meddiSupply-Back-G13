@@ -33,6 +33,36 @@ class GetClientUsersUseCase:
                 "password": user.password,
                 "identification": user.identification,
                 "phone": user.phone,
+                "address": user.address,
+                "latitude": user.latitude,
+                "longitude": user.longitude,
+                "rol": user.role.value if hasattr(user.role, 'value') else user.role
+            })
+
+        return formatted_users
+
+    def execute_by_seller(self, seller_id: int) -> List[Dict[str, Any]]:
+        """
+        Ejecuta la lógica de negocio para obtener la lista de usuarios CLIENT.
+        """
+        # 1. Obtener usuarios con rol CLIENT (Usando el Repositorio)
+        users = self.repository.get_users_by_seller(seller_id)
+
+        # 2. Si no hay usuarios
+        if not users:
+            return []
+
+        # 3. Formatear datos según necesidades del negocio
+        formatted_users = []
+        for user in users:
+            formatted_users.append({
+                "client_id": user.client_id,
+                "nit": user.nit,
+                "phone": user.phone,
+                "name": user.perfil,
+                "address": user.address,
+                "latitude": user.latitude,
+                "longitude": user.longitude,
                 "rol": user.role.value if hasattr(user.role, 'value') else user.role
             })
 

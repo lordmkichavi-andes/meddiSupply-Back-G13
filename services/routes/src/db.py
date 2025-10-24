@@ -57,7 +57,7 @@ def execute_query(query: str, params: tuple = None, fetch_one: bool = False, fet
 
 def get_vehiculos() -> List[Dict[str, Any]]:
     """Obtiene todos los vehículos disponibles."""
-    query = "SELECT id, capacidad, color, etiqueta FROM rutas.vehiculos ORDER BY id"
+    query = "SELECT vehicle_id, capacity, color, label FROM routes.vehicles ORDER BY vehicle_id"
     result = execute_query(query, fetch_all=True)
     return result or []
 
@@ -65,9 +65,21 @@ def get_vehiculos() -> List[Dict[str, Any]]:
 def get_clientes() -> List[Dict[str, Any]]:
     """Obtiene todos los clientes."""
     query = """
-    SELECT id, nombre, direccion, latitud, longitud, demanda 
-    FROM rutas.clientes 
-    ORDER BY nombre
+    SELECT
+    c.client_id AS id,
+    c.name AS nombre,
+    c.address AS direccion,
+    c.latitude AS latitud,
+    c.longitude AS longitud,
+    SUM(CASE WHEN o.status_id = 2 THEN 1 ELSE 0 END) AS demanda
+    FROM
+        users.Clients c
+    LEFT JOIN
+        orders.Orders o ON c.client_id = o.client_id
+    GROUP BY
+        c.client_id, c.name, c.address, c.latitude, c.longitude
+    ORDER BY
+        demanda DESC, c.name
     """
     result = execute_query(query, fetch_all=True)
     return result or []

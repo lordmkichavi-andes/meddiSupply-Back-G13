@@ -4,7 +4,7 @@ services:
   # 🗄️ Servicio de Base de Datos PostgreSQL
   db:
     image: postgres:14-alpine
-    container_name: postgres_rdwu
+    container_name: postgres_rdwrr
     restart: always
     environment:
       POSTGRES_DB: medisupplydb
@@ -18,11 +18,11 @@ services:
       timeout: 5s
       retries: 5
 
-  usuarios-service:
+  reports-service:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: usuarios_service
+    container_name: reports
     platform: linux/amd64
     ports:
       - "8080:8080"

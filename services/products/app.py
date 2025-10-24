@@ -1,5 +1,5 @@
 from flask import Flask, jsonify, request, make_response
-from adapters.sqlite_adapter import SQLiteProductAdapter
+from adapters.sql_adapter import PostgreSQLProductAdapter
 from services.product_service import ProductService
 from database_setup import setup_database
 from flask_caching import Cache
@@ -12,10 +12,8 @@ REDIS_PORT = os.environ.get('CACHE_PORT', '6379')
 REDIS_DB = os.environ.get('CACHE_DB', '0')
 
 config = {
-    "CACHE_TYPE": "RedisCache",
-    "CACHE_REDIS_HOST": REDIS_HOST,
-    "CACHE_REDIS_PORT": REDIS_PORT,
-    "CACHE_REDIS_DB": REDIS_DB
+    "CACHE_TYPE": "SimpleCache",  # Usamos un caché en memoria (Pruebas locales)
+    "CACHE_DEFAULT_TIMEOUT": 300  # 5 minutos de duración del caché(Pruebas locales)
 }
 
 app = Flask(__name__)
@@ -52,7 +50,7 @@ def cache_control_header(timeout=None, key = ""):
 
 
 # Dependencia: inyección del repositorio en el servicio
-product_repository = SQLiteProductAdapter()
+product_repository = PostgreSQLProductAdapter()
 product_service = ProductService(repository=product_repository)
 setup_database()
 
@@ -67,20 +65,21 @@ def get_products():
     return jsonify(products_list)
 
 
-@app.route('/products/update/<product_id>', methods=['PUT'])
+@app.route('/products/update/<int:product_id>', methods=['PUT'])
 def update_product(product_id):
     """
     Endpoint para actualizar un producto y forzar la invalidación de la caché.
     """
     data = request.get_json()
     price = data.get('price')
+    warehouse = data.get('warehouse')
     stock = data.get('stock')
 
     if price is None or stock is None:
         return jsonify({"error": "Price and stock are required"}), 400
 
     # Actualiza el producto en la base de datos
-    product_service.update_product(product_id, price=price, stock=stock)
+    product_service.update_product(product_id, price=price, stock=stock, warehouse= warehouse)
 
     # ⚠️ Invalida la caché del endpoint de productos disponibles y del producto individual
     cache_key_to_invalidate = 'products'
@@ -93,7 +92,7 @@ def update_product(product_id):
     return jsonify({"status": "Product updated and cache invalidated"}), 200
 
 
-@app.route('/products/<product_id>', methods=['GET'])
+@app.route('/products/<int:product_id>', methods=['GET'])
 @cache_control_header(timeout=180)
 def get_product_by_id(product_id):
     """

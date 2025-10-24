@@ -29,8 +29,8 @@ Cliente = import_from_file("cliente", cliente_path).Cliente
 class TestDirectVehiculo:
     """Tests directos para Vehiculo."""
 
-    def test_vehiculo_creation_with_etiqueta(self):
-        """Test creación con etiqueta."""
+    def test_vehiculo_creation_with_label(self):
+        """Test creación con label."""
         vehiculo = Vehiculo(
             id="V001",
             capacidad=100,
@@ -42,8 +42,8 @@ class TestDirectVehiculo:
         assert vehiculo.color == "rojo"
         assert vehiculo.etiqueta == "refrigerado"
 
-    def test_vehiculo_creation_without_etiqueta(self):
-        """Test creación sin etiqueta."""
+    def test_vehiculo_creation_without_label(self):
+        """Test creación sin label."""
         vehiculo = Vehiculo(
             id="V002",
             capacidad=50,
@@ -54,13 +54,13 @@ class TestDirectVehiculo:
         assert vehiculo.color == "azul"
         assert vehiculo.etiqueta is None
 
-    def test_vehiculo_from_dict_with_etiqueta(self):
-        """Test from_dict con etiqueta."""
+    def test_vehiculo_from_dict_with_label(self):
+        """Test from_dict con label."""
         data = {
-            "id": "V003",
-            "capacidad": 75,
+            "vehicle_id": "V003",
+            "capacity": 75,
             "color": "verde",
-            "etiqueta": "normal"
+            "label": "normal"
         }
         vehiculo = Vehiculo.from_dict(data)
         assert vehiculo.id == "V003"
@@ -68,11 +68,11 @@ class TestDirectVehiculo:
         assert vehiculo.color == "verde"
         assert vehiculo.etiqueta == "normal"
 
-    def test_vehiculo_from_dict_without_etiqueta(self):
-        """Test from_dict sin etiqueta."""
+    def test_vehiculo_from_dict_without_label(self):
+        """Test from_dict sin label."""
         data = {
-            "id": "V004",
-            "capacidad": 25,
+            "vehicle_id": "V004",
+            "capacity": 25,
             "color": "amarillo"
         }
         vehiculo = Vehiculo.from_dict(data)
@@ -98,8 +98,8 @@ class TestDirectVehiculo:
         }
         assert result == expected
 
-    def test_vehiculo_to_dict_without_etiqueta(self):
-        """Test to_dict sin etiqueta."""
+    def test_vehiculo_to_dict_without_label(self):
+        """Test to_dict sin label."""
         vehiculo = Vehiculo(
             id="V006",
             capacidad=80,

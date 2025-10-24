@@ -254,7 +254,11 @@ class TestClient:
             "role_value": "CLIENT",
             "nit": "900123456-7",
             "balance": 1500000.50,
-            "perfil": "premium"
+            "perfil": "premium",
+            "address":'Calle 72 # 10-30, Bogotá',
+            "latitude":4.659970,
+            "longitude":-74.058370,
+            "client_id": 1,
         }
 
     def test_client_creation(self, sample_client_data):
@@ -273,6 +277,10 @@ class TestClient:
         assert client.nit == "900123456-7"
         assert client.balance == 1500000.50
         assert client.perfil == "premium"
+        assert client.address == "Calle 72 # 10-30, Bogotá"
+        assert client.latitude == 4.659970
+        assert client.longitude == -74.058370
+        assert client.client_id == 1
 
     def test_client_inherits_from_user(self, sample_client_data):
         """Test: Client hereda de User"""
@@ -327,7 +335,11 @@ class TestClient:
             role_value="CLIENT",
             nit="900111222-3",
             balance=0.0,
-            perfil="basic"
+            perfil="basic",
+            address='Calle 72 # 10-30, Bogotá',
+            latitude= 4.659970,
+            longitude= -74.058370,
+            client_id= 1
         )
 
         # Assert
@@ -347,7 +359,11 @@ class TestClient:
             role_value="CLIENT",
             nit="900444555-6",
             balance=-5000.0,
-            perfil="basic"
+            perfil="basic",
+            address='Calle 72 # 10-30, Bogotá',
+            latitude=4.659970,
+            longitude=-74.058370,
+            client_id=1
         )
 
         # Assert
@@ -366,7 +382,11 @@ class TestClient:
             role_value="CLIENT",
             nit="900777888-9",
             balance=999999999.99,
-            perfil="vip"
+            perfil="vip",
+            address='Calle 72 # 10-30, Bogotá',
+            latitude=4.659970,
+            longitude=-74.058370,
+            client_id=1
         )
 
         # Assert
@@ -387,7 +407,11 @@ class TestClient:
                 role_value="CLIENT",
                 nit=f"900{idx}-{idx}",
                 balance=1000.0,
-                perfil=profile
+                perfil=profile,
+                address='Calle 72 # 10-30, Bogotá',
+                latitude=4.659970,
+                longitude=-74.058370,
+                client_id=1
             )
 
             assert client.perfil == profile
@@ -413,7 +437,11 @@ class TestClient:
             role_value="CLIENT",
             nit="900123-4",
             balance=1000.0,
-            perfil="basic"
+            perfil="basic",
+            address='Calle 72 # 10-30, Bogotá',
+            latitude=4.659970,
+            longitude=-74.058370,
+            client_id=1
         )
 
         client2 = Client(
@@ -426,7 +454,11 @@ class TestClient:
             role_value="CLIENT",
             nit="900123-4",
             balance=1000.0,
-            perfil="basic"
+            perfil="basic",
+            address='Calle 72 # 10-30, Bogotá',
+            latitude=4.659970,
+            longitude=-74.058370,
+            client_id=1
         )
 
         client3 = Client(
@@ -439,7 +471,11 @@ class TestClient:
             role_value="CLIENT",
             nit="900456-7",
             balance=2000.0,
-            perfil="premium"
+            perfil="premium",
+            address='Calle 72 # 10-30, Bogotá',
+            latitude=4.659970,
+            longitude=-74.058370,
+            client_id=1
         )
 
         assert client1 == client2

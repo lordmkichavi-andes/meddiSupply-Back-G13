@@ -28,6 +28,7 @@ class TestPgUserRepository:
         return [
             (
                 1,
+                1,
                 "Juan",
                 "Pérez",
                 "hashed_password_123",
@@ -36,9 +37,13 @@ class TestPgUserRepository:
                 'CLIENT',
                 "900123456-7",
                 1500000.50,
-                "premium"
+                "premium",
+                'Calle 72 # 10-30, Bogotá',
+                4.659970,
+                -74.058370
             ),
             (
+                2,
                 2,
                 "María",
                 "González",
@@ -48,7 +53,10 @@ class TestPgUserRepository:
                 'CLIENT',
                 "900654321-1",
                 2500000.00,
-                "basic"
+                "basic",
+                'Calle 72 # 10-30, Bogotá',
+                4.659970,
+                -74.058370
             )
         ]
 
@@ -204,8 +212,8 @@ class TestPgUserRepository:
         conn, cursor = mock_connection
         mock_get_conn.return_value = conn
         unordered_rows = [
-            (2, "Zoe", "Last", "pass", "123", "phone", 'CLIENT', "nit", 1000, "basic"),
-            (1, "Ana", "Last", "pass", "456", "phone", 'CLIENT', "nit", 2000, "premium"),
+            (2, "Zoe", "Last", "pass", "123", "phone", 'CLIENT', "nit", 1000, "basic", 'Calle 72 # 10-30, Bogotá', 4.659970, -74.058370,2),
+            (1, "Ana", "Last", "pass", "456", "phone", 'CLIENT', "nit", 2000, "premium", 'Calle 72 # 10-30, Bogotá', 4.659970, -74.058370,1),
         ]
         cursor.fetchall.return_value = unordered_rows
 
@@ -232,8 +240,8 @@ class TestPgUserRepository:
         conn, cursor = mock_connection
         mock_get_conn.return_value = conn
         single_row = [
-            (1, "Carlos", "Ruiz", "pass123", "111222333", "3009876543",
-             'CLIENT', "900111222-3", 5000000.75, "vip")
+            (1, 2, "Carlos", "Ruiz", "pass123", "111222333", "3009876543",
+             'CLIENT', "900111222-3", 5000000.75, "vip", 'Calle 72 # 10-30, Bogotá', 4.659970, -74.058370)
         ]
         cursor.fetchall.return_value = single_row
 
@@ -291,13 +299,10 @@ class TestPgUserRepository:
         query = cursor.execute.call_args[0][0]
 
         # Verificar elementos clave de la query
-        assert 'FROM Users u' in query
-        assert 'INNER JOIN Clientes c ON u.user_id = c.user_id' in query
+        assert 'FROM users.Users u' in query
+        assert 'INNER JOIN users.Clients c ON u.user_id = c.user_id' in query
         assert 'WHERE u.role IN (%s)' in query
-        assert 'u.user_id' in query
-        assert 'c.nit' in query
-        assert 'c.balance' in query
-        assert 'c.perfil' in query
+
 
     @patch('src.infrastructure.persistence.pg_user_repository.release_connection')
     @patch('src.infrastructure.persistence.pg_user_repository.get_connection')

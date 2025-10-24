@@ -139,15 +139,15 @@ class TestDatabaseFunctions:
         """Test get_vehiculos exitoso."""
         with patch.object(db_module, 'execute_query') as mock_execute:
             mock_data = [
-                {'id': 'V001', 'capacidad': 100, 'color': 'rojo', 'etiqueta': 'refrigerado'},
-                {'id': 'V002', 'capacidad': 50, 'color': 'azul', 'etiqueta': None}
+                {'vehicle_id': 'V001', 'capacity': 100, 'color': 'rojo', 'label': 'refrigerado'},
+                {'vehicle_id': 'V002', 'capacity': 50, 'color': 'azul', 'label': None}
             ]
             mock_execute.return_value = mock_data
             
             result = db_module.get_vehiculos()
             
             assert result == mock_data
-            expected_query = "SELECT id, capacidad, color, etiqueta FROM rutas.vehiculos ORDER BY id"
+            expected_query = "SELECT vehicle_id, capacity, color, label FROM routes.vehicles ORDER BY vehicle_id"
             mock_execute.assert_called_once_with(expected_query, fetch_all=True)
 
     def test_get_vehiculos_no_results(self):
@@ -180,14 +180,26 @@ class TestDatabaseFunctions:
                 }
             ]
             mock_execute.return_value = mock_data
-            
+
             result = db_module.get_clientes()
-            
+
             assert result == mock_data
             expected_query = """
-    SELECT id, nombre, direccion, latitud, longitud, demanda 
-    FROM rutas.clientes 
-    ORDER BY nombre
+    SELECT
+    c.client_id AS id,
+    c.name AS nombre,
+    c.address AS direccion,
+    c.latitude AS latitud,
+    c.longitude AS longitud,
+    SUM(CASE WHEN o.status_id = 2 THEN 1 ELSE 0 END) AS demanda
+    FROM
+        users.Clients c
+    LEFT JOIN
+        orders.Orders o ON c.client_id = o.client_id
+    GROUP BY
+        c.client_id, c.name, c.address, c.latitude, c.longitude
+    ORDER BY
+        demanda DESC, c.name
     """
             mock_execute.assert_called_once_with(expected_query, fetch_all=True)
 
@@ -218,7 +230,7 @@ class TestAdditionalCoverage:
         assert vehiculo.etiqueta == ""
         
         # Test from_dict con etiqueta vacía
-        data = {"id": "V002", "capacidad": 0, "color": "", "etiqueta": ""}
+        data = {"vehicle_id": "V002", "capacity": 0, "color": "", "label": ""}
         vehiculo2 = Vehiculo.from_dict(data)
         assert vehiculo2.etiqueta == ""
 

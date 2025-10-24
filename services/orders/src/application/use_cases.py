@@ -41,11 +41,11 @@ class TrackOrdersUseCase:
                     estimated_delivery = "Entrega pendiente de programación"
 
             formatted_orders.append({
-                "numero_pedido": order.order_id,
-                "fecha_creacion": order.creation_date.strftime('%Y-%m-%d'),
-                "fecha_ultima_actualizacion": order.creation_date.strftime('%Y-%m-%d %H:%M:%S'),
-                "estado_nombre": order.status.name,
-                "fecha_entrega_estimada": estimated_delivery
+                "order_id": order.order_id,
+                "creation_date": order.creation_date.strftime('%Y-%m-%d'),
+                "last_updated_date": order.creation_date.strftime('%Y-%m-%d %H:%M:%S'),
+                "status": order.status.name,
+                "estimated_delivery_time": estimated_delivery
             })
 
         return formatted_orders

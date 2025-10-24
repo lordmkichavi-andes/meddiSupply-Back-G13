@@ -4,7 +4,7 @@ services:
   # Servicio de Base de Datos PostgreSQL
   db:
     image: postgres:14-alpine
-    container_name: postgres_rdwo
+    container_name: postgres_rdwr
     restart: always
     environment:
       # Variables usadas por la imagen oficial de PostgreSQL
@@ -26,7 +26,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: orders
+    container_name: routes
     depends_on: # <--- La dependencia debe ser condicional
       db:
         condition: service_healthy
