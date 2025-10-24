@@ -87,7 +87,7 @@ class TestDirectVehiculo:
             id="V005",
             capacidad=120,
             color="blanco",
-            etiquta="especial"
+            etiqueta="especial"
         )
         result = vehiculo.to_dict()
         expected = {
@@ -107,7 +107,7 @@ class TestDirectVehiculo:
         )
         result = vehiculo.to_dict()
         expected = {
-            "vehicle_id": "V006",
+            "id": "V006",
             "capacidad": 80,
             "color": "gris",
             "etiquta": None

@@ -2,14 +2,9 @@
 
 import pytest
 import sys
-import re
 import os
 import importlib.util
 from unittest.mock import Mock, patch
-
-def normalize_sql(query: str) -> str:
-    """Reemplaza secuencias de espacios en blanco (incluyendo saltos de línea) por un solo espacio."""
-    return re.sub(r'\s+', ' ', query).strip()
 
 # Función para importar módulo desde archivo
 def import_from_file(module_name, file_path):
@@ -171,33 +166,42 @@ class TestDatabaseFunctions:
             result = db_module.get_vehiculos()
             assert result == []
 
-    # Modificación en tests/test_database.py::TestDatabaseFunctions::test_get_clientes_success
     def test_get_clientes_success(self):
         """Test get_clientes exitoso."""
         with patch.object(db_module, 'execute_query') as mock_execute:
-            # ... (setup) ...
+            mock_data = [
+                {
+                    'id': 'C001',
+                    'nombre': 'Hospital Central',
+                    'direccion': 'Calle 123 #45-67',
+                    'latitud': 4.6097100,
+                    'longitud': -74.0817500,
+                    'demanda': 50
+                }
+            ]
+            mock_execute.return_value = mock_data
 
             result = db_module.get_clientes()
 
-            # ... (assert result) ...
+            assert result == mock_data
             expected_query = """
             SELECT
-            c.client_id AS id,
-            c.name AS nombre,
-            c.address AS direccion,
-            c.latitude AS latitud,
-            c.longitude AS longitud,
-            SUM(CASE WHEN o.status_id = 2 THEN 1 ELSE 0 END) AS demanda
-            FROM
-                users.Clients c
-            LEFT JOIN
-                orders.Orders o ON c.client_id = o.client_id
-            GROUP BY
-                c.client_id, c.name, c.address, c.latitude, c.longitude
-            ORDER BY
-                demanda DESC, c.name
-                """
-            mock_execute.assert_called_once_with(normalize_sql(expected_query), fetch_all=True)
+    c.client_id AS id,
+    c.name AS nombre,
+    c.address AS direccion,
+    c.latitude AS latitud,
+    c.longitude AS longitud,
+    SUM(CASE WHEN o.status_id = 2 THEN 1 ELSE 0 END) AS demanda
+    FROM
+        users.Clients c
+    LEFT JOIN
+        orders.Orders o ON c.client_id = o.client_id
+    GROUP BY
+        c.client_id, c.name, c.address, c.latitude, c.longitude
+    ORDER BY
+        demanda DESC, c.name
+        """
+            mock_execute.assert_called_once_with(expected_query.strip(), fetch_all=True)
 
     def test_get_clientes_no_results(self):
         """Test get_clientes sin resultados."""
