@@ -201,7 +201,7 @@ class TestDatabaseFunctions:
     ORDER BY
         demanda DESC, c.name
         """
-            mock_execute.assert_called_once_with(expected_query.strip(), fetch_all=True)
+            mock_execute.assert_called_once_with(expected_query, fetch_all=True)
 
     def test_get_clientes_no_results(self):
         """Test get_clientes sin resultados."""
