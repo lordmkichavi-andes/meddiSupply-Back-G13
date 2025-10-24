@@ -147,7 +147,7 @@ class TestDatabaseFunctions:
             result = db_module.get_vehiculos()
             
             assert result == mock_data
-            expected_query = "SELECT id, capacidad, color, etiqueta FROM routes.vehicles ORDER BY id"
+            expected_query = "SELECT vehicle_id, capacity, color, label FROM routes.vehicles ORDER BY vehicle_id"
             mock_execute.assert_called_once_with(expected_query, fetch_all=True)
 
     def test_get_vehiculos_no_results(self):
