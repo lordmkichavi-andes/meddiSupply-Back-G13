@@ -248,7 +248,94 @@ CREATE INDEX IF NOT EXISTS idx_upload_details_estado ON products.product_upload_
 CREATE INDEX IF NOT EXISTS idx_product_history_producto_id ON products.product_history(product_id);
 CREATE INDEX IF NOT EXISTS idx_product_history_fecha ON products.product_history(update_date);
 
+--- PRODUCTS Schemas ---
+-- 1. products.Providers (provider_id)
+CREATE SEQUENCE IF NOT EXISTS products_providers_provider_id_seq START 1;
+ALTER TABLE products.Providers ALTER COLUMN provider_id SET DEFAULT nextval('products_providers_provider_id_seq');
+ALTER SEQUENCE products_providers_provider_id_seq OWNED BY products.Providers.provider_id;
 
+-- 2. products.units (unit_id)
+CREATE SEQUENCE IF NOT EXISTS products_units_unit_id_seq START 1;
+ALTER TABLE products.units ALTER COLUMN unit_id SET DEFAULT nextval('products_units_unit_id_seq');
+ALTER SEQUENCE products_units_unit_id_seq OWNED BY products.units.unit_id;
+
+-- 3. products.Products (product_id)
+CREATE SEQUENCE IF NOT EXISTS products_products_product_id_seq START 1;
+ALTER TABLE products.Products ALTER COLUMN product_id SET DEFAULT nextval('products_products_product_id_seq');
+ALTER SEQUENCE products_products_product_id_seq OWNED BY products.Products.product_id;
+
+-- 4. products.Warehouses (warehouse_id)
+CREATE SEQUENCE IF NOT EXISTS products_warehouses_warehouse_id_seq START 1;
+ALTER TABLE products.Warehouses ALTER COLUMN warehouse_id SET DEFAULT nextval('products_warehouses_warehouse_id_seq');
+ALTER SEQUENCE products_warehouses_warehouse_id_seq OWNED BY products.Warehouses.warehouse_id;
+
+-- 5. products.ProductStock (stock_id)
+CREATE SEQUENCE IF NOT EXISTS products_productstock_stock_id_seq START 1;
+ALTER TABLE products.ProductStock ALTER COLUMN stock_id SET DEFAULT nextval('products_productstock_stock_id_seq');
+ALTER SEQUENCE products_productstock_stock_id_seq OWNED BY products.ProductStock.stock_id;
+
+-- 6. products.product_uploads (id)
+CREATE SEQUENCE IF NOT EXISTS products_product_uploads_id_seq START 1;
+ALTER TABLE products.product_uploads ALTER COLUMN id SET DEFAULT nextval('products_product_uploads_id_seq');
+ALTER SEQUENCE products_product_uploads_id_seq OWNED BY products.product_uploads.id;
+
+-- 7. products.product_upload_details (id)
+CREATE SEQUENCE IF NOT EXISTS products_product_upload_details_id_seq START 1;
+ALTER TABLE products.product_upload_details ALTER COLUMN id SET DEFAULT nextval('products_product_upload_details_id_seq');
+ALTER SEQUENCE products_product_upload_details_id_seq OWNED BY products.product_upload_details.id;
+
+-- 8. products.product_history (id)
+CREATE SEQUENCE IF NOT EXISTS products_product_history_id_seq START 1;
+ALTER TABLE products.product_history ALTER COLUMN id SET DEFAULT nextval('products_product_history_id_seq');
+ALTER SEQUENCE products_product_history_id_seq OWNED BY products.product_history.id;
+
+--- USERS Schemas ---
+-- 9. users.Users (user_id)
+CREATE SEQUENCE IF NOT EXISTS users_users_user_id_seq START 1;
+ALTER TABLE users.Users ALTER COLUMN user_id SET DEFAULT nextval('users_users_user_id_seq');
+ALTER SEQUENCE users_users_user_id_seq OWNED BY users.Users.user_id;
+
+-- 10. users.sellers (seller_id)
+CREATE SEQUENCE IF NOT EXISTS users_sellers_seller_id_seq START 1;
+ALTER TABLE users.sellers ALTER COLUMN seller_id SET DEFAULT nextval('users_sellers_seller_id_seq');
+ALTER SEQUENCE users_sellers_seller_id_seq OWNED BY users.sellers.seller_id;
+
+-- 11. users.Clients (client_id)
+CREATE SEQUENCE IF NOT EXISTS users_clients_client_id_seq START 1;
+ALTER TABLE users.Clients ALTER COLUMN client_id SET DEFAULT nextval('users_clients_client_id_seq');
+ALTER SEQUENCE users_clients_client_id_seq OWNED BY users.Clients.client_id;
+
+-- 12. users.visits (visit_id)
+CREATE SEQUENCE IF NOT EXISTS users_visits_visit_id_seq START 1;
+ALTER TABLE users.visits ALTER COLUMN visit_id SET DEFAULT nextval('users_visits_visit_id_seq');
+ALTER SEQUENCE users_visits_visit_id_seq OWNED BY users.visits.visit_id;
+
+-- 13. users.visual_evidences (evidence_id)
+CREATE SEQUENCE IF NOT EXISTS users_visual_evidences_evidence_id_seq START 1;
+ALTER TABLE users.visual_evidences ALTER COLUMN evidence_id SET DEFAULT nextval('users_visual_evidences_evidence_id_seq');
+ALTER SEQUENCE users_visual_evidences_evidence_id_seq OWNED BY users.visual_evidences.evidence_id;
+
+--- ORDERS Schemas ---
+-- 14. orders.OrdersState (state_id)
+CREATE SEQUENCE IF NOT EXISTS orders_ordersstate_state_id_seq START 1;
+ALTER TABLE orders.OrdersState ALTER COLUMN state_id SET DEFAULT nextval('orders_ordersstate_state_id_seq');
+ALTER SEQUENCE orders_ordersstate_state_id_seq OWNED BY orders.OrdersState.state_id;
+
+-- 15. orders.Orders (order_id)
+CREATE SEQUENCE IF NOT EXISTS orders_orders_order_id_seq START 1;
+ALTER TABLE orders.Orders ALTER COLUMN order_id SET DEFAULT nextval('orders_orders_order_id_seq');
+ALTER SEQUENCE orders_orders_order_id_seq OWNED BY orders.Orders.order_id;
+
+-- 16. orders.OrderLines (order_line_id)
+CREATE SEQUENCE IF NOT EXISTS orders_orderlines_order_line_id_seq START 1;
+ALTER TABLE orders.OrderLines ALTER COLUMN order_line_id SET DEFAULT nextval('orders_orderlines_order_line_id_seq');
+ALTER SEQUENCE orders_orderlines_order_line_id_seq OWNED BY orders.OrderLines.order_line_id;
+
+--- ROUTES Schemas ---
+-- 17. routes.vehicles (vehicle_id)
+CREATE SEQUENCE IF NOT EXISTS routes_vehicles_vehicle_id_seq START 1;
+ALTER TABLE routes.vehicles ALTER COLUMN vehicle_id SET DEFAULT nextval('routes_vehicles_vehicle_id_seq');
+ALTER SEQUENCE routes_vehicles_vehicle_id_seq OWNED BY routes.vehicles.vehicle_id;
 -- --------------------------------------------------------------------------------
 -- SCRIPT DE INSERCIÓN DE DATOS DE PRUEBA (ESQUEMA COMPLETO)
 -- --------------------------------------------------------------------------------

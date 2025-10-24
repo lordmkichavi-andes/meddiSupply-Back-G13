@@ -104,8 +104,7 @@ class PgOrderRepository(OrderRepository):
             )
             order_id = cur.fetchone()[0]
             order.order_id = order_id
-            print(order_id)
-            
+
             if order_items:
                 items_to_insert = []
                 for item in order_items:
@@ -117,7 +116,7 @@ class PgOrderRepository(OrderRepository):
                     ))
                 
                 sql_insert_items = """
-                    INSERT INTO orders.OrderLine (order_id, product_id, quantity, price_unit )
+                    INSERT INTO orders.OrderLines (order_id, product_id, quantity, price_unit )
                     VALUES (%s, %s, %s,%s);
                 """
                 
