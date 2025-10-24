@@ -300,7 +300,7 @@ class TestPgUserRepository:
 
         # Verificar elementos clave de la query
         assert 'FROM users.Users u' in query
-        assert 'INNER JOIN users.Clientes c ON u.user_id = c.user_id' in query
+        assert 'INNER JOIN users.Clients c ON u.user_id = c.user_id' in query
         assert 'WHERE u.role IN (%s)' in query
 
 
