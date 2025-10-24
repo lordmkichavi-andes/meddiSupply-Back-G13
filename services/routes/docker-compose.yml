@@ -23,7 +23,9 @@ services:
 
   # Servicio del Microservicio Flask
   app:
-    image: 120569610818.dkr.ecr.us-east-1.amazonaws.com/cdk-exp-container-assets-120569610818-us-east-1:59f92b518e6e9e4433275d01381bb34b5c19641d-users
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: routes
     depends_on: # <--- La dependencia debe ser condicional
       db:
@@ -33,7 +35,7 @@ services:
       # DB_HOST debe ser el nombre del servicio de la DB (db)
       DB_HOST: db
       DB_PORT: 5432
-      DB_NAME: postgres
+      DB_NAME: medisupplydb
       DB_USER: postgres
       DB_PASSWORD: postgres
       # Asegura que la inicialización se ejecute
