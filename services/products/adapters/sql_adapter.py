@@ -37,7 +37,7 @@ class PostgreSQLProductAdapter(ProductRepository):
             c.name AS category_name,
             SUM(ps.quantity) AS total_quantity
         FROM 
-            products.Product p
+            products.Products p
         JOIN 
             products.Category c ON p.category_id = c.category_id
         JOIN 
