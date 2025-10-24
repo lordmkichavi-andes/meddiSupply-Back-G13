@@ -3,6 +3,8 @@ import sys
 from unittest.mock import Mock, MagicMock
 from typing import List
 
+from win32comext.axscript.client.framework import profile
+
 # Aseguramos que los módulos de src se pueden importar
 sys.path.append('users/src')
 
@@ -21,7 +23,7 @@ class MockUser:
     """Simula la entidad de dominio User con los atributos requeridos."""
 
     def __init__(self, user_id, name, last_name, password, identification, phone, role, address, latitude, longitude,
-                 client_id, nit):
+                 client_id, nit, perfil):
         self.user_id = user_id
         self.name = name
         self.last_name = last_name
@@ -34,14 +36,15 @@ class MockUser:
         self.latitude = latitude
         self.longitude = longitude
         self.client_id = client_id
+        self.perfil = perfil
 
 
 # Datos simulados
 MOCK_USERS: List[MockUser] = [
     MockUser("U001", "Ana", "Gómez", "pass123", "123456789", "3001234567", MockRole("CLIENT"),
-             'Calle 72 # 10-30, Bogotá', 4.659970, -74.058370, 1,"900111222-3"),
+             'Calle 72 # 10-30, Bogotá', 4.659970, -74.058370, 1,"900111222-3", "La tienda"),
     MockUser("U002", "Luis", "Pérez", "pass456", "987654321", "3019876543", MockRole("CLIENT"),
-             'Calle 72 # 10-30, Bogotá', 4.659970, -74.058370, 2, "900111222-3")
+             'Calle 72 # 10-30, Bogotá', 4.659970, -74.058370, 2, "900111222-3", "La tienda")
 ]
 
 
@@ -97,12 +100,12 @@ class TestGetClientUsersUseCase(unittest.TestCase):
         mock_user_1 = MockUser(
             user_id=1, name="Alice", last_name="Smith", password="hashed",
             identification="12345", phone="555-1234", role=mock_role, address="123 Main St",
-            latitude=10.0, longitude=-20.0, client_id=10, nit="900111222-3"
+            latitude=10.0, longitude=-20.0, client_id=10, nit="900111222-3", perfil="La tienda"
         )
         mock_user_2 = MockUser(
             user_id=2, name="Bob", last_name="Johnson", password="hashed2",
             identification="67890", phone="555-5678", role=mock_role, address="456 Oak Ave",
-            latitude=11.0, longitude=-21.0, client_id=11,nit="900111222-3"
+            latitude=11.0, longitude=-21.0, client_id=11,nit="900111222-3", perfil="La tienda"
         )
 
         # Mockeamos el método específico para obtener usuarios por vendedor
