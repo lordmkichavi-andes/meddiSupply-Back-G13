@@ -3,8 +3,6 @@ import sys
 from unittest.mock import Mock, MagicMock
 from typing import List
 
-from win32comext.axscript.client.framework import profile
-
 # Aseguramos que los módulos de src se pueden importar
 sys.path.append('users/src')
 
