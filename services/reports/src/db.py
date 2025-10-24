@@ -26,7 +26,7 @@ def get_connection():
         return None
 
 
-def execute_query(query: str, params, fetch_one: bool = False, fetch_all: bool = False) -> Any:
+def execute_query(query: str, params = None, fetch_one: bool = False, fetch_all: bool = False) -> Any:
     """Ejecuta una consulta SQL y retorna el resultado."""
     conn = None
     try:
