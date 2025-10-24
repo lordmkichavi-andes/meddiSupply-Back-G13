@@ -40,7 +40,7 @@ class PgUserRepository(UserRepository):
                     c.latitude,
                     c.longitude
                 FROM users.Users u
-                INNER JOIN users.Clientes c ON u.user_id = c.user_id
+                INNER JOIN users.Clients c ON u.user_id = c.user_id
                 WHERE u.role IN (%s)
                 ORDER BY u.name ASC;
             """
@@ -121,9 +121,9 @@ class PgUserRepository(UserRepository):
                    c.latitude,
                    c.longitude
                FROM users.Users u
-               INNER JOIN users.Clientes c ON u.user_id = c.user_id
+               INNER JOIN users.Clients c ON u.user_id = c.user_id
                -- Unimos con la tabla Seller para filtrar por el vendedor
-               INNER JOIN users.seller s ON c.seller_id = s.seller_id
+               INNER JOIN users.sellers s ON c.seller_id = s.seller_id
                -- El filtro ahora busca por el ID del vendedor, no por el rol.
                WHERE s.seller_id = %s
                ORDER BY u.name ASC;

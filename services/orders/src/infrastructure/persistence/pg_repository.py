@@ -40,7 +40,7 @@ class PgOrderRepository(OrderRepository):
                     o.total_value,
                     o.last_updated_date
                                                              -- En un sistema real, necesitarías una tabla de histórico o un campo dedicado
-                FROM orders."Order" o
+                FROM orders.orders o
                 WHERE o.client_id = %s
                 GROUP BY o.order_id, o.creation_date, o.estimated_delivery_date, o.status_id, o.total_value
                 ORDER BY o.creation_date DESC;
@@ -89,7 +89,7 @@ class PgOrderRepository(OrderRepository):
         try:
             cur.execute(
                 """
-                INSERT INTO orders."Order" (client_id, creation_date, last_updated_date, status_id, estimated_delivery_date, total_value)
+                INSERT INTO orders.orders (client_id, creation_date, last_updated_date, status_id, estimated_delivery_date, total_value)
                 VALUES (%s, %s, %s, %s, %s, %s)
                 RETURNING order_id
                 """,

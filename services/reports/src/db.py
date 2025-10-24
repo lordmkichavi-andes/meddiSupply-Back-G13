@@ -58,10 +58,18 @@ def execute_query(query: str, params: tuple = None, fetch_one: bool = False, fet
 def get_vendors() -> List[Dict[str, Any]]:
     """Obtiene todos los vendedores disponibles."""
     query = """
-    SELECT id, name, email, region, active 
-    FROM reportes.vendors 
-    WHERE active = true 
-    ORDER BY name
+    SELECT
+    s.seller_id AS id, -- ID del vendedor
+    u.name || ' ' || u.last_name AS name, -- Nombre y apellido
+    u.email AS email,
+    s.zone AS region, -- Zona de trabajo del vendedor
+    u.active AS active -- Estado de actividad del usuario
+    FROM
+        users.sellers s
+    JOIN
+        users.Users u ON s.user_id = u.user_id
+    ORDER BY
+    name;
     """
     result = execute_query(query, fetch_all=True)
     return result or []
@@ -70,9 +78,20 @@ def get_vendors() -> List[Dict[str, Any]]:
 def get_products() -> List[Dict[str, Any]]:
     """Obtiene todos los productos disponibles."""
     query = """
-    SELECT id, name, category, price, unit 
-    FROM reportes.products 
-    ORDER BY name
+    SELECT
+    p.product_id AS id, -- ID del Producto
+    p.name AS name, -- Nombre del Producto
+    c.name AS category, -- Nombre de la Categoría
+    p.value AS price, -- Precio del Producto (el campo 'value' es el precio en tu esquema)
+    u.name AS unit -- Nombre de la Unidad de Medida
+    FROM
+        products.Products p
+    JOIN
+        products.Category c ON p.category_id = c.category_id
+    JOIN
+        productos.units u ON p.unit_id = u.unit_id
+    ORDER BY
+        name;
     """
     result = execute_query(query, fetch_all=True)
     return result or []
@@ -101,28 +120,68 @@ def get_sales_report_data(vendor_id: str, period: str) -> Optional[Dict[str, Any
     
     # Consulta principal para datos básicos de ventas
     sales_query = """
-    SELECT 
-        total_sales as ventas_totales,
-        total_orders as pedidos,
-        period_start,
-        period_end
-    FROM reportes.sales 
-    WHERE vendor_id = %s AND period_type = %s
-    LIMIT 1
-    """
+    SELECT
+   -- Suma el valor total de las órdenes asociadas a los clientes del vendedor
+    SUM(o.total_value) AS ventas_totales,
+    -- Conteo total de pedidos vendidos por el vendedor
+    COUNT(o.order_id) AS pedidos,
+    '2025-01-01' AS period_start,
+    '2025-02-28' AS period_end
+    FROM
+        users.sellers s
+    JOIN
+        users.Users u ON s.user_id = u.user_id -- Para obtener el nombre del vendedor
+    LEFT JOIN
+        users.Clients c ON s.seller_id = c.seller_id -- Para obtener los clientes asignados al vendedor
+    LEFT JOIN
+        orders.Orders o ON c.client_id = o.client_id -- Para obtener las órdenes de esos clientes
+    WHERE
+        -- Filtrar solo órdenes que han sido 'Entregado' (ID 3 en el script de inserción)
+        o.status_id = 3
+        -- ** NUEVA CLÁUSULA: FILTRAR POR VENDEDOR ESPECÍFICO **
+        AND s.seller_id = %s -- Reemplaza :seller_id_param con el ID del vendedor que deseas buscar (ej. 1 o 2)
+    GROUP BY
+        s.seller_id, u.name, u.last_name, s.zone
+    ORDER BY
+        total_ventas_bruto DESC;
+        """
     
     # Consulta para productos (separada para evitar duplicados)
     products_query = """
-    SELECT 
-        p.name as nombre,
-        SUM(sd.line_amount) as ventas,
-        SUM(sd.quantity) as cantidad
-    FROM reportes.sales s
-    JOIN reportes.sale_details sd ON s.id = sd.sale_id
-    JOIN reportes.products p ON sd.product_id = p.id
-    WHERE s.vendor_id = %s AND s.period_type = %s
-    GROUP BY p.name
-    ORDER BY p.name
+    -- Consulta para calcular la cantidad total vendida y el valor total vendido
+-- de un producto específico, filtrando por el ID de un vendedor.
+-- Consulta para calcular la cantidad total vendida y el valor total vendido
+-- de TODOS los productos, agrupados por producto, para un vendedor específico.
+SELECT
+    p.name AS nombre,
+
+    -- 1. Total de unidades vendidas del producto
+    SUM(ol.quantity) AS cantidad,
+
+    -- 2. Valor total vendido (Suma de la multiplicación de cantidad * precio unitario)
+    SUM(ol.quantity * ol.price_unit) AS ventas
+    FROM
+        users.sellers s
+    JOIN
+        users.Users u ON s.user_id = u.user_id
+    JOIN
+        users.Clients c ON s.seller_id = c.seller_id
+    JOIN
+        orders.Orders o ON c.client_id = o.client_id
+    JOIN
+        orders.OrderLines ol ON o.order_id = ol.order_id
+    JOIN
+        products.Products p ON ol.product_id = p.product_id
+    WHERE
+        -- Filtrar por el ID del vendedor que deseas analizar
+        s.seller_id = %s
+        -- Opcional: Filtrar solo órdenes completadas (asumiendo 3 = Entregado/Vendido)
+        AND o.status_id = 3
+    GROUP BY
+        s.seller_id, u.name, u.last_name, p.product_id, p.name
+    ORDER BY
+        nombre;
+
     """
     
     # Consulta para datos del gráfico (separada)
@@ -137,9 +196,9 @@ def get_sales_report_data(vendor_id: str, period: str) -> Optional[Dict[str, Any
     """
     
     # Ejecutar consultas
-    sales_result = execute_query(sales_query, (vendor_id, db_period), fetch_one=True)
-    products_result = execute_query(products_query, (vendor_id, db_period), fetch_all=True)
-    chart_result = execute_query(chart_query, (vendor_id, db_period), fetch_all=True)
+    sales_result = execute_query(sales_query, (vendor_id, ), fetch_one=True)
+    products_result = execute_query(products_query, (vendor_id, ), fetch_all=True)
+    chart_result = execute_query(chart_query, (vendor_id, ), fetch_all=True)
     
     if sales_result:
         # Construir resultado combinando las consultas separadas

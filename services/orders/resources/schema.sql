@@ -2,6 +2,7 @@
 CREATE SCHEMA IF NOT EXISTS products;
 CREATE SCHEMA IF NOT EXISTS users;
 CREATE SCHEMA IF NOT EXISTS orders;
+CREATE SCHEMA IF NOT EXISTS routes;
 -- Creación de la tabla 'Category' (Categoría)
 -- Esta tabla almacena los tipos de categorías de productos.
  CREATE TABLE IF NOT EXISTS products.Category (
@@ -11,40 +12,47 @@ CREATE SCHEMA IF NOT EXISTS orders;
 
 -- Creación de la tabla 'Provider' (Proveedor)
 -- Esta tabla se crea para soportar la relación con la tabla 'Product'.
- CREATE TABLE IF NOT EXISTS products.Provider (
+ CREATE TABLE IF NOT EXISTS products.Providers (
                           provider_id SERIAL PRIMARY KEY,
                           name VARCHAR(100) NOT NULL
 );
 
+CREATE TABLE products.units (
+    unit_id SERIAL PRIMARY KEY,
+    name VARCHAR(50) NOT NULL UNIQUE,
+    symbol VARCHAR(10) NOT NULL,
+    type VARCHAR(20) NOT NULL,
+    active BOOLEAN DEFAULT true,
+    creation_date TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT chk_type CHECK (type IN ('peso', 'volumen', 'cantidad', 'longitud', 'area'))
+);
+
 -- Creación de la tabla 'Product' (Producto)
 -- Almacena la información de los productos, incluyendo su relación con la categoría y el proveedor.
-CREATE TABLE products.Product (
+CREATE TABLE products.Products (
     product_id SERIAL PRIMARY KEY,
     sku VARCHAR(50) NOT NULL UNIQUE,
     name VARCHAR(100) NOT NULL,
     value FLOAT NOT NULL,
     image_url VARCHAR(255),
     provider_id INTEGER NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'activo',
     category_id INTEGER NOT NULL,
     objective_profile VARCHAR(255) NOT NULL,
-    FOREIGN KEY (provider_id) REFERENCES products.Provider(provider_id),
-    FOREIGN KEY (category_id) REFERENCES products.Category(category_id)
+    unit_id INTEGER NOT NULL,
+    creation_date TIMESTAMP DEFAULT NOW(),
+    FOREIGN KEY (provider_id) REFERENCES products.Providers(provider_id),
+    FOREIGN KEY (category_id) REFERENCES products.Category(category_id),
+    FOREIGN KEY (unit_id) REFERENCES products.units(unit_id),
+    CONSTRAINT chk_estado CHECK (status IN ('activo', 'inactivo', 'suspendido'))
 );
 
-CREATE TABLE IF NOT EXISTS products.Warehouse (
+CREATE TABLE IF NOT EXISTS products.Warehouses (
     warehouse_id SERIAL PRIMARY KEY, -- Identificador único de la bodega
     name VARCHAR(100) NOT NULL,          -- Nombre de la bodega
     location VARCHAR(255)                -- Ubicación o dirección de la bodega (opcional)
 );
 
-CREATE TABLE IF NOT EXISTS products.Inventory (
-    product_id SERIAL,
-    warehouse_id INTEGER,
-    stock_quantity INT NOT NULL DEFAULT 0, -- Cantidad de este producto en esta bodega
-    PRIMARY KEY (product_id, warehouse_id), -- La clave primaria compuesta asegura que solo haya una entrada por producto/bodega
-    FOREIGN KEY (product_id) REFERENCES products.Product(product_id),
-    FOREIGN KEY (warehouse_id) REFERENCES products.Warehouse(warehouse_id)
-);
 
 -- Creación de la tabla 'ProductStock' (Inventario de Producto)
 -- Almacena los registros de inventario para cada producto.
@@ -54,18 +62,14 @@ CREATE TABLE IF NOT EXISTS products.Inventory (
                               quantity INT NOT NULL,
                               lote VARCHAR(50) NOT NULL,
                               warehouse_id INTEGER NOT NULL,
+                              provider_id INTEGER NOT NULL,
                               country VARCHAR(50) NOT NULL,
-                              FOREIGN KEY (product_id) REFERENCES products.Product(product_id),
-                              FOREIGN KEY (warehouse_id) REFERENCES products.Warehouse(warehouse_id)
+                              FOREIGN KEY (product_id) REFERENCES products.Products(product_id),
+                              FOREIGN KEY (warehouse_id) REFERENCES products.Warehouses(warehouse_id),
+                              FOREIGN KEY (provider_id) REFERENCES products.Providers(provider_id)
 );
 
- CREATE TABLE IF NOT EXISTS products.State (
-                         state_id SERIAL PRIMARY KEY,
-                         name VARCHAR(50) NOT NULL UNIQUE
-);
 -- Crear tabla User
-
-
 CREATE TABLE IF NOT EXISTS users.Users(
     user_id SERIAL PRIMARY KEY,
     name VARCHAR NOT NULL,
@@ -73,10 +77,12 @@ CREATE TABLE IF NOT EXISTS users.Users(
     password VARCHAR NOT NULL,
     identification VARCHAR UNIQUE NOT NULL,
     phone VARCHAR,
+    email     VARCHAR(150),
+    active    BOOLEAN DEFAULT TRUE,
     role VARCHAR NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS users.seller (
+CREATE TABLE IF NOT EXISTS users.sellers (
     seller_id SERIAL PRIMARY KEY,
     user_id INTEGER UNIQUE NOT NULL, -- Clave foránea 1:1 con users.Users
     zone VARCHAR(100) NOT NULL,      -- Zona de trabajo del vendedor
@@ -87,14 +93,17 @@ CREATE TABLE IF NOT EXISTS users.seller (
 
 
 -- Crear tabla Client
-CREATE TABLE IF NOT EXISTS users.Clientes (
+CREATE TABLE IF NOT EXISTS users.Clients (
     client_id SERIAL PRIMARY KEY,
     user_id INTEGER UNIQUE NOT NULL,
     nit VARCHAR(50) UNIQUE,
     balance DECIMAL(15, 2) DEFAULT 0.00,
-    perfil TEXT,
+    name TEXT,
     seller_id INTEGER,
-    FOREIGN KEY (seller_id) REFERENCES users.seller(seller_id) ON DELETE SET NULL,
+    address VARCHAR(255) NULL,
+    latitude DECIMAL(10, 8) NULL,
+    longitude DECIMAL(11, 8) NULL,
+    FOREIGN KEY (seller_id) REFERENCES users.sellers(seller_id) ON DELETE SET NULL,
     FOREIGN KEY (user_id) REFERENCES users.Users(user_id) ON DELETE CASCADE
 );
 
@@ -102,14 +111,13 @@ CREATE TABLE IF NOT EXISTS users.visits (
     visit_id SERIAL PRIMARY KEY,                       -- Identificador de la visita (visit_id: str)
     seller_id INTEGER NOT NULL,                           -- ID del usuario que realizó la visita (user_id: str)
     date DATE NOT NULL,                              -- Fecha en que se realizó la visita (date: Date)
-    place TEXT,                                      -- Lugar o dirección de la visita (place: str)
     findings TEXT,                                   -- Hallazgos o notas de la visita (findings: str)
 
     -- Nuevo campo para la relación 1:N con Clientes
     client_id INTEGER NOT NULL,
     -- Relaciones
-    FOREIGN KEY (client_id) REFERENCES users.Clientes(client_id) ON DELETE RESTRICT,
-    FOREIGN KEY (seller_id) REFERENCES users.seller(seller_id) ON DELETE RESTRICT
+    FOREIGN KEY (client_id) REFERENCES users.Clients(client_id) ON DELETE RESTRICT,
+    FOREIGN KEY (seller_id) REFERENCES users.sellers(seller_id) ON DELETE RESTRICT
 );
 
 CREATE TABLE IF NOT EXISTS users.visit_product_suggestions (
@@ -117,7 +125,7 @@ CREATE TABLE IF NOT EXISTS users.visit_product_suggestions (
     product_id INTEGER NOT NULL,
     PRIMARY KEY (visit_id, product_id),
     FOREIGN KEY (visit_id) REFERENCES users.visits(visit_id) ON DELETE CASCADE,
-    FOREIGN KEY (product_id) REFERENCES products.Product(product_id) ON DELETE RESTRICT
+    FOREIGN KEY (product_id) REFERENCES products.Products(product_id) ON DELETE RESTRICT
 );
 
 CREATE TABLE IF NOT EXISTS users.visual_evidences (
@@ -133,8 +141,14 @@ CREATE TABLE IF NOT EXISTS users.visual_evidences (
 
 -- Creación de la tabla 'Order' (Pedido)
 -- Almacena la cabecera del pedido y su información general.
- CREATE TABLE IF NOT EXISTS orders."Order" (
+
+ CREATE TABLE IF NOT EXISTS orders.OrdersState (
+                         state_id SERIAL PRIMARY KEY,
+                         name VARCHAR(50) NOT NULL UNIQUE
+);
+ CREATE TABLE IF NOT EXISTS orders.Orders(
                           order_id SERIAL PRIMARY KEY,
+                          seller_id INTEGER,
                           client_id INTEGER, -- Asumiendo que hay una tabla 'User' o 'Customer' externa
                           creation_date DATE NOT NULL,
                           last_updated_date DATE NOT NULL,
@@ -142,155 +156,94 @@ CREATE TABLE IF NOT EXISTS users.visual_evidences (
                           status_id INTEGER NOT NULL,
                           total_value FLOAT NOT NULL,
 
-                          FOREIGN KEY (status_id) REFERENCES products.State(state_id),
-                          FOREIGN KEY (client_id) REFERENCES users.Clientes(client_id)
+                          FOREIGN KEY (status_id) REFERENCES orders.OrdersState(state_id),
+                          FOREIGN KEY (client_id) REFERENCES users.Clients(client_id),
+                          FOREIGN KEY (seller_id) REFERENCES users.sellers(seller_id)
 );
 
 
 -- Creación de la tabla 'OrderLine' (Línea de Pedido / Detalle)
 -- Almacena los productos específicos dentro de un pedido, su cantidad y precio en el momento de la compra.
- CREATE TABLE IF NOT EXISTS orders.OrderLine (
+ CREATE TABLE IF NOT EXISTS orders.OrderLines (
                              order_line_id SERIAL PRIMARY KEY,
                              order_id INTEGER NOT NULL,
                              product_id INTEGER NOT NULL,
                              quantity INT NOT NULL,
                              price_unit FLOAT NOT NULL,
 
-                             FOREIGN KEY (order_id) REFERENCES orders."Order"(order_id),
-                             FOREIGN KEY (product_id) REFERENCES products.Product(product_id)
+                             FOREIGN KEY (order_id) REFERENCES orders.Orders(order_id),
+                             FOREIGN KEY (product_id) REFERENCES products.Products(product_id)
 );
 
+CREATE TABLE IF NOT EXISTS  routes.vehicles(
+    vehicle_id SERIAL PRIMARY KEY,
+    capacity INTEGER NOT NULL ,
+    color TEXT,
+    Plate TEXT,
+    label TEXT
+);
 
-CREATE INDEX IF NOT EXISTS idx_order_state ON orders."Order"(status_id);
-CREATE INDEX IF NOT EXISTS idx_line_order ON orders.OrderLine(order_id);
-CREATE INDEX IF NOT EXISTS idx_line_product ON orders.OrderLine(product_id);
--- --------------------------------------------------------------------------------
--- SCRIPT DE INSERCIÓN DE DATOS DE PRUEBA (MEDICAMENTOS Y LOGÍSTICA)
--- NOTA: Asume que las tablas con SERIAL PRIMARY KEY se inician en 1.
--- --------------------------------------------------------------------------------
+CREATE TABLE products.product_uploads (
+    id SERIAL PRIMARY KEY,
+    file_name VARCHAR(255) NOT NULL,
+    file_type VARCHAR(10) NOT NULL,
+    file_size BIGINT NOT NULL,
+    total_records INTEGER NOT NULL,
+    successful_records INTEGER NOT NULL DEFAULT 0,
+    failed_records INTEGER NOT NULL DEFAULT 0,
+    state VARCHAR(20) NOT NULL DEFAULT 'procesando',
+    start_date TIMESTAMP DEFAULT NOW(),
+    end_date TIMESTAMP,
+    user_id Integer NOT NULL,
+    errores TEXT,
+    CONSTRAINT chk_tipo_archivo CHECK (file_type IN ('csv', 'xlsx', 'xls')),
+    CONSTRAINT chk_estado CHECK (state IN ('procesando', 'completado', 'fallido', 'cancelado')),
+    FOREIGN KEY (user_id) REFERENCES  users.Users(user_id)
+);
 
--- --------------------------------------------------------------------------------
--- 1. TABLAS DE PRODUCTOS (products SCHEMA)
--- --------------------------------------------------------------------------------
+CREATE TABLE products.product_upload_details (
+    id SERIAL PRIMARY KEY,
+    upload_id INTEGER NOT NULL,
+    row_id INTEGER NOT NULL,
+    code VARCHAR(50),
+    name VARCHAR(200),
+    descroption TEXT,
+    price FLOAT,
+    category VARCHAR(100),
+    minimum_stock INTEGER,
+    measure_unit VARCHAR(50),
+    status VARCHAR(20) NOT NULL,
+    errors TEXT,
+    product_id INTEGER NOT NULL,
+    FOREIGN KEY (upload_id) REFERENCES products.product_uploads(id),
+    FOREIGN KEY (product_id) REFERENCES products.products(product_id),
+    CONSTRAINT chk_estado_procesamiento CHECK (status IN ('exitoso', 'fallido', 'advertencia'))
+);
 
--- PRODUCTS.CATEGORY (Categorías de la imagen)
-INSERT INTO products.Category (category_id, name) VALUES
-(1, 'MEDICATION'),
-(2, 'SURGICAL_SUPPLIES'),
-(3, 'REAGENTS'),
-(4, 'EQUIPMENT'),
-(5, 'OTHERS');
+CREATE TABLE products.product_history (
+    id SERIAL PRIMARY KEY,
+    product_id INTEGER NOT NULL,
+    previous_value FLOAT,
+    new_value FLOAT,
+    change_type VARCHAR(20) NOT NULL,
+    update_date TIMESTAMP DEFAULT NOW(),
+    user_id INTEGER NOT NULL,
+    upload_id INTEGER,
+    FOREIGN KEY (product_id) REFERENCES products.products(product_id),
+    FOREIGN KEY (upload_id) REFERENCES products.product_uploads(id),
+    FOREIGN KEY (user_id) REFERENCES users.Users(user_id),
+    CONSTRAINT chk_tipo_cambio CHECK (change_type IN ('creacion', 'actualizacion', 'eliminacion', 'cambio_estado'))
+);
 
--- PRODUCTS.PROVIDER (Proveedores)
-INSERT INTO products.Provider (provider_id, name) VALUES
-(1, 'PharmaGlobal Labs S.A.'),
-(2, 'MedSupply Distributors'),
-(3, 'TecnoHealth Solutions');
-
--- PRODUCTS.WAREHOUSE (Bodegas)
-INSERT INTO products.Warehouse (name, location) VALUES
-('BODEGA_CENTRAL', 'Calle 100 # 50-20, Bogotá'),
-('BODEGA_OCCIDENTE', 'Carrera 80 # 12-45, Cali');
-
--- PRODUCTS.PRODUCT (Productos)
-INSERT INTO products.Product (sku, name, value, provider_id, category_id, objective_profile) VALUES
-('MED-001', 'Acetaminofén 500mg (Caja x100)', 8.50, 1, 1, 'Droguerías, Farmacias'),
-('MED-002', 'Amoxicilina 250mg/5ml (Frasco)', 12.30, 1, 1, 'Pediátrico, Clínicas'),
-('SURG-001', 'Kit Sutura Desechable', 25.00, 2, 2, 'Hospitales, Salas de Cirugía'),
-('SURG-002', 'Guantes Nitrilo Talla M (Caja x50)', 4.99,2, 2, 'Clínicas, Consultorios'),
-('REAG-001', 'Tiras Reactivas Glucosa (Caja x50)', 15.75, 3, 3, 'Laboratorios Clínicos'),
-('EQUIP-001', 'Termómetro Infrarrojo Digital', 45.90, 3, 4, 'Clínicas, Hospitales');
-
--- PRODUCTS.INVENTORY (Inventario en Bodegas)
-INSERT INTO products.Inventory (product_id, warehouse_id, stock_quantity) VALUES
-(1, 1, 5000),
-(2, 1, 2500),
-(3, 2, 1000),
-(4, 1, 8000),
-(5, 2, 300),
-(6, 1, 500);
-
--- PRODUCTS.PRODUCTSTOCK (Stock Detallado)
--- Asumiendo que products.Product.product_id (SERIAL) comienza en 1
-INSERT INTO products.ProductStock (product_id, quantity, lote, warehouse_id, country) VALUES
-(1, 2500, 'LOTE2025A', 1, 'COL'),
-(1, 2500, 'LOTE2025B', 1, 'COL'),
-(3, 1000, 'LOTE456', 2, 'ECU'),
-(4, 5000, 'LOTE789', 1, 'PER');
-
--- PRODUCTS.STATE (Estados de Pedido)
-INSERT INTO products.State (state_id, name) VALUES
-(1, 'Created'),
-(2, 'In Progress'),
-(3, 'Delivered'),
-(4, 'Canceled');
-
--- --------------------------------------------------------------------------------
--- 2. TABLAS DE USUARIOS Y CLIENTES (users SCHEMA)
--- --------------------------------------------------------------------------------
-
--- USERS.USERS (Usuarios)
-INSERT INTO users.Users (name, last_name, password, identification, phone, role) VALUES
-( 'Juan', 'Perez', 'hash123', '10101010', '3001112233', 'ADMIN'),
-( 'Maria', 'Gomez', 'hash456', '20202020', '3104445566', 'SELLER'), -- Visitador Médico
-( 'Carlos', 'Lopez', 'R7hash', '30303030', '3207778899', 'CLIENT'), -- Dueño Farmacia A
-( 'Laura', 'Diaz', 'A9hash', '40404040', '3019990011', 'CLIENT'); -- Gerente Hospital X
-
--- NUEVO: USERS.SELLER (Vendedores)
-INSERT INTO users.seller (user_id, zone) VALUES
-(2, 'ZONA CENTRO-NORTE'); -- Maria Gomez (user_id 2) es la vendedora 1
-
--- USERS.CLIENTES (Clientes/Puntos de Venta) - Modificado para incluir seller_id
-INSERT INTO users.Clientes (user_id, nit, balance, perfil, seller_id) VALUES
-(3, '800123456-1', 1500.50, 'Farmacia de Barrio A', 1), -- Cliente 1 asignado al Seller 1
-(4, '900789012-5', 52000.75, 'Hospital Nivel 3 X', 1); -- Cliente 2 asignado al Seller 1
-
--- --------------------------------------------------------------------------------
--- 3. TABLAS DE PEDIDOS (orders SCHEMA)
--- --------------------------------------------------------------------------------
-
--- ORDERS."ORDER" (Pedidos)
-INSERT INTO orders."Order" (client_id, creation_date,last_updated_date,  estimated_delivery_date, status_id, total_value) VALUES
-(1, '2025-10-15', '2025-10-20','2025-10-20', 3, 150.50), -- Pedido entregado (Cliente Farmacia A)
-(2, '2025-10-18','2025-10-18', '2025-10-25', 2, 550.90); -- Pedido en progreso (Cliente Hospital X)
-
--- ORDERS.ORDERLINE (Detalles de Pedido)
--- Pedido 1 (Farmacia A): Acetaminofén y Guantes
-INSERT INTO orders.OrderLine (order_id, product_id, quantity, price_unit) VALUES
-(1, 1, 100, 8.50),
-(1, 4, 10, 4.99);
-
--- Pedido 2 (Hospital X): Kit Sutura y Amoxicilina
-INSERT INTO orders.OrderLine (order_id, product_id, quantity, price_unit) VALUES
-(2, 3, 20, 25.00),
-(2, 2, 15, 12.30);
-
--- --------------------------------------------------------------------------------
--- 4. TABLAS DE LOGÍSTICA Y VISITAS (users SCHEMA)
--- --------------------------------------------------------------------------------
-
--- USERS.VISIT_ROUTES (Rutas de Venta)
--- INSERT INTO users.visit_routes (route_id, date, map, estimated_travel_time, seller_data) VALUES
--- ('ROUTE-202511-01', '2025-11-05', 'Ruta Centro-Norte Bogotá', '5 horas', '{"seller_name": "Maria Gomez", "user_id": 2}');
-
--- USERS.VISITS (Visitas)
-INSERT INTO users.visits (seller_id, date, place, findings, client_id) VALUES
-(1, '2025-11-05', 'Farmacia La Esquina', 'El cliente A (Farmacia A) necesita más stock de antibióticos.', 1),
-(1, '2025-11-05', 'Hospital Metropolitano', 'El cliente B (Hospital X) está evaluando la compra de nuevos equipos.', 2),
-(1, '2025-11-06', 'Droguería San Pedro', 'Contacto inicial. Necesita material promocional.', 1);
-
--- USERS.VISIT_PRODUCT_SUGGESTIONS (Sugerencias de Productos en Visitas)
--- Visita 1 (Farmacia A): Sugerir Tiras Reactivas y Amoxicilina
-INSERT INTO users.visit_product_suggestions (visit_id, product_id) VALUES
-(1, 5), -- Tiras Reactivas Glucosa
-(1, 2); -- Amoxicilina
-
--- Visita 2 (Hospital X): Sugerir Termómetro Infrarrojo
-INSERT INTO users.visit_product_suggestions (visit_id, product_id) VALUES
-(2, 6); -- Termómetro Infrarrojo Digital
-
--- USERS.VISUAL_EVIDENCES (Evidencia Visual)
--- Evidencia para la Visita 1
-INSERT INTO users.visual_evidences (type, url_file, description, visit_id) VALUES
-('PHOTO', 'https://storage.example.com/visit/1/photo_01.jpg', 'Foto de estantería de productos de la competencia.', 1),
-('NOTE', 'https://storage.example.com/visit/1/audio_01.mp3', 'Nota de voz sobre la conversación con el dueño.', 1);
+CREATE INDEX IF NOT EXISTS idx_order_state ON orders.Orders(status_id);
+CREATE INDEX IF NOT EXISTS idx_line_order ON orders.OrderLines(order_id);
+CREATE INDEX IF NOT EXISTS idx_line_product ON orders.OrderLines(product_id);
+CREATE INDEX IF NOT EXISTS idx_products_codigo ON products.products(sku);
+CREATE INDEX IF NOT EXISTS idx_products_nombre ON products.products(name);
+CREATE INDEX IF NOT EXISTS idx_products_categoria ON products.products(category_id);
+CREATE INDEX IF NOT EXISTS idx_products_estado ON products.products(status);
+CREATE INDEX IF NOT EXISTS idx_products_fecha_creacion ON products.products(creation_date);
+CREATE INDEX IF NOT EXISTS idx_upload_details_upload_id ON products.product_upload_details(upload_id);
+CREATE INDEX IF NOT EXISTS idx_upload_details_estado ON products.product_upload_details(status);
+CREATE INDEX IF NOT EXISTS idx_product_history_producto_id ON products.product_history(product_id);
+CREATE INDEX IF NOT EXISTS idx_product_history_fecha ON products.product_history(update_date);
