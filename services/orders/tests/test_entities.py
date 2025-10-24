@@ -36,6 +36,8 @@ class TestDomainEntities:
             order_id="ORD-123",
             client_id="1",
             creation_date=MOCK_DATE,
+            last_updated_date=MOCK_DATE,
+            order_value=100,
             status_id=3,
             estimated_delivery_date=MOCK_DELIVERY_DATE,
             orders=[]
@@ -50,6 +52,8 @@ class TestDomainEntities:
             order_id="ORD-456",
             client_id="1",
             creation_date=MOCK_DATE,
+            last_updated_date=MOCK_DATE,
+            order_value=100,
             status_id=1,
             estimated_delivery_date=None,
             orders=[]
@@ -67,6 +71,8 @@ class TestDomainEntities:
             order_id="ORD-789",
             client_id="1",
             creation_date=MOCK_DATE,
+            last_updated_date=MOCK_DATE,
+            order_value=100,
             status_id=status_id,
             orders=[]
         )
@@ -83,6 +89,8 @@ class TestDomainEntities:
             order_id="ORD-000",
             client_id="1",
             creation_date=MOCK_DATE,
+            last_updated_date=MOCK_DATE,
+            order_value=100,
             status_id=UNKNOWN_ID,
             orders=[]
         )
