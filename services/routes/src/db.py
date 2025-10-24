@@ -81,7 +81,7 @@ def get_clientes() -> List[Dict[str, Any]]:
     GROUP BY
         c.client_id, c.name, c.address, c.latitude, c.longitude
     ORDER BY
-        demanda DESC, c.name;
+        demanda DESC, c.name
     """
     result = execute_query(query, fetch_all=True)
     return result or []

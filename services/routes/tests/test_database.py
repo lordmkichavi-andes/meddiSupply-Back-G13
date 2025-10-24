@@ -147,7 +147,7 @@ class TestDatabaseFunctions:
             result = db_module.get_vehiculos()
             
             assert result == mock_data
-            expected_query = "SELECT id, capacidad, color, etiqueta FROM rutas.vehiculos ORDER BY id"
+            expected_query = "SELECT id, capacidad, color, etiqueta FROM routes.vehicles ORDER BY id"
             mock_execute.assert_called_once_with(expected_query, fetch_all=True)
 
     def test_get_vehiculos_no_results(self):
@@ -185,10 +185,24 @@ class TestDatabaseFunctions:
             
             assert result == mock_data
             expected_query = """
-    SELECT id, nombre, direccion, latitud, longitud, demanda 
-    FROM rutas.clientes 
-    ORDER BY nombre
-    """
+                SELECT
+                c.client_id AS id,
+                c.name AS nombre,
+                c.address AS direccion,
+                c.latitude AS latitud,
+                c.longitude AS longitud,
+                -- La 'demanda' se calcula contando las órdenes cuyo estado indica que están pendientes.
+                -- Utilizamos SUM(CASE...) para contar las órdenes con status_id = 2 ('In Progress' o pendiente de entrega).
+                SUM(CASE WHEN o.status_id = 2 THEN 1 ELSE 0 END) AS demanda
+                FROM
+                    users.Clients c
+                LEFT JOIN
+                    orders.Orders o ON c.client_id = o.client_id
+                GROUP BY
+                    c.client_id, c.name, c.address, c.latitude, c.longitude
+                ORDER BY
+                    demanda DESC, c.name
+                """
             mock_execute.assert_called_once_with(expected_query, fetch_all=True)
 
     def test_get_clientes_no_results(self):
