@@ -21,11 +21,12 @@ class MockUser:
     """Simula la entidad de dominio User con los atributos requeridos."""
 
     def __init__(self, user_id, name, last_name, password, identification, phone, role, address, latitude, longitude,
-                 client_id):
+                 client_id, nit):
         self.user_id = user_id
         self.name = name
         self.last_name = last_name
         self.password = password
+        self.nit = nit
         self.identification = identification
         self.phone = phone
         self.role = role
@@ -96,12 +97,12 @@ class TestGetClientUsersUseCase(unittest.TestCase):
         mock_user_1 = MockUser(
             user_id=1, name="Alice", last_name="Smith", password="hashed",
             identification="12345", phone="555-1234", role=mock_role, address="123 Main St",
-            latitude=10.0, longitude=-20.0, client_id=10
+            latitude=10.0, longitude=-20.0, client_id=10, nit="900111222-3"
         )
         mock_user_2 = MockUser(
             user_id=2, name="Bob", last_name="Johnson", password="hashed2",
             identification="67890", phone="555-5678", role=mock_role, address="456 Oak Ave",
-            latitude=11.0, longitude=-21.0, client_id=11
+            latitude=11.0, longitude=-21.0, client_id=11,nit="900111222-3"
         )
 
         # Mockeamos el método específico para obtener usuarios por vendedor

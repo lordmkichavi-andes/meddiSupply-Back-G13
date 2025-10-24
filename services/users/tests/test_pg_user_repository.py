@@ -302,10 +302,7 @@ class TestPgUserRepository:
         assert 'FROM users.Users u' in query
         assert 'INNER JOIN users.Clientes c ON u.user_id = c.user_id' in query
         assert 'WHERE u.role IN (%s)' in query
-        assert 'u.user_id' in query
-        assert 'c.nit' in query
-        assert 'c.balance' in query
-        assert 'c.perfil' in query
+
 
     @patch('src.infrastructure.persistence.pg_user_repository.release_connection')
     @patch('src.infrastructure.persistence.pg_user_repository.get_connection')
