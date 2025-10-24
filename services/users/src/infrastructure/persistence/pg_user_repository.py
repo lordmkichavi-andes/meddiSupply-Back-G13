@@ -114,9 +114,9 @@ class PgUserRepository(UserRepository):
                    u.identification,
                    u.phone,
                    u.role,
+                   c.name AS client_name,
                    c.nit,
                    c.balance,
-                   c.perfil,
                    c.address,
                    c.latitude,
                    c.longitude
@@ -142,9 +142,9 @@ class PgUserRepository(UserRepository):
                     identification,
                     phone,
                     role_value,
+                    client_name,
                     nit,
                     balance,
-                    perfil,
                     address,
                     latitude,
                     longitude
@@ -162,7 +162,7 @@ class PgUserRepository(UserRepository):
                     role_value=role_value,
                     nit=nit,
                     balance=balance,
-                    perfil=perfil,
+                    perfil=client_name,
                     address=address,
                     latitude=latitude,
                     longitude=longitude

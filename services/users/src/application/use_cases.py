@@ -56,13 +56,10 @@ class GetClientUsersUseCase:
         formatted_users = []
         for user in users:
             formatted_users.append({
-                "user_id": user.user_id,
                 "client_id": user.client_id,
-                "name": user.name,
-                "last_name": user.last_name,
-                "password": user.password,
-                "identification": user.identification,
+                "nit": user.nit,
                 "phone": user.phone,
+                "name": user.perfil,
                 "address": user.address,
                 "latitude": user.latitude,
                 "longitude": user.longitude,
