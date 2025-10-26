@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request, make_response
+from flask import Flask, jsonify, request, make_response, send_file
 from adapters.sql_adapter import PostgreSQLProductAdapter
 from services.product_service import ProductService
 from database_setup import setup_database
@@ -6,6 +6,9 @@ from flask_caching import Cache
 from functools import wraps
 import os
 import json
+import io
+import pandas as pd
+from datetime import datetime
 
 REDIS_HOST = os.environ.get('CACHE_HOST')
 REDIS_PORT = os.environ.get('CACHE_PORT', '6379')
@@ -105,10 +108,201 @@ def get_product_by_id(product_id):
         return jsonify({"error": "Product not found"}), 404
 
 
+@app.route('/products/upload', methods=['POST'])
+def upload_products():
+    print("=== INICIO UPLOAD PRODUCTS SIMPLIFICADO ===")
+    try:
+        files = request.files.getlist('files')
+        print(f"Archivos recibidos: {len(files)}")
+        
+        if not files:
+            return jsonify({"error": "No files received"}), 400
+        
+        file = files[0]
+        print(f"Procesando archivo: {file.filename}")
+        
+        # Leer el archivo
+        if file.filename.lower().endswith('.csv'):
+            df = pd.read_csv(file)
+            print(f"CSV leído con {len(df)} filas")
+        else:
+            return jsonify({"error": "Only CSV files are supported"}), 400
+        
+        # Verificar columnas requeridas
+        required_columns = ['sku', 'name', 'value', 'category_name', 'quantity', 'warehouse_id']
+        missing_columns = [col for col in required_columns if col not in df.columns]
+        
+        if missing_columns:
+            return jsonify({"error": f"Missing columns: {missing_columns}"}), 400
+        
+        # Mostrar primera fila
+        first_row = df.iloc[0].to_dict()
+        print(f"Primera fila: {first_row}")
+        
+        return jsonify({
+            "message": "Upload test successful",
+            "rows": len(df),
+            "columns": list(df.columns),
+            "first_row": first_row
+        })
+        
+    except Exception as e:
+        print(f"ERROR en upload: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Upload failed: {str(e)}"}), 500
+
+
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({'status': 'ok'})
 
+@app.route('/test', methods=['GET'])
+def test():
+    print("=== TEST ENDPOINT CALLED - VERSION 4 ===")
+    return jsonify({'message': 'Test endpoint working - VERSION 4', 'version': '4.0', 'status': 'SUCCESS'})
+
+@app.route('/test3', methods=['GET'])
+def test3():
+    return jsonify({'message': 'Test3 working'})
+
+@app.route('/test2', methods=['GET'])
+def test2():
+    print("=== TEST2 ENDPOINT CALLED ===")
+    return jsonify({'message': 'Test2 endpoint working'})
+
+@app.route('/test-db', methods=['GET'])
+def test_db():
+    print("=== TEST DB ENDPOINT CALLED ===")
+    try:
+        conn, cursor = product_repository._get_connection()
+        
+        # Obtener productos
+        cursor.execute("SELECT * FROM products.products")
+        products = cursor.fetchall()
+        
+        # Obtener categorías
+        cursor.execute("SELECT * FROM products.category")
+        categories = cursor.fetchall()
+        
+        cursor.close()
+        conn.close()
+        
+        return jsonify({
+            'message': 'DB test successful',
+            'products': [dict(row) for row in products],
+            'categories': [dict(row) for row in categories],
+            'products_count': len(products),
+            'categories_count': len(categories)
+        })
+    except Exception as e:
+        print(f"ERROR en test-db: {str(e)}")
+        return jsonify({'error': f'DB test failed: {str(e)}'}), 500
+
+@app.route('/test-simple', methods=['GET'])
+def test_simple():
+    print("=== TEST SIMPLE ENDPOINT CALLED ===")
+    return jsonify({'message': 'Simple test successful'})
+
+@app.route('/debug', methods=['GET'])
+def debug():
+    print("=== DEBUG ENDPOINT CALLED ===")
+    return jsonify({'status': 'debug working', 'timestamp': str(datetime.now())})
+
+@app.route('/test-upload', methods=['POST'])
+def test_upload():
+    print("=== TEST UPLOAD ENDPOINT CALLED ===")
+    files = request.files.getlist('files')
+    print(f"Archivos recibidos: {len(files)}")
+    
+    try:
+        for file in files:
+            print(f"Procesando archivo: {file.filename}")
+            if file.filename.lower().endswith('.csv'):
+                df = pd.read_csv(file)
+                print(f"CSV leído con {len(df)} filas")
+                print(f"Columnas: {list(df.columns)}")
+                print(f"Primera fila: {df.iloc[0].to_dict()}")
+        
+        return jsonify({"message": "Test upload successful", "files_processed": len(files)})
+    except Exception as e:
+        print(f"ERROR en test upload: {str(e)}")
+        return jsonify({"error": f"Test upload failed: {str(e)}"}), 500
+
+@app.route('/debug-upload', methods=['POST'])
+def debug_upload():
+    print("=== DEBUG UPLOAD ENDPOINT CALLED ===")
+    try:
+        files = request.files.getlist('files')
+        print(f"Archivos recibidos: {len(files)}")
+        
+        if not files:
+            return jsonify({"error": "No files received"}), 400
+        
+        file = files[0]
+        print(f"Procesando archivo: {file.filename}")
+        
+        # Leer el archivo
+        if file.filename.lower().endswith('.csv'):
+            df = pd.read_csv(file)
+            print(f"CSV leído con {len(df)} filas")
+            print(f"Columnas: {list(df.columns)}")
+            
+            # Verificar columnas requeridas
+            required_columns = ['sku', 'name', 'value', 'category_name', 'quantity', 'warehouse_id']
+            missing_columns = [col for col in required_columns if col not in df.columns]
+            
+            if missing_columns:
+                return jsonify({"error": f"Missing columns: {missing_columns}"}), 400
+            
+            # Mostrar primera fila
+            first_row = df.iloc[0].to_dict()
+            print(f"Primera fila: {first_row}")
+            
+            return jsonify({
+                "message": "Debug upload successful",
+                "rows": len(df),
+                "columns": list(df.columns),
+                "first_row": first_row
+            })
+        else:
+            return jsonify({"error": "Only CSV files are supported"}), 400
+            
+    except Exception as e:
+        print(f"ERROR en debug upload: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Debug upload failed: {str(e)}"}), 500
+
+@app.route('/simple-upload', methods=['POST'])
+def simple_upload():
+    print("=== SIMPLE UPLOAD ENDPOINT CALLED ===")
+    try:
+        # Verificar conexión a BD
+        print("Probando conexión a BD...")
+        conn, cursor = product_repository._get_connection()
+        print("Conexión a BD exitosa")
+        
+        # Probar query simple
+        cursor.execute("SELECT COUNT(*) FROM products.Products")
+        count = cursor.fetchone()['count']
+        print(f"Productos en BD: {count}")
+        
+        cursor.close()
+        conn.close()
+        
+        return jsonify({
+            "message": "Simple upload test successful",
+            "db_connection": "OK",
+            "products_count": count
+        })
+        
+    except Exception as e:
+        print(f"ERROR en simple upload: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Simple upload failed: {str(e)}"}), 500
+
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080, debug=False)
+    app.run(host='0.0.0.0', port=8080, debug=True)

@@ -1,0 +1,93 @@
+{
+  "containerDefinitions": [
+    {
+      "name": "ProductsServiceContainer",
+      "image": "120569610818.dkr.ecr.us-east-1.amazonaws.com/cdk-exp-container-assets-120569610818-us-east-1:products-latest",
+      "cpu": 0,
+      "links": [],
+      "portMappings": [
+        {
+          "containerPort": 8080,
+          "hostPort": 8080,
+          "protocol": "tcp"
+        }
+      ],
+      "essential": true,
+      "entryPoint": [],
+      "command": [],
+      "environment": [
+        {
+          "name": "SERVICE_NAME",
+          "value": "products-service"
+        },
+        {
+          "name": "CACHE_DB",
+          "value": "0"
+        },
+        {
+          "name": "DB_PORT",
+          "value": "5432"
+        },
+        {
+          "name": "DB_USER",
+          "value": "postgres"
+        },
+        {
+          "name": "CACHE_HOST",
+          "value": "med-me-mrp9qeogurvj.ozabfh.0001.use1.cache.amazonaws.com"
+        },
+        {
+          "name": "CACHE_PORT",
+          "value": "6379"
+        },
+        {
+          "name": "DB_NAME",
+          "value": "postgres"
+        },
+        {
+          "name": "DB_HOST",
+          "value": "medisupplystack-medisupplycoredb236ba066-fnoid2tmssdv.c67kuumsib0c.us-east-1.rds.amazonaws.com"
+        },
+        {
+          "name": "LOG_LEVEL",
+          "value": "INFO"
+        },
+        {
+          "name": "DB_PASSWORD",
+          "value": "zc0uw50wgk1l1.=8XQbCrQFXR-gIpM"
+        }
+      ],
+      "environmentFiles": [],
+      "mountPoints": [],
+      "volumesFrom": [],
+      "secrets": [],
+      "dnsServers": [],
+      "dnsSearchDomains": [],
+      "extraHosts": [],
+      "dockerSecurityOptions": [],
+      "dockerLabels": {},
+      "ulimits": [],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/products-service",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "products-service"
+        },
+        "secretOptions": []
+      },
+      "systemControls": [],
+      "credentialSpecs": []
+    }
+  ],
+  "family": "MediSupplyStackProductsServiceProductsServiceTaskDefinitionE6D40B0B",
+  "taskRoleArn": "arn:aws:iam::120569610818:role/MediSupplyStack-ProductsServiceProductsServiceTaskR-pM4PKP5fAMHB",
+  "executionRoleArn": "arn:aws:iam::120569610818:role/MediSupplyStack-ProductsServiceProductsServiceTaskD-bO1rTIlnSxsQ",
+  "networkMode": "awsvpc",
+  "volumes": [],
+  "requiresCompatibilities": [
+    "FARGATE"
+  ],
+  "cpu": "256",
+  "memory": "512"
+}

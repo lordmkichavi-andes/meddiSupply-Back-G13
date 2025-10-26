@@ -1,0 +1,3 @@
+sku,name,value,category_name,quantity,warehouse_id,image_url
+TEST-001,Producto de Prueba 1,15.50,MEDICATION,100,1,https://example.com/image1.jpg
+TEST-002,Producto de Prueba 2,25.75,SURGICAL_SUPPLIES,50,2,https://example.com/image2.jpg
