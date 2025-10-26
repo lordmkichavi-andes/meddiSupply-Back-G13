@@ -1,4 +1,5 @@
 from flask import Flask, jsonify, request, make_response, send_file
+from flask_cors import CORS
 from adapters.sql_adapter import PostgreSQLProductAdapter
 from services.product_service import ProductService
 from database_setup import setup_database
@@ -23,6 +24,24 @@ app = Flask(__name__)
 app.config.from_mapping(config)
 cache = Cache(app)
 
+# Configurar CORS
+CORS(app, resources={
+    r"/*": {
+        "origins": ["http://localhost:3000", "http://localhost:4200", "http://127.0.0.1:3000", "http://127.0.0.1:4200"],
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers"],
+        "supports_credentials": True
+    }
+})
+
+
+def add_cors_headers(response):
+    """Agregar headers de CORS a todas las respuestas"""
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, Accept, Origin'
+    response.headers['Access-Control-Allow-Credentials'] = 'true'
+    return response
 
 def cache_control_header(timeout=None, key = ""):
     def decorator(f):
@@ -36,7 +55,7 @@ def cache_control_header(timeout=None, key = ""):
                 # Si la respuesta está en caché, la devolvemos con el encabezado HIT
                 response = make_response(cached_response)
                 response.headers['X-Cache'] = 'HIT'
-                return response
+                return add_cors_headers(response)
             else:
                 # Si no está en caché, generamos la respuesta
                 response = make_response(f(*args, **kwargs))
@@ -45,7 +64,7 @@ def cache_control_header(timeout=None, key = ""):
                 # Guardamos la respuesta en la caché antes de devolverla
                 cache.set(cache_key, response.data, timeout=timeout)
 
-                return response
+                return add_cors_headers(response)
 
         return decorated_function
 
@@ -56,6 +75,19 @@ def cache_control_header(timeout=None, key = ""):
 product_repository = PostgreSQLProductAdapter()
 product_service = ProductService(repository=product_repository)
 setup_database()
+
+# Handler para OPTIONS requests (preflight)
+@app.before_request
+def handle_preflight():
+    if request.method == "OPTIONS":
+        response = make_response()
+        response = add_cors_headers(response)
+        return response
+
+# Aplicar CORS a todas las respuestas
+@app.after_request
+def after_request(response):
+    return add_cors_headers(response)
 
 
 @app.route('/products/available', methods=['GET'])
