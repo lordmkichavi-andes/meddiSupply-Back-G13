@@ -41,7 +41,7 @@ class PostgreSQLProductAdapter(ProductRepository):
         JOIN 
             products.Category c ON p.category_id = c.category_id
         JOIN 
-            products.ProductStock ps ON p.product_id = ps.product_id
+            products.productstock ps ON p.product_id = ps.product_id
         WHERE
             ps.quantity > 0
         GROUP BY
@@ -93,7 +93,7 @@ class PostgreSQLProductAdapter(ProductRepository):
         JOIN 
             products.Category c ON p.category_id = c.category_id
         JOIN 
-            products.ProductStock ps ON p.product_id = ps.product_id
+            products.productstock ps ON p.product_id = ps.product_id
         WHERE
             p.product_id = %s -- 💡 Cambio de ? a %s para psycopg2
         GROUP BY
@@ -141,7 +141,7 @@ class PostgreSQLProductAdapter(ProductRepository):
 
 
         queryStock =  """
-                         UPDATE products.ProductStock
+                         UPDATE products.productstock
                             SET quantity =  %s
                             WHERE product_id =  %s 
                             AND warehouse_id =  %s;
