@@ -1,0 +1,14 @@
+sku,name,value,category_name,quantity,warehouse_id
+MED-401,Atorvastatina 20mg,25000,MEDICATION,45,1
+MED-402,Simvastatina 40mg,22000,MEDICATION,30,1
+MED-403,Levotiroxina 50mcg,18000,MEDICATION,25,1
+SURG-401,Catéter Urinario,15000,SURGICAL_SUPPLIES,20,1
+SURG-402,Sonda Nasogástrica,8000,SURGICAL_SUPPLIES,35,1
+SURG-403,Apósitos Quirúrgicos,5000,SURGICAL_SUPPLIES,100,1
+REAG-401,Test de VIH,35000,REAGENTS,15,1
+REAG-402,Test de Hepatitis B,28000,REAGENTS,12,1
+EQUIP-401,Ultrasonido Portátil,850000,EQUIPMENT,1,1
+EQUIP-402,Electrocardioógrafo,450000,EQUIPMENT,2,1
+EQUIP-403,Respirador Artificial,1200000,EQUIPMENT,1,1
+OTH-401,Suero Fisiológico 500ml,3500,OTHERS,200,1
+OTH-402,Agua Destilada 1L,2500,OTHERS,150,1

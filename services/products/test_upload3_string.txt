@@ -1,0 +1,26 @@
+[
+  {
+    "sku": "STRING-001",
+    "name": "Producto String 1",
+    "value": "25000",
+    "category_name": "MEDICATION",
+    "quantity": "15",
+    "warehouse_id": "1"
+  },
+  {
+    "sku": "STRING-002",
+    "name": "Producto String 2",
+    "value": "35000",
+    "category_name": "SURGICAL_SUPPLIES",
+    "quantity": "8",
+    "warehouse_id": "1"
+  },
+  {
+    "sku": "STRING-003",
+    "name": "Producto String 3",
+    "value": "45000",
+    "category_name": "EQUIPMENT",
+    "quantity": "3",
+    "warehouse_id": "1"
+  }
+]

@@ -1,0 +1,5 @@
+sku,name,value,category_name,quantity,warehouse_id
+MED-005,Aspirina,10000,MEDICATION,10,1
+MED-007,Acetaminofen,15000,MEDICATION,1,1
+SURG-002,DolexGripa,20000,SURGICAL_SUPPLIES,15,1
+LIQ-001,Suero Pedialite,20000,REAGENTS,1,1

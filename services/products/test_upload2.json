@@ -1,0 +1,42 @@
+[
+  {
+    "sku": "MED-601",
+    "name": "Digoxina 0.25mg", 
+    "value": "35000",
+    "category_name": "MEDICATION",
+    "quantity": "20",
+    "warehouse_id": "1"
+  },
+  {
+    "sku": "MED-602",
+    "name": "Furosemida 40mg",
+    "value": "18000", 
+    "category_name": "MEDICATION",
+    "quantity": "35",
+    "warehouse_id": "1"
+  },
+  {
+    "sku": "SURG-601",
+    "name": "Endoscopio Flexible",
+    "value": "450000",
+    "category_name": "SURGICAL_SUPPLIES",
+    "quantity": "2",
+    "warehouse_id": "1"
+  },
+  {
+    "sku": "REAG-601",
+    "name": "Test de Coagulación",
+    "value": "45000",
+    "category_name": "REAGENTS",
+    "quantity": "15",
+    "warehouse_id": "1"
+  },
+  {
+    "sku": "EQUIP-601",
+    "name": "Ventilador Mecánico",
+    "value": "850000",
+    "category_name": "EQUIPMENT",
+    "quantity": "1",
+    "warehouse_id": "1"
+  }
+]

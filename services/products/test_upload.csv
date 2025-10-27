@@ -1,0 +1,6 @@
+sku,name,value,category_name,quantity,warehouse_id
+MED-001,Aspirina 500mg,15000,Analgesicos,100,1
+MED-002,Acetaminofen 500mg,12000,Analgesicos,150,1
+MED-003,Ibuprofeno 400mg,18000,Analgesicos,80,1
+SURG-001,Guantes Quirurgicos,2500,Equipos Medicos,200,1
+SURG-002,Jeringas 5ml,800,Equipos Medicos,300,1

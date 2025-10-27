@@ -1,0 +1,42 @@
+[
+  {
+    "sku": "MIXED-001",
+    "name": "Producto Válido 1",
+    "value": "25000",
+    "category_name": "MEDICATION",
+    "quantity": "15",
+    "warehouse_id": "1"
+  },
+  {
+    "sku": "MIXED-002",
+    "name": "Producto Válido 2",
+    "value": "35000",
+    "category_name": "SURGICAL_SUPPLIES",
+    "quantity": "8",
+    "warehouse_id": "1"
+  },
+  {
+    "sku": "",
+    "name": "Producto Sin SKU",
+    "value": "10000",
+    "category_name": "MEDICATION",
+    "quantity": "5",
+    "warehouse_id": "1"
+  },
+  {
+    "sku": "MIXED-004",
+    "name": "Producto Válido 3",
+    "value": "45000",
+    "category_name": "EQUIPMENT",
+    "quantity": "3",
+    "warehouse_id": "1"
+  },
+  {
+    "sku": "MIXED-005",
+    "name": "Producto Valor Inválido",
+    "value": "abc",
+    "category_name": "MEDICATION",
+    "quantity": "10",
+    "warehouse_id": "1"
+  }
+]

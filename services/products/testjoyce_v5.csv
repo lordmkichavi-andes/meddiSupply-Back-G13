@@ -1,0 +1,16 @@
+sku,name,value,category_name,quantity,warehouse_id
+MED-501,Clopidogrel 75mg,30000,MEDICATION,40,1
+MED-502,Warfarina 5mg,25000,MEDICATION,25,1
+MED-503,Insulina Glargina,45000,MEDICATION,15,1
+SURG-501,Kit de Intubación,85000,SURGICAL_SUPPLIES,8,1
+SURG-502,Monitor de Signos Vitales,120000,SURGICAL_SUPPLIES,5,1
+SURG-503,Carro de Emergencia,200000,SURGICAL_SUPPLIES,2,1
+REAG-501,Test de Drogas,40000,REAGENTS,20,1
+REAG-502,Test de Alergias,32000,REAGENTS,18,1
+REAG-503,Cultivo Bacteriano,55000,REAGENTS,12,1
+EQUIP-501,Tomógrafo Portátil,2500000,EQUIPMENT,1,1
+EQUIP-502,Resonancia Magnética,5000000,EQUIPMENT,1,1
+EQUIP-503,Quirófano Móvil,1800000,EQUIPMENT,1,1
+OTH-501,Oxígeno Medicinal,12000,OTHERS,50,1
+OTH-502,Nitrógeno Líquido,25000,OTHERS,10,1
+OTH-503,Helio Medicinal,18000,OTHERS,15,1

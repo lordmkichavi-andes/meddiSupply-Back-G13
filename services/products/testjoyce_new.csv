@@ -1,0 +1,5 @@
+sku,name,value,category_name,quantity,warehouse_id
+MED-101,Ibuprofeno 400mg,12000,MEDICATION,25,1
+MED-102,Paracetamol 500mg,8000,MEDICATION,50,1
+SURG-103,Guantes Quirurgicos,2500,SURGICAL_SUPPLIES,100,1
+EQUIP-104,Termometro Digital,45000,EQUIPMENT,5,1

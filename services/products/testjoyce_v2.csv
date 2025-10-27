@@ -1,0 +1,9 @@
+sku,name,value,category_name,quantity,warehouse_id
+MED-201,Amoxicilina 500mg,15000,MEDICATION,30,1
+MED-202,Cefalexina 250mg,18000,MEDICATION,20,1
+SURG-201,Mascarilla N95,5000,SURGICAL_SUPPLIES,200,1
+SURG-202,Alcohol Isopropilico 70%,3500,SURGICAL_SUPPLIES,50,1
+REAG-201,Test Rapido COVID-19,25000,REAGENTS,15,1
+EQUIP-201,Estetoscopio Digital,75000,EQUIPMENT,3,1
+EQUIP-202,Oximetro de Pulso,35000,EQUIPMENT,8,1
+OTH-201,Algodon Estéril,2000,OTHERS,100,1

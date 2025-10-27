@@ -1,0 +1,16 @@
+sku,name,value,category_name,quantity,warehouse_id
+MED-901,Digoxina 0.25mg,35000,MEDICATION,20,1
+MED-902,Furosemida 40mg,18000,MEDICATION,35,1
+MED-903,Metoprolol 50mg,22000,MEDICATION,40,1
+SURG-901,Endoscopio Flexible,450000,SURGICAL_SUPPLIES,2,1
+SURG-902,Laparoscopio,380000,SURGICAL_SUPPLIES,1,1
+SURG-903,Microscopio Quirúrgico,650000,SURGICAL_SUPPLIES,1,1
+REAG-901,Test de Coagulación,45000,REAGENTS,25,1
+REAG-902,Test de Función Hepática,38000,REAGENTS,20,1
+REAG-903,Test de Función Renal,42000,REAGENTS,18,1
+EQUIP-901,Ventilador Mecánico,850000,EQUIPMENT,3,1
+EQUIP-902,Bomba de Infusión,120000,EQUIPMENT,8,1
+EQUIP-903,Monitor de Paciente,180000,EQUIPMENT,5,1
+OTH-901,Suero Ringer Lactato,4500,OTHERS,100,1
+OTH-902,Glucosa 5% 500ml,3800,OTHERS,150,1
+OTH-903,Cloruro de Sodio 0.9%,3200,OTHERS,200,1

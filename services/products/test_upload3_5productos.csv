@@ -1,0 +1,6 @@
+sku,name,value,category_name,quantity,warehouse_id
+MED-5001,Digoxina 0.25mg,35000,MEDICATION,20,1
+SURG-5001,Endoscopio Flexible,450000,SURGICAL_SUPPLIES,2,1
+REAG-5001,Test de Coagulación,45000,REAGENTS,25,1
+EQUIP-5001,Ventilador Mecánico,850000,EQUIPMENT,3,1
+OTH-5001,Suero Ringer Lactato,4500,OTHERS,100,1

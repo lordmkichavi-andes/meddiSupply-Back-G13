@@ -1,0 +1,42 @@
+[
+  {
+    "sku": "TEST-ERROR-001",
+    "name": "Producto Válido",
+    "value": "10000",
+    "category_name": "MEDICATION",
+    "quantity": "10",
+    "warehouse_id": "1"
+  },
+  {
+    "sku": "",
+    "name": "Producto Sin SKU",
+    "value": "5000",
+    "category_name": "MEDICATION",
+    "quantity": "5",
+    "warehouse_id": "1"
+  },
+  {
+    "sku": "TEST-ERROR-003",
+    "name": "",
+    "value": "15000",
+    "category_name": "MEDICATION",
+    "quantity": "8",
+    "warehouse_id": "1"
+  },
+  {
+    "sku": "TEST-ERROR-004",
+    "name": "Producto Valor Negativo",
+    "value": "-1000",
+    "category_name": "MEDICATION",
+    "quantity": "3",
+    "warehouse_id": "1"
+  },
+  {
+    "sku": "TEST-ERROR-005",
+    "name": "Producto Cantidad Negativa",
+    "value": "20000",
+    "category_name": "MEDICATION",
+    "quantity": "-2",
+    "warehouse_id": "1"
+  }
+]
