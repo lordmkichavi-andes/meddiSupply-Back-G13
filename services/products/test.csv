@@ -1,3 +1,5 @@
-sku,name,value,category_name,quantity,warehouse_id,image_url
-TEST001,Producto Test 1,100.50,Electr贸nicos,10,1,https://example.com/test1.jpg
-TEST002,Producto Test 2,250.75,Ropa,5,1,https://example.com/test2.jpg
+sku;nombre;descripcion;precio;categoria;stock_minimo;unidad_medida
+MED-005;Aspirina;Descripci贸n del producto 1;10000;Analg閟icos;10;unidad
+MED-007;Acetaminofen;Descripci贸n del producto 2;15000;Analg閟icos;1;caja
+SURG-002;DolexGripa;Descripci贸n del producto 3;20000;antigripal;15;litro
+LIQ-001;Suero Pedialite;Descripci贸n del producto 3;20000;Soluciones Orales;1;litro

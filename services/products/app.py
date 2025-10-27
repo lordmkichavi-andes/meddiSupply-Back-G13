@@ -211,12 +211,15 @@ def upload_products():
                 if category_result:
                     category_id = category_result['category_id']
                 else:
-                    # Crear nueva categoría si no existe
+                    # Crear nueva categoría si no existe - obtener el siguiente ID disponible
+                    cursor.execute("SELECT COALESCE(MAX(category_id), 0) + 1 FROM products.category")
+                    next_category_id = cursor.fetchone()[0]
+                    
                     cursor.execute("""
-                        INSERT INTO products.category (name) 
-                        VALUES (%s) 
+                        INSERT INTO products.category (category_id, name) 
+                        VALUES (%s, %s) 
                         RETURNING category_id
-                    """, (row['category_name'],))
+                    """, (next_category_id, row['category_name']))
                     category_id = cursor.fetchone()['category_id']
                     print(f"Nueva categoría creada: {row['category_name']} (ID: {category_id})")
                 
@@ -355,6 +358,665 @@ def upload_products():
             print("Rollback ejecutado")
         
         return jsonify({"error": "¡Ups! Hubo un problema, intenta nuevamente en unos minutos."}), 500
+        
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+        print("Conexiones cerradas")
+
+
+@app.route('/products/upload2', methods=['POST'])
+def upload_products_json():
+    print("=== INICIO UPLOAD PRODUCTS JSON ===")
+    conn = None
+    cursor = None
+    
+    try:
+        # Verificar que el contenido sea JSON
+        if not request.is_json:
+            return jsonify({
+                "success": False,
+                "message": "Content-Type debe ser application/json",
+                "total_records": 0,
+                "successful_records": 0,
+                "failed_records": 0,
+                "errors": ["Content-Type debe ser application/json"],
+                "warnings": []
+            }), 400
+        
+        # Obtener el array de productos del JSON
+        products_data = request.get_json()
+        
+        if not isinstance(products_data, list):
+            return jsonify({
+                "success": False,
+                "message": "El body debe ser un array de productos",
+                "total_records": 0,
+                "successful_records": 0,
+                "failed_records": 0,
+                "errors": ["El body debe ser un array de productos"],
+                "warnings": []
+            }), 400
+        
+        if not products_data:
+            return jsonify({
+                "success": False,
+                "message": "No se recibieron productos para procesar",
+                "total_records": 0,
+                "successful_records": 0,
+                "failed_records": 0,
+                "errors": ["No se recibieron productos para procesar"],
+                "warnings": []
+            }), 400
+        
+        print(f"Productos recibidos: {len(products_data)}")
+        
+        # Validar campos obligatorios
+        required_fields = ['sku', 'name', 'value', 'category_name', 'quantity', 'warehouse_id']
+        errors = []
+        warnings = []
+        
+        for index, product in enumerate(products_data):
+            row_num = index + 1
+            
+            # Verificar que sea un diccionario
+            if not isinstance(product, dict):
+                errors.append(f"Fila {row_num}: El producto debe ser un objeto JSON")
+                continue
+            
+            # Verificar campos obligatorios
+            for field in required_fields:
+                if field not in product or product[field] is None or str(product[field]).strip() == '':
+                    errors.append(f"Fila {row_num}: {field} es obligatorio")
+            
+            # Validaciones específicas
+            if 'sku' in product and product['sku']:
+                if len(str(product['sku']).strip()) < 3:
+                    warnings.append(f"Fila {row_num}: SKU muy corto (mínimo 3 caracteres)")
+            
+            if 'value' in product and product['value']:
+                try:
+                    value = float(str(product['value']))
+                    if value <= 0:
+                        errors.append(f"Fila {row_num}: El valor debe ser mayor a 0")
+                except (ValueError, TypeError):
+                    errors.append(f"Fila {row_num}: El valor debe ser un número válido")
+            
+            if 'quantity' in product and product['quantity']:
+                try:
+                    quantity = int(str(product['quantity']))
+                    if quantity < 0:
+                        errors.append(f"Fila {row_num}: La cantidad no puede ser negativa")
+                except (ValueError, TypeError):
+                    errors.append(f"Fila {row_num}: La cantidad debe ser un número entero válido")
+            
+            if 'warehouse_id' in product and product['warehouse_id']:
+                try:
+                    warehouse_id = int(str(product['warehouse_id']))
+                    if warehouse_id <= 0:
+                        errors.append(f"Fila {row_num}: El warehouse_id debe ser mayor a 0")
+                except (ValueError, TypeError):
+                    errors.append(f"Fila {row_num}: El warehouse_id debe ser un número entero válido")
+        
+        # Si hay errores de validación, retornar error
+        if errors:
+            return jsonify({
+                "success": False,
+                "message": "Error en la validación",
+                "total_records": len(products_data),
+                "successful_records": 0,
+                "failed_records": len(products_data),
+                "errors": errors,
+                "warnings": warnings
+            }), 400
+        
+        # Conectar a la base de datos
+        conn, cursor = product_repository._get_connection()
+        print("Conexión a BD establecida")
+        
+        # 1. Crear registro en product_uploads
+        upload_insert = """
+            INSERT INTO products.product_uploads 
+            (file_name, file_type, file_size, total_records, successful_records, failed_records, state, start_date, user_id)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, NOW(), %s)
+            RETURNING id
+        """
+        
+        cursor.execute(upload_insert, (
+            'json_upload',
+            'json',
+            0,  # file_size
+            len(products_data),
+            0,  # successful_records
+            0,  # failed_records
+            'procesando',
+            1   # user_id (hardcoded por ahora)
+        ))
+        
+        upload_id = cursor.fetchone()['id']
+        print(f"Upload ID creado: {upload_id}")
+        
+        successful_records = 0
+        failed_records = 0
+        processed_errors = []
+        
+        # 2. Procesar cada producto del JSON
+        for index, product in enumerate(products_data):
+            row_num = index + 1
+            print(f"Procesando producto {row_num}: {product.get('sku', 'N/A')}")
+            
+            try:
+                # Obtener o crear category_id
+                cursor.execute("SELECT category_id FROM products.category WHERE name = %s", (product['category_name'],))
+                category_result = cursor.fetchone()
+                
+                if category_result:
+                    category_id = category_result['category_id']
+                else:
+                    # Crear nueva categoría si no existe - obtener el siguiente ID disponible
+                    cursor.execute("SELECT COALESCE(MAX(category_id), 0) + 1 FROM products.category")
+                    next_category_id = cursor.fetchone()[0]
+                    
+                    cursor.execute("""
+                        INSERT INTO products.category (category_id, name) 
+                        VALUES (%s, %s) 
+                        RETURNING category_id
+                    """, (next_category_id, product['category_name']))
+                    category_id = cursor.fetchone()['category_id']
+                    print(f"Nueva categoría creada: {product['category_name']} (ID: {category_id})")
+                
+                # Insertar producto
+                product_insert = """
+                    INSERT INTO products.products 
+                    (sku, name, value, category_id, provider_id, status, objective_profile, unit_id)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    RETURNING product_id
+                """
+                
+                cursor.execute(product_insert, (
+                    product['sku'],
+                    product['name'],
+                    float(product['value']),
+                    category_id,
+                    1,  # provider_id (hardcoded)
+                    'activo',
+                    '',  # objective_profile
+                    1    # unit_id (hardcoded)
+                ))
+                
+                product_id = cursor.fetchone()['product_id']
+                print(f"Producto creado: {product['sku']} (ID: {product_id})")
+                
+                # Insertar stock
+                stock_insert = """
+                    INSERT INTO products.productstock 
+                    (product_id, quantity, lote, warehouse_id, provider_id, country)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                """
+                
+                cursor.execute(stock_insert, (
+                    product_id,
+                    int(product['quantity']),
+                    f"LOTE-{product['sku']}-{datetime.now().strftime('%Y%m%d')}",  # lote generado
+                    int(product['warehouse_id']),
+                    1,  # provider_id
+                    'COL'  # country (hardcoded)
+                ))
+                print(f"Stock creado para producto {product_id}")
+                
+                # Insertar en product_history
+                history_insert = """
+                    INSERT INTO products.product_history 
+                    (product_id, new_value, change_type, user_id, upload_id)
+                    VALUES (%s, %s, %s, %s, %s)
+                """
+                
+                cursor.execute(history_insert, (
+                    product_id,
+                    float(product['value']),
+                    'creacion',
+                    1,  # user_id
+                    upload_id
+                ))
+                print(f"Historial creado para producto {product_id}")
+                
+                # Insertar en product_upload_details (éxito)
+                details_insert = """
+                    INSERT INTO products.product_upload_details 
+                    (upload_id, row_id, code, name, price, category, status, product_id)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """
+                
+                cursor.execute(details_insert, (
+                    upload_id,
+                    row_num,
+                    product['sku'],
+                    product['name'],
+                    float(product['value']),
+                    product['category_name'],
+                    'exitoso',
+                    product_id
+                ))
+                
+                successful_records += 1
+                print(f"Producto {row_num} procesado exitosamente")
+                
+            except Exception as row_error:
+                error_msg = f"Fila {row_num}: {str(row_error)}"
+                print(f"Error en producto {row_num}: {str(row_error)}")
+                processed_errors.append(error_msg)
+                
+                # Insertar en product_upload_details (fallo)
+                details_insert = """
+                    INSERT INTO products.product_upload_details 
+                    (upload_id, row_id, code, name, price, category, status, errors)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """
+                
+                cursor.execute(details_insert, (
+                    upload_id,
+                    row_num,
+                    product.get('sku', 'N/A'),
+                    product.get('name', 'N/A'),
+                    float(product.get('value', 0)),
+                    product.get('category_name', 'N/A'),
+                    'fallido',
+                    str(row_error)
+                ))
+                
+                failed_records += 1
+        
+        # 3. Actualizar product_uploads con resultados finales
+        update_upload = """
+            UPDATE products.product_uploads 
+            SET successful_records = %s, failed_records = %s, state = %s, end_date = NOW()
+            WHERE id = %s
+        """
+        
+        cursor.execute(update_upload, (
+            successful_records,
+            failed_records,
+            'completado',
+            upload_id
+        ))
+        
+        # Commit de la transacción
+        conn.commit()
+        print(f"Transacción completada. Exitosos: {successful_records}, Fallidos: {failed_records}")
+        
+        # Determinar si fue exitoso
+        success = failed_records == 0
+        
+        return jsonify({
+            "success": success,
+            "message": f"Procesados {len(products_data)} productos" if success else f"Procesados {len(products_data)} productos con {failed_records} errores",
+            "total_records": len(products_data),
+            "successful_records": successful_records,
+            "failed_records": failed_records,
+            "upload_id": upload_id,
+            "errors": processed_errors,
+            "warnings": warnings
+        })
+        
+    except Exception as e:
+        print(f"ERROR en upload JSON: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        
+        if conn:
+            conn.rollback()
+            print("Rollback ejecutado")
+        
+        return jsonify({
+            "success": False,
+            "message": "Error interno del servidor",
+            "total_records": len(products_data) if 'products_data' in locals() else 0,
+            "successful_records": 0,
+            "failed_records": len(products_data) if 'products_data' in locals() else 0,
+            "errors": [f"Error interno: {str(e)}"],
+            "warnings": []
+        }), 500
+        
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+        print("Conexiones cerradas")
+
+
+@app.route('/products/upload3', methods=['POST'])
+def upload_products_string():
+    print("=== INICIO UPLOAD PRODUCTS STRING ===")
+    conn = None
+    cursor = None
+    
+    try:
+        # Obtener los datos como cadena de texto
+        data_string = request.get_data(as_text=True)
+        
+        if not data_string or data_string.strip() == '':
+            return jsonify({
+                "success": False,
+                "message": "No se recibieron datos para procesar",
+                "total_records": 0,
+                "successful_records": 0,
+                "failed_records": 0,
+                "errors": ["No se recibieron datos para procesar"],
+                "warnings": []
+            }), 400
+        
+        print(f"Datos recibidos como string: {data_string[:200]}...")
+        
+        # Limpiar el string (remover espacios en blanco al inicio y final)
+        data_string = data_string.strip()
+        
+        # Intentar parsear como JSON
+        try:
+            products_data = json.loads(data_string)
+        except json.JSONDecodeError as e:
+            return jsonify({
+                "success": False,
+                "message": "Error al parsear JSON",
+                "total_records": 0,
+                "successful_records": 0,
+                "failed_records": 0,
+                "errors": [f"Error de sintaxis JSON: {str(e)}"],
+                "warnings": []
+            }), 400
+        
+        # Verificar que sea un array
+        if not isinstance(products_data, list):
+            return jsonify({
+                "success": False,
+                "message": "Los datos deben ser un array de productos",
+                "total_records": 0,
+                "successful_records": 0,
+                "failed_records": 0,
+                "errors": ["Los datos deben ser un array de productos"],
+                "warnings": []
+            }), 400
+        
+        if not products_data:
+            return jsonify({
+                "success": False,
+                "message": "No se recibieron productos para procesar",
+                "total_records": 0,
+                "successful_records": 0,
+                "failed_records": 0,
+                "errors": ["No se recibieron productos para procesar"],
+                "warnings": []
+            }), 400
+        
+        print(f"Productos parseados: {len(products_data)}")
+        
+        # Validar campos obligatorios
+        required_fields = ['sku', 'name', 'value', 'category_name', 'quantity', 'warehouse_id']
+        errors = []
+        warnings = []
+        
+        for index, product in enumerate(products_data):
+            row_num = index + 1
+            
+            # Verificar que sea un diccionario
+            if not isinstance(product, dict):
+                errors.append(f"Fila {row_num}: El producto debe ser un objeto JSON")
+                continue
+            
+            # Verificar campos obligatorios
+            for field in required_fields:
+                if field not in product or product[field] is None or str(product[field]).strip() == '':
+                    errors.append(f"Fila {row_num}: {field} es obligatorio")
+            
+            # Validaciones específicas
+            if 'sku' in product and product['sku']:
+                if len(str(product['sku']).strip()) < 3:
+                    warnings.append(f"Fila {row_num}: SKU muy corto (mínimo 3 caracteres)")
+            
+            if 'value' in product and product['value']:
+                try:
+                    value = float(str(product['value']))
+                    if value <= 0:
+                        errors.append(f"Fila {row_num}: El valor debe ser mayor a 0")
+                except (ValueError, TypeError):
+                    errors.append(f"Fila {row_num}: El valor debe ser un número válido")
+            
+            if 'quantity' in product and product['quantity']:
+                try:
+                    quantity = int(str(product['quantity']))
+                    if quantity < 0:
+                        errors.append(f"Fila {row_num}: La cantidad no puede ser negativa")
+                except (ValueError, TypeError):
+                    errors.append(f"Fila {row_num}: La cantidad debe ser un número entero válido")
+            
+            if 'warehouse_id' in product and product['warehouse_id']:
+                try:
+                    warehouse_id = int(str(product['warehouse_id']))
+                    if warehouse_id <= 0:
+                        errors.append(f"Fila {row_num}: El warehouse_id debe ser mayor a 0")
+                except (ValueError, TypeError):
+                    errors.append(f"Fila {row_num}: El warehouse_id debe ser un número entero válido")
+        
+        # Si hay errores de validación, retornar error
+        if errors:
+            return jsonify({
+                "success": False,
+                "message": "Error en la validación",
+                "total_records": len(products_data),
+                "successful_records": 0,
+                "failed_records": len(products_data),
+                "errors": errors,
+                "warnings": warnings
+            }), 400
+        
+        # Conectar a la base de datos
+        conn, cursor = product_repository._get_connection()
+        print("Conexión a BD establecida")
+        
+        # 1. Crear registro en product_uploads
+        upload_insert = """
+            INSERT INTO products.product_uploads 
+            (file_name, file_type, file_size, total_records, successful_records, failed_records, state, start_date, user_id)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, NOW(), %s)
+            RETURNING id
+        """
+        
+        cursor.execute(upload_insert, (
+            'string_upload',
+            'string',
+            len(data_string),  # file_size basado en la longitud del string
+            len(products_data),
+            0,  # successful_records
+            0,  # failed_records
+            'procesando',
+            1   # user_id (hardcoded por ahora)
+        ))
+        
+        upload_id = cursor.fetchone()['id']
+        print(f"Upload ID creado: {upload_id}")
+        
+        successful_records = 0
+        failed_records = 0
+        processed_errors = []
+        
+        # 2. Procesar cada producto del JSON
+        for index, product in enumerate(products_data):
+            row_num = index + 1
+            print(f"Procesando producto {row_num}: {product.get('sku', 'N/A')}")
+            
+            try:
+                # Obtener o crear category_id
+                cursor.execute("SELECT category_id FROM products.category WHERE name = %s", (product['category_name'],))
+                category_result = cursor.fetchone()
+                
+                if category_result:
+                    category_id = category_result['category_id']
+                else:
+                    # Crear nueva categoría si no existe - obtener el siguiente ID disponible
+                    cursor.execute("SELECT COALESCE(MAX(category_id), 0) + 1 FROM products.category")
+                    next_category_id = cursor.fetchone()[0]
+                    
+                    cursor.execute("""
+                        INSERT INTO products.category (category_id, name) 
+                        VALUES (%s, %s) 
+                        RETURNING category_id
+                    """, (next_category_id, product['category_name']))
+                    category_id = cursor.fetchone()['category_id']
+                    print(f"Nueva categoría creada: {product['category_name']} (ID: {category_id})")
+                
+                # Insertar producto
+                product_insert = """
+                    INSERT INTO products.products 
+                    (sku, name, value, category_id, provider_id, status, objective_profile, unit_id)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    RETURNING product_id
+                """
+                
+                cursor.execute(product_insert, (
+                    product['sku'],
+                    product['name'],
+                    float(product['value']),
+                    category_id,
+                    1,  # provider_id (hardcoded)
+                    'activo',
+                    '',  # objective_profile
+                    1    # unit_id (hardcoded)
+                ))
+                
+                product_id = cursor.fetchone()['product_id']
+                print(f"Producto creado: {product['sku']} (ID: {product_id})")
+                
+                # Insertar stock
+                stock_insert = """
+                    INSERT INTO products.productstock 
+                    (product_id, quantity, lote, warehouse_id, provider_id, country)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                """
+                
+                cursor.execute(stock_insert, (
+                    product_id,
+                    int(product['quantity']),
+                    f"LOTE-{product['sku']}-{datetime.now().strftime('%Y%m%d')}",  # lote generado
+                    int(product['warehouse_id']),
+                    1,  # provider_id
+                    'COL'  # country (hardcoded)
+                ))
+                print(f"Stock creado para producto {product_id}")
+                
+                # Insertar en product_history
+                history_insert = """
+                    INSERT INTO products.product_history 
+                    (product_id, new_value, change_type, user_id, upload_id)
+                    VALUES (%s, %s, %s, %s, %s)
+                """
+                
+                cursor.execute(history_insert, (
+                    product_id,
+                    float(product['value']),
+                    'creacion',
+                    1,  # user_id
+                    upload_id
+                ))
+                print(f"Historial creado para producto {product_id}")
+                
+                # Insertar en product_upload_details (éxito)
+                details_insert = """
+                    INSERT INTO products.product_upload_details 
+                    (upload_id, row_id, code, name, price, category, status, product_id)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """
+                
+                cursor.execute(details_insert, (
+                    upload_id,
+                    row_num,
+                    product['sku'],
+                    product['name'],
+                    float(product['value']),
+                    product['category_name'],
+                    'exitoso',
+                    product_id
+                ))
+                
+                successful_records += 1
+                print(f"Producto {row_num} procesado exitosamente")
+                
+            except Exception as row_error:
+                error_msg = f"Fila {row_num}: {str(row_error)}"
+                print(f"Error en producto {row_num}: {str(row_error)}")
+                processed_errors.append(error_msg)
+                
+                # Insertar en product_upload_details (fallo)
+                details_insert = """
+                    INSERT INTO products.product_upload_details 
+                    (upload_id, row_id, code, name, price, category, status, errors)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """
+                
+                cursor.execute(details_insert, (
+                    upload_id,
+                    row_num,
+                    product.get('sku', 'N/A'),
+                    product.get('name', 'N/A'),
+                    float(product.get('value', 0)),
+                    product.get('category_name', 'N/A'),
+                    'fallido',
+                    str(row_error)
+                ))
+                
+                failed_records += 1
+        
+        # 3. Actualizar product_uploads con resultados finales
+        update_upload = """
+            UPDATE products.product_uploads 
+            SET successful_records = %s, failed_records = %s, state = %s, end_date = NOW()
+            WHERE id = %s
+        """
+        
+        cursor.execute(update_upload, (
+            successful_records,
+            failed_records,
+            'completado',
+            upload_id
+        ))
+        
+        # Commit de la transacción
+        conn.commit()
+        print(f"Transacción completada. Exitosos: {successful_records}, Fallidos: {failed_records}")
+        
+        # Determinar si fue exitoso
+        success = failed_records == 0
+        
+        return jsonify({
+            "success": success,
+            "message": f"Procesados {len(products_data)} productos" if success else f"Procesados {len(products_data)} productos con {failed_records} errores",
+            "total_records": len(products_data),
+            "successful_records": successful_records,
+            "failed_records": failed_records,
+            "upload_id": upload_id,
+            "errors": processed_errors,
+            "warnings": warnings
+        })
+        
+    except Exception as e:
+        print(f"ERROR en upload string: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        
+        if conn:
+            conn.rollback()
+            print("Rollback ejecutado")
+        
+        return jsonify({
+            "success": False,
+            "message": "Error interno del servidor",
+            "total_records": len(products_data) if 'products_data' in locals() else 0,
+            "successful_records": 0,
+            "failed_records": len(products_data) if 'products_data' in locals() else 0,
+            "errors": [f"Error interno: {str(e)}"],
+            "warnings": []
+        }), 500
         
     finally:
         if cursor:

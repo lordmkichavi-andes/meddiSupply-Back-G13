@@ -39,9 +39,12 @@ def initialize_database():
     if not os.path.exists(INSERT_DATA_FILE):
         print(f"⚠️  ADVERTENCIA: No se encuentra {INSERT_DATA_FILE}")
 
+    # Cargar el esquema principal desde el archivo simple_schema.sql
+    SCHEMA_FILE = 'simple_schema.sql'
+    SCHEMA_SQL = _read_sql_file(SCHEMA_FILE)
+    
     # Cargar los scripts SQL desde archivos
     INSERT_DATA_SQL = _read_sql_file(INSERT_DATA_FILE)
-
 
     conn = None
     try:
@@ -50,7 +53,17 @@ def initialize_database():
 
         print("📊 Ejecutando scripts de creación de esquema...")
 
-        # 1. Crear Tablas
+        # 1. Crear Tablas (Ejecuta el script de esquema)
+        if SCHEMA_SQL:
+            try:
+                cursor.execute(SCHEMA_SQL)
+                conn.commit()
+                print("✅ Esquema creado correctamente.")
+            except psycopg2.Error as pe:
+                print(f"⚠️  ADVERTENCIA: Error al crear esquema (posiblemente ya existe): {pe}")
+                conn.rollback()
+
+        # 2. Insertar Datos de prueba
         if INSERT_DATA_SQL:
             try:
                 cursor.execute(INSERT_DATA_SQL)
