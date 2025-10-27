@@ -216,8 +216,8 @@ def upload_products():
                     next_category_id = cursor.fetchone()[0]
                     
                     cursor.execute("""
-                        INSERT INTO products.category (category_id, name) 
-                        VALUES (%s, %s) 
+                        INSERT INTO products.category (name) 
+                        VALUES (%s) 
                         RETURNING category_id
                     """, (next_category_id, row['category_name']))
                     category_id = cursor.fetchone()['category_id']
