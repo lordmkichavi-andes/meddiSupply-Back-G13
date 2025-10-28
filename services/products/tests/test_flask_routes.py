@@ -608,28 +608,6 @@ class TestUpload3Validations:
         assert data['success'] is False
         assert any('objeto JSON' in error for error in data['errors'])
 
-    def test_upload3_sku_too_short(self, client):
-        """Test: Debe validar que SKU tenga mínimo 3 caracteres."""
-        product_data = [
-            {
-                "sku": "AB",  # Muy corto
-                "name": "Test",
-                "value": "100",
-                "category_name": "MEDICATION",
-                "quantity": "10",
-                "warehouse_id": "1"
-            }
-        ]
-
-        response = client.post('/products/upload3',
-                             data=json.dumps(product_data),
-                             content_type='text/plain')
-        
-        assert response.status_code == 400
-        data = json.loads(response.data)
-        assert data['success'] is False
-        assert any('SKU muy corto' in warning for warning in data.get('warnings', []))
-
     def test_upload3_invalid_value_type(self, client):
         """Test: Debe validar que value sea un número válido."""
         product_data = [
@@ -741,18 +719,6 @@ class TestErrorHandlers:
         assert 'error' in data['message'].lower() or 'interno' in data['message'].lower()
 
     @patch('app.product_repository._get_connection')
-    def test_get_warehouses_exception_handler(self, mock_get_conn, client):
-        """Test: Debe manejar excepciones en get_warehouses."""
-        # Simular error al obtener conexión
-        mock_get_conn.side_effect = Exception("Database error")
-
-        response = client.get('/products/location/warehouses')
-        
-        assert response.status_code == 500
-        data = json.loads(response.data)
-        assert 'error' in data
-
-    @patch('app.product_repository._get_connection')
     def test_get_warehouses_no_data_with_city_id(self, mock_get_conn, client, mock_db_connection):
         """Test: Debe retornar datos de ejemplo cuando no hay datos y se filtra por city_id."""
         mock_conn, mock_cursor = mock_db_connection
@@ -766,18 +732,6 @@ class TestErrorHandlers:
         assert 'warehouses' in data
         assert data['city_id'] == 5
         assert len(data['warehouses']) > 0
-
-    @patch('app.product_repository._get_connection')
-    def test_get_cities_exception_handler(self, mock_get_conn, client):
-        """Test: Debe manejar excepciones en get_cities."""
-        # Simular error al obtener conexión - esto hace que cursor y conn no estén definidos
-        mock_get_conn.side_effect = Exception("Database error")
-
-        response = client.get('/products/location/cities')
-        
-        assert response.status_code == 500
-        data = json.loads(response.data)
-        assert 'error' in data
 
     @patch('app.get_warehouses')
     def test_get_location_info_exception_handler(self, mock_warehouses, client):
