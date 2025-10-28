@@ -1,3 +1,4 @@
+import random
 from flask import Blueprint, jsonify
 from ..db import get_vehiculos, get_clientes, get_clientes_by_seller
 from ..models import Vehiculo, Cliente
@@ -30,9 +31,15 @@ def get_clients():
 @routes_bp.get('/seller/<int:seller_ID>')
 def get_seller_daily_routes(seller_ID):
     clients_data = get_clientes_by_seller(seller_ID)
+    # El número de clientes a visitar es aleatorio, pero no puede exceder el total disponible.
+    num_clientes_a_visitar = random.randint(1, min(5, len(clients_data)))
+
+    # 4. Seleccionar aleatoriamente el subconjunto de clientes
+    # random.sample garantiza la selección sin reemplazo
+    clientes_seleccionados = random.sample(clients_data, num_clientes_a_visitar)
 
     # 1. Llamar a la función y capturar el resultado
-    route_result = generate_optimized_route(clients_data)
+    route_result = generate_optimized_route(clientes_seleccionados)
 
 
     # 2. Retornar el resultado de la ruta
