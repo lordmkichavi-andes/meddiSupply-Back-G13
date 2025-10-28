@@ -18,7 +18,6 @@ def get_connection():
             database=os.getenv('DB_NAME', 'postgres'),
             user=os.getenv('DB_USER', 'postgres'),
             password=os.getenv('DB_PASSWORD'),
-            sslmode='require'
         )
         return conn
     except Exception as e:
@@ -84,3 +83,23 @@ def get_clientes() -> List[Dict[str, Any]]:
     result = execute_query(query, fetch_all=True)
     return result or []
 
+def get_clientes_by_seller(seller_id: int) -> List[Dict[str, Any]]:
+    """Obtiene todos los clientes."""
+    query = """
+    SELECT
+    c.client_id AS id,
+    c.name AS nombre,
+    c.address AS direccion,
+    c.latitude AS latitud,
+    c.longitude AS longitud
+    FROM
+        users.Clients c
+    LEFT JOIN
+        orders.Orders o ON c.client_id = o.client_id
+    WHERE
+        c.seller_id = %s
+    GROUP BY
+        c.client_id, c.name, c.address, c.latitude, c.longitude
+    """
+    result = execute_query(query, (seller_id,), fetch_all=True)
+    return result or []
