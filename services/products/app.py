@@ -1572,7 +1572,7 @@ def get_products_by_city_id(city_id):
         conn, cursor = product_repository._get_connection()
         
         cursor.execute("""
-            SELECT DISTINCT
+            SELECT 
                 p.product_id,
                 p.sku,
                 p.name,
@@ -1580,16 +1580,26 @@ def get_products_by_city_id(city_id):
                 p.status,
                 c.name as category_name,
                 ci.name as city_name,
+                ci.city_id,
+                ci.country,
                 w.name as warehouse_name,
-                SUM(ps.quantity) as total_stock
+                w.warehouse_id,
+                ps.quantity,
+                ps.lote,
+                ps.expiry_date,
+                ps.reserved_quantity,
+                wl.section,
+                wl.aisle,
+                wl.shelf,
+                wl."level"
             FROM products.products p
             JOIN products.productstock ps ON p.product_id = ps.product_id
             JOIN products.warehouses w ON ps.warehouse_id = w.warehouse_id
             JOIN products.cities ci ON w.city_id = ci.city_id
             JOIN products.category c ON p.category_id = c.category_id
+            LEFT JOIN products.warehouse_locations wl ON ps.location_id = wl.location_id
             WHERE ci.city_id = %s AND p.status = 'activo' AND ps.quantity > 0
-            GROUP BY p.product_id, p.sku, p.name, p.value, p.status, c.name, ci.name, w.name
-            ORDER BY total_stock DESC
+            ORDER BY ps.quantity DESC
         """, (city_id,))
         
         products = cursor.fetchall()
@@ -1635,14 +1645,23 @@ def get_products_by_warehouse_id(warehouse_id):
                 c.name as category_name,
                 w.name as warehouse_name,
                 ci.name as city_name,
+                ci.city_id,
+                ci.country,
                 ps.quantity,
                 ps.lote,
-                ps.country
+                ps.country as stock_country,
+                ps.expiry_date,
+                ps.reserved_quantity,
+                wl.section,
+                wl.aisle,
+                wl.shelf,
+                wl."level"
             FROM products.products p
             JOIN products.productstock ps ON p.product_id = ps.product_id
             JOIN products.warehouses w ON ps.warehouse_id = w.warehouse_id
             JOIN products.cities ci ON w.city_id = ci.city_id
             JOIN products.category c ON p.category_id = c.category_id
+            LEFT JOIN products.warehouse_locations wl ON ps.location_id = wl.location_id
             WHERE ps.warehouse_id = %s AND p.status = 'activo' {quantity_filter}
             ORDER BY ps.quantity DESC
         """
@@ -1654,14 +1673,35 @@ def get_products_by_warehouse_id(warehouse_id):
         # Verificar si se quiere incluir las ubicaciones (locations) de cada producto
         include_locations = request.args.get('include_locations', 'false').lower() == 'true'
         
-        # Si se requiere incluir locations, buscar todas las ubicaciones de cada producto
+        # Si se requiere incluir locations, agrupar por producto y calcular totales
         if include_locations:
-            products_with_locations = []
+            # Agrupar productos y calcular total por producto en esta bodega
+            products_dict = {}
             for product in products:
-                product_dict = dict(product)
-                product_id = product_dict['product_id']
-                
-                # Buscar todas las ubicaciones donde este producto tiene stock
+                product_id = product['product_id']
+                if product_id not in products_dict:
+                    products_dict[product_id] = {
+                        'product_id': product['product_id'],
+                        'sku': product['sku'],
+                        'name': product['name'],
+                        'value': product['value'],
+                        'status': product['status'],
+                        'category_name': product['category_name'],
+                        'warehouse_name': product['warehouse_name'],
+                        'city_name': product['city_name'],
+                        'city_id': product['city_id'],
+                        'country': product['country'],
+                        'stock_country': product['stock_country'],
+                        'total_quantity': 0,
+                        'locations': []
+                    }
+                # Sumar la cantidad
+                products_dict[product_id]['total_quantity'] += product['quantity']
+            
+            # Ahora buscar todos los lotes para cada producto (solo de esta bodega)
+            products_with_locations = []
+            for product_id, product_info in products_dict.items():
+                # Buscar todas las ubicaciones donde este producto tiene stock EN ESTA BODEGA
                 locations_query = """
                     SELECT 
                         w.warehouse_id,
@@ -1670,20 +1710,29 @@ def get_products_by_warehouse_id(warehouse_id):
                         ci.name as city_name,
                         ci.country,
                         ps.quantity,
-                        ps.lote
+                        ps.lote,
+                        ps.expiry_date,
+                        ps.reserved_quantity,
+                        wl.section,
+                        wl.aisle,
+                        wl.shelf,
+                        wl."level"
                     FROM products.productstock ps
                     JOIN products.warehouses w ON ps.warehouse_id = w.warehouse_id
                     JOIN products.cities ci ON w.city_id = ci.city_id
-                    WHERE ps.product_id = %s AND w.active = true
+                    LEFT JOIN products.warehouse_locations wl ON ps.location_id = wl.location_id
+                    WHERE ps.product_id = %s AND ps.warehouse_id = %s AND w.active = true
                     ORDER BY ps.quantity DESC
                 """
                 
-                cursor.execute(locations_query, (product_id,))
+                cursor.execute(locations_query, (product_id, warehouse_id))
                 locations = cursor.fetchall()
                 
                 # Agregar el array locations al producto
-                product_dict['locations'] = [dict(loc) for loc in locations]
-                products_with_locations.append(product_dict)
+                product_info['locations'] = [dict(loc) for loc in locations]
+                # Usar total_quantity como quantity principal
+                product_info['quantity'] = product_info['total_quantity']
+                products_with_locations.append(product_info)
             
             return jsonify({
                 "success": True,
@@ -1691,11 +1740,19 @@ def get_products_by_warehouse_id(warehouse_id):
                 "products": products_with_locations
             })
         else:
-            # Respuesta sin locations (comportamiento por defecto)
+            # Sin locations: agrupar por producto y sumar cantidades
+            products_dict = {}
+            for product in products:
+                product_id = product['product_id']
+                if product_id not in products_dict:
+                    products_dict[product_id] = dict(product)
+                    products_dict[product_id]['quantity'] = 0
+                products_dict[product_id]['quantity'] += product['quantity']
+            
             return jsonify({
                 "success": True,
                 "warehouse_id": warehouse_id,
-                "products": products
+                "products": list(products_dict.values())
             })
         
     except Exception as e:
