@@ -1030,35 +1030,63 @@ def upload_products_string():
 def get_warehouses():
     """
     Endpoint para obtener la lista de almacenes disponibles.
+    Parámetro opcional: city_id - Si se proporciona, filtra almacenes por ciudad.
     """
     try:
+        # Obtener parámetro opcional city_id
+        city_id = request.args.get('city_id', type=int)
+        
         conn, cursor = product_repository._get_connection()
         
-        # Consulta para obtener almacenes
-        query = """
-            SELECT DISTINCT 
-                warehouse_id,
-                warehouse_id as name,
-                'Almacén ' || warehouse_id as description
-            FROM products.productstock 
-            WHERE warehouse_id IS NOT NULL
-            ORDER BY warehouse_id
-        """
+        # Consulta base para obtener almacenes
+        if city_id:
+            # Si se proporciona city_id, filtrar por ciudad (usando datos de ejemplo)
+            # Como no hay relación directa entre warehouse y city en la BD actual,
+            # devolvemos almacenes con información de ciudad simulada
+            query = """
+                SELECT DISTINCT 
+                    ps.warehouse_id,
+                    ps.warehouse_id as name,
+                    'Almacén ' || ps.warehouse_id as description,
+                    'Ciudad ' || %s as city_name,
+                    ps.country
+                FROM products.productstock ps
+                WHERE ps.warehouse_id IS NOT NULL
+                ORDER BY ps.warehouse_id
+            """
+            cursor.execute(query, (city_id,))
+        else:
+            # Si no se proporciona city_id, devolver todos los almacenes
+            query = """
+                SELECT DISTINCT 
+                    warehouse_id,
+                    warehouse_id as name,
+                    'Almacén ' || warehouse_id as description
+                FROM products.productstock 
+                WHERE warehouse_id IS NOT NULL
+                ORDER BY warehouse_id
+            """
+            cursor.execute(query)
         
-        cursor.execute(query)
         warehouses = cursor.fetchall()
         
         # Si no hay datos en productstock, crear datos de ejemplo
         if not warehouses:
-            warehouses = [
-                {'warehouse_id': 1, 'name': 'Almacén Principal', 'description': 'Almacén Principal - Bogotá'},
-                {'warehouse_id': 2, 'name': 'Almacén Norte', 'description': 'Almacén Norte - Medellín'},
-                {'warehouse_id': 3, 'name': 'Almacén Sur', 'description': 'Almacén Sur - Cali'}
-            ]
+            if city_id:
+                warehouses = [
+                    {'warehouse_id': 1, 'name': 'Almacén Principal', 'description': 'Almacén Principal - Ciudad ' + str(city_id), 'city_name': 'Ciudad ' + str(city_id), 'country': 'COL'}
+                ]
+            else:
+                warehouses = [
+                    {'warehouse_id': 1, 'name': 'Almacén Principal', 'description': 'Almacén Principal - Bogotá'},
+                    {'warehouse_id': 2, 'name': 'Almacén Norte', 'description': 'Almacén Norte - Medellín'},
+                    {'warehouse_id': 3, 'name': 'Almacén Sur', 'description': 'Almacén Sur - Cali'}
+                ]
         
         return jsonify({
             'warehouses': warehouses,
-            'total': len(warehouses)
+            'total': len(warehouses),
+            'city_id': city_id if city_id else None
         }), 200
         
     except Exception as e:
@@ -1154,12 +1182,18 @@ def get_location_info():
         cities_response = get_cities()
         cities_data = cities_response[0].get_json() if cities_response[1] == 200 else {'cities': []}
         
+        # Obtener productos disponibles
+        products_response = product_service.list_available_products()
+        products = products_response if products_response else []
+        
         return jsonify({
             'warehouses': warehouses_data.get('warehouses', []),
             'cities': cities_data.get('cities', []),
+            'products': products,
             'summary': {
                 'total_warehouses': len(warehouses_data.get('warehouses', [])),
                 'total_cities': len(cities_data.get('cities', [])),
+                'total_products': len(products),
                 'countries': list(set([city.get('country') for city in cities_data.get('cities', [])]))
             }
         }), 200
@@ -1182,15 +1216,24 @@ def get_products_by_warehouse(warehouse_id):
         conn, cursor = product_repository._get_connection()
         print("Conexión a BD establecida")
         
-        # Consulta simplificada para debuggear
+        # Consulta con campos adicionales para cada producto
         query = """
             SELECT 
                 p.product_id,
                 p.sku,
                 p.name,
+                p.value,
+                p.image_url,
+                p.status as product_status,
+                p.creation_date,
                 c.name as category_name,
                 ps.quantity,
-                ps.warehouse_id
+                ps.warehouse_id,
+                ps.lote,
+                ps.country,
+                ps.expiry_date,
+                ps.status as stock_status,
+                ps.last_movement_date
             FROM products.products p
             JOIN products.productstock ps ON p.product_id = ps.product_id
             JOIN products.category c ON p.category_id = c.category_id
