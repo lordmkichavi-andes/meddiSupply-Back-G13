@@ -1026,6 +1026,221 @@ def upload_products_string():
         print("Conexiones cerradas")
 
 
+@app.route('/products/location/warehouses', methods=['GET'])
+def get_warehouses():
+    """
+    Endpoint para obtener la lista de almacenes disponibles.
+    """
+    try:
+        conn, cursor = product_repository._get_connection()
+        
+        # Consulta para obtener almacenes
+        query = """
+            SELECT DISTINCT 
+                warehouse_id,
+                warehouse_id as name,
+                'Almacén ' || warehouse_id as description
+            FROM products.productstock 
+            WHERE warehouse_id IS NOT NULL
+            ORDER BY warehouse_id
+        """
+        
+        cursor.execute(query)
+        warehouses = cursor.fetchall()
+        
+        # Si no hay datos en productstock, crear datos de ejemplo
+        if not warehouses:
+            warehouses = [
+                {'warehouse_id': 1, 'name': 'Almacén Principal', 'description': 'Almacén Principal - Bogotá'},
+                {'warehouse_id': 2, 'name': 'Almacén Norte', 'description': 'Almacén Norte - Medellín'},
+                {'warehouse_id': 3, 'name': 'Almacén Sur', 'description': 'Almacén Sur - Cali'}
+            ]
+        
+        return jsonify({
+            'warehouses': warehouses,
+            'total': len(warehouses)
+        }), 200
+        
+    except Exception as e:
+        print(f"Error en get_warehouses: {str(e)}")
+        return jsonify({'error': 'Error interno del servidor'}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+
+@app.route('/products/location/cities', methods=['GET'])
+def get_cities():
+    """
+    Endpoint para obtener la lista de ciudades disponibles.
+    """
+    try:
+        conn, cursor = product_repository._get_connection()
+        
+        # Consulta para obtener ciudades basadas en los datos de productstock
+        query = """
+            SELECT DISTINCT 
+                country,
+                CASE 
+                    WHEN country = 'COL' THEN 'Colombia'
+                    WHEN country = 'MEX' THEN 'México'
+                    WHEN country = 'ARG' THEN 'Argentina'
+                    ELSE country
+                END as country_name
+            FROM products.productstock 
+            WHERE country IS NOT NULL
+            ORDER BY country
+        """
+        
+        cursor.execute(query)
+        countries = cursor.fetchall()
+        
+        # Si no hay datos, crear datos de ejemplo
+        if not countries:
+            countries = [
+                {'country': 'COL', 'country_name': 'Colombia'},
+                {'country': 'MEX', 'country_name': 'México'},
+                {'country': 'ARG', 'country_name': 'Argentina'}
+            ]
+        
+        # Crear ciudades de ejemplo basadas en países
+        cities = []
+        for country in countries:
+            if country['country'] == 'COL':
+                cities.extend([
+                    {'city_id': 1, 'name': 'Bogotá', 'country': country['country'], 'country_name': country['country_name']},
+                    {'city_id': 2, 'name': 'Medellín', 'country': country['country'], 'country_name': country['country_name']},
+                    {'city_id': 3, 'name': 'Cali', 'country': country['country'], 'country_name': country['country_name']}
+                ])
+            elif country['country'] == 'MEX':
+                cities.extend([
+                    {'city_id': 4, 'name': 'Ciudad de México', 'country': country['country'], 'country_name': country['country_name']},
+                    {'city_id': 5, 'name': 'Guadalajara', 'country': country['country'], 'country_name': country['country_name']}
+                ])
+            elif country['country'] == 'ARG':
+                cities.extend([
+                    {'city_id': 6, 'name': 'Buenos Aires', 'country': country['country'], 'country_name': country['country_name']},
+                    {'city_id': 7, 'name': 'Córdoba', 'country': country['country'], 'country_name': country['country_name']}
+                ])
+        
+        return jsonify({
+            'cities': cities,
+            'total': len(cities)
+        }), 200
+        
+    except Exception as e:
+        print(f"Error en get_cities: {str(e)}")
+        return jsonify({'error': 'Error interno del servidor'}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+
+@app.route('/products/location', methods=['GET'])
+def get_location_info():
+    """
+    Endpoint para obtener información completa de ubicaciones (almacenes y ciudades).
+    """
+    try:
+        # Obtener almacenes
+        warehouses_response = get_warehouses()
+        warehouses_data = warehouses_response[0].get_json() if warehouses_response[1] == 200 else {'warehouses': []}
+        
+        # Obtener ciudades
+        cities_response = get_cities()
+        cities_data = cities_response[0].get_json() if cities_response[1] == 200 else {'cities': []}
+        
+        return jsonify({
+            'warehouses': warehouses_data.get('warehouses', []),
+            'cities': cities_data.get('cities', []),
+            'summary': {
+                'total_warehouses': len(warehouses_data.get('warehouses', [])),
+                'total_cities': len(cities_data.get('cities', [])),
+                'countries': list(set([city.get('country') for city in cities_data.get('cities', [])]))
+            }
+        }), 200
+        
+    except Exception as e:
+        print(f"Error en get_location_info: {str(e)}")
+        return jsonify({'error': 'Error interno del servidor'}), 500
+
+
+@app.route('/products/warehouse/<int:warehouse_id>', methods=['GET'])
+def get_products_by_warehouse(warehouse_id):
+    """
+    Endpoint para obtener todos los productos de una bodega específica.
+    """
+    conn = None
+    cursor = None
+    try:
+        print(f"=== INICIO get_products_by_warehouse para warehouse_id: {warehouse_id} ===")
+        
+        conn, cursor = product_repository._get_connection()
+        print("Conexión a BD establecida")
+        
+        # Consulta simplificada para debuggear
+        query = """
+            SELECT 
+                p.product_id,
+                p.sku,
+                p.name,
+                c.name as category_name,
+                ps.quantity,
+                ps.warehouse_id
+            FROM products.products p
+            JOIN products.productstock ps ON p.product_id = ps.product_id
+            JOIN products.category c ON p.category_id = c.category_id
+            WHERE ps.warehouse_id = %s
+            ORDER BY p.name
+            LIMIT 10
+        """
+        
+        print(f"Ejecutando consulta para warehouse_id: {warehouse_id}")
+        cursor.execute(query, (warehouse_id,))
+        products = cursor.fetchall()
+        print(f"Productos encontrados: {len(products)}")
+        
+        if not products:
+            return jsonify({
+                'warehouse_id': warehouse_id,
+                'products': [],
+                'total_products': 0,
+                'total_quantity': 0,
+                'message': f'No se encontraron productos en la bodega {warehouse_id}'
+            }), 200
+        
+        # Calcular totales
+        total_quantity = sum(product['quantity'] for product in products)
+        
+        return jsonify({
+            'warehouse_id': warehouse_id,
+            'products': products,
+            'total_products': len(products),
+            'total_quantity': total_quantity,
+            'summary': {
+                'categories': list(set([product['category_name'] for product in products])),
+                'countries': list(set([product['country'] for product in products if product.get('country')])),
+                'total_lotes': len(set([product['lote'] for product in products if product.get('lote')]))
+            }
+        }), 200
+        
+    except Exception as e:
+        print(f"Error en get_products_by_warehouse: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Error interno del servidor: {str(e)}'}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+        print("Conexiones cerradas")
+
+
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({'status': 'ok'})
