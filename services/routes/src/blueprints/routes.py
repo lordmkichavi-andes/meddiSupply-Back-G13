@@ -45,10 +45,10 @@ def get_seller_daily_routes(seller_ID):
     # 2. Retornar el resultado de la ruta
     if route_result and "error" in route_result:
         # Si la función retornó un error
-        return jsonify(route_result), 500
+        return jsonify(route_result[:-1]), 500
 
     # Si fue exitoso, retornar el resultado de la ruta optimizada
-    return jsonify(route_result), 200
+    return jsonify(route_result[:-1]), 200
     
 
 @routes_bp.get('/health')
