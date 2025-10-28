@@ -1451,5 +1451,307 @@ def simple_upload():
         return jsonify({"error": f"Simple upload failed: {str(e)}"}), 500
 
 
+# =====================================================
+# ENDPOINTS DE CONSULTA CON RELACIONES REALES
+# =====================================================
+
+@app.route('/cities', methods=['GET'])
+def get_all_cities():
+    """Obtener todas las ciudades"""
+    try:
+        conn, cursor = product_repository._get_connection()
+        
+        cursor.execute("""
+            SELECT city_id, name, country, active, created_at
+            FROM products.cities 
+            WHERE active = true
+            ORDER BY name
+        """)
+        
+        cities = cursor.fetchall()
+        
+        return jsonify({
+            "success": True,
+            "cities": cities
+        })
+        
+    except Exception as e:
+        print(f"Error getting cities: {str(e)}")
+        return jsonify({"error": f"Error getting cities: {str(e)}"}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+
+@app.route('/warehouses', methods=['GET'])
+def get_all_warehouses():
+    """Obtener todas las bodegas con información de ciudad"""
+    try:
+        conn, cursor = product_repository._get_connection()
+        
+        cursor.execute("""
+            SELECT 
+                w.warehouse_id,
+                w.name,
+                w.address,
+                w.phone,
+                w.manager_name,
+                w.active,
+                w.created_at,
+                c.name as city_name,
+                c.country
+            FROM products.warehouses w
+            LEFT JOIN products.cities c ON w.city_id = c.city_id
+            WHERE w.active = true
+            ORDER BY c.name, w.name
+        """)
+        
+        warehouses = cursor.fetchall()
+        
+        return jsonify({
+            "success": True,
+            "warehouses": warehouses
+        })
+        
+    except Exception as e:
+        print(f"Error getting warehouses: {str(e)}")
+        return jsonify({"error": f"Error getting warehouses: {str(e)}"}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+
+@app.route('/warehouses/by-city/<int:city_id>', methods=['GET'])
+def get_warehouses_by_city(city_id):
+    """Obtener bodegas por ciudad"""
+    try:
+        conn, cursor = product_repository._get_connection()
+        
+        cursor.execute("""
+            SELECT 
+                w.warehouse_id,
+                w.name,
+                w.address,
+                w.phone,
+                w.manager_name,
+                w.active,
+                c.name as city_name,
+                c.country
+            FROM products.warehouses w
+            LEFT JOIN products.cities c ON w.city_id = c.city_id
+            WHERE w.city_id = %s AND w.active = true
+            ORDER BY w.name
+        """, (city_id,))
+        
+        warehouses = cursor.fetchall()
+        
+        return jsonify({
+            "success": True,
+            "city_id": city_id,
+            "warehouses": warehouses
+        })
+        
+    except Exception as e:
+        print(f"Error getting warehouses by city: {str(e)}")
+        return jsonify({"error": f"Error getting warehouses by city: {str(e)}"}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+
+@app.route('/products/by-city/<int:city_id>', methods=['GET'])
+def get_products_by_city_id(city_id):
+    """Obtener productos disponibles por ciudad (con stock)"""
+    try:
+        conn, cursor = product_repository._get_connection()
+        
+        cursor.execute("""
+            SELECT DISTINCT
+                p.product_id,
+                p.sku,
+                p.name,
+                p.value,
+                p.status,
+                c.name as category_name,
+                ci.name as city_name,
+                w.name as warehouse_name,
+                SUM(ps.quantity) as total_stock
+            FROM products.products p
+            JOIN products.productstock ps ON p.product_id = ps.product_id
+            JOIN products.warehouses w ON ps.warehouse_id = w.warehouse_id
+            JOIN products.cities ci ON w.city_id = ci.city_id
+            JOIN products.category c ON p.category_id = c.category_id
+            WHERE ci.city_id = %s AND p.status = 'activo' AND ps.quantity > 0
+            GROUP BY p.product_id, p.sku, p.name, p.value, p.status, c.name, ci.name, w.name
+            ORDER BY total_stock DESC
+        """, (city_id,))
+        
+        products = cursor.fetchall()
+        
+        return jsonify({
+            "success": True,
+            "city_id": city_id,
+            "products": products
+        })
+        
+    except Exception as e:
+        print(f"Error getting products by city: {str(e)}")
+        return jsonify({"error": f"Error getting products by city: {str(e)}"}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+
+@app.route('/products/by-warehouse/<int:warehouse_id>', methods=['GET'])
+def get_products_by_warehouse_id(warehouse_id):
+    """Obtener productos disponibles por bodega (con stock)"""
+    try:
+        conn, cursor = product_repository._get_connection()
+        
+        cursor.execute("""
+            SELECT 
+                p.product_id,
+                p.sku,
+                p.name,
+                p.value,
+                p.status,
+                c.name as category_name,
+                w.name as warehouse_name,
+                ci.name as city_name,
+                ps.quantity,
+                ps.lote,
+                ps.country
+            FROM products.products p
+            JOIN products.productstock ps ON p.product_id = ps.product_id
+            JOIN products.warehouses w ON ps.warehouse_id = w.warehouse_id
+            JOIN products.cities ci ON w.city_id = ci.city_id
+            JOIN products.category c ON p.category_id = c.category_id
+            WHERE ps.warehouse_id = %s AND p.status = 'activo' AND ps.quantity > 0
+            ORDER BY ps.quantity DESC
+        """, (warehouse_id,))
+        
+        products = cursor.fetchall()
+        
+        return jsonify({
+            "success": True,
+            "warehouse_id": warehouse_id,
+            "products": products
+        })
+        
+    except Exception as e:
+        print(f"Error getting products by warehouse: {str(e)}")
+        return jsonify({"error": f"Error getting products by warehouse: {str(e)}"}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+
+@app.route('/products/stock-summary', methods=['GET'])
+def get_stock_summary():
+    """Obtener resumen de stock por ciudad y bodega"""
+    try:
+        conn, cursor = product_repository._get_connection()
+        
+        # Resumen por ciudad
+        cursor.execute("""
+            SELECT 
+                ci.city_id,
+                ci.name as city_name,
+                ci.country,
+                COUNT(DISTINCT w.warehouse_id) as total_warehouses,
+                COUNT(DISTINCT ps.product_id) as total_products,
+                SUM(ps.quantity) as total_stock
+            FROM products.cities ci
+            LEFT JOIN products.warehouses w ON ci.city_id = w.city_id AND w.active = true
+            LEFT JOIN products.productstock ps ON w.warehouse_id = ps.warehouse_id
+            WHERE ci.active = true
+            GROUP BY ci.city_id, ci.name, ci.country
+            ORDER BY total_stock DESC
+        """)
+        
+        cities_summary = cursor.fetchall()
+        
+        # Resumen por bodega
+        cursor.execute("""
+            SELECT 
+                w.warehouse_id,
+                w.name as warehouse_name,
+                ci.name as city_name,
+                COUNT(DISTINCT ps.product_id) as total_products,
+                SUM(ps.quantity) as total_stock
+            FROM products.warehouses w
+            LEFT JOIN products.cities ci ON w.city_id = ci.city_id
+            LEFT JOIN products.productstock ps ON w.warehouse_id = ps.warehouse_id
+            WHERE w.active = true
+            GROUP BY w.warehouse_id, w.name, ci.name
+            ORDER BY total_stock DESC
+        """)
+        
+        warehouses_summary = cursor.fetchall()
+        
+        return jsonify({
+            "success": True,
+            "cities_summary": cities_summary,
+            "warehouses_summary": warehouses_summary
+        })
+        
+    except Exception as e:
+        print(f"Error getting stock summary: {str(e)}")
+        return jsonify({"error": f"Error getting stock summary: {str(e)}"}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+
+@app.route('/products/without-stock', methods=['GET'])
+def get_products_without_stock():
+    """Obtener productos sin stock"""
+    try:
+        conn, cursor = product_repository._get_connection()
+        
+        cursor.execute("""
+            SELECT 
+                p.product_id,
+                p.sku,
+                p.name,
+                p.value,
+                p.status,
+                c.name as category_name
+            FROM products.products p
+            JOIN products.category c ON p.category_id = c.category_id
+            LEFT JOIN products.productstock ps ON p.product_id = ps.product_id
+            WHERE ps.product_id IS NULL AND p.status = 'activo'
+            ORDER BY p.name
+        """)
+        
+        products = cursor.fetchall()
+        
+        return jsonify({
+            "success": True,
+            "products_without_stock": products
+        })
+        
+    except Exception as e:
+        print(f"Error getting products without stock: {str(e)}")
+        return jsonify({"error": f"Error getting products without stock: {str(e)}"}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080, debug=True)
