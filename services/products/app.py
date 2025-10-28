@@ -1651,11 +1651,52 @@ def get_products_by_warehouse_id(warehouse_id):
         
         products = cursor.fetchall()
         
-        return jsonify({
-            "success": True,
-            "warehouse_id": warehouse_id,
-            "products": products
-        })
+        # Verificar si se quiere incluir las ubicaciones (locations) de cada producto
+        include_locations = request.args.get('include_locations', 'false').lower() == 'true'
+        
+        # Si se requiere incluir locations, buscar todas las ubicaciones de cada producto
+        if include_locations:
+            products_with_locations = []
+            for product in products:
+                product_dict = dict(product)
+                product_id = product_dict['product_id']
+                
+                # Buscar todas las ubicaciones donde este producto tiene stock
+                locations_query = """
+                    SELECT 
+                        w.warehouse_id,
+                        w.name as warehouse_name,
+                        ci.city_id,
+                        ci.name as city_name,
+                        ci.country,
+                        ps.quantity,
+                        ps.lote
+                    FROM products.productstock ps
+                    JOIN products.warehouses w ON ps.warehouse_id = w.warehouse_id
+                    JOIN products.cities ci ON w.city_id = ci.city_id
+                    WHERE ps.product_id = %s AND w.active = true
+                    ORDER BY ps.quantity DESC
+                """
+                
+                cursor.execute(locations_query, (product_id,))
+                locations = cursor.fetchall()
+                
+                # Agregar el array locations al producto
+                product_dict['locations'] = [dict(loc) for loc in locations]
+                products_with_locations.append(product_dict)
+            
+            return jsonify({
+                "success": True,
+                "warehouse_id": warehouse_id,
+                "products": products_with_locations
+            })
+        else:
+            # Respuesta sin locations (comportamiento por defecto)
+            return jsonify({
+                "success": True,
+                "warehouse_id": warehouse_id,
+                "products": products
+            })
         
     except Exception as e:
         print(f"Error getting products by warehouse: {str(e)}")
