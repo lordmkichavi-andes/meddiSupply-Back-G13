@@ -615,7 +615,7 @@ def get_location_info():
         # Obtener productos disponibles
         products_response = product_service.list_available_products()
         products = products_response if products_response else []
-
+        
         return jsonify({
             'warehouses': warehouses_data.get('warehouses', []),
             'cities': cities_data.get('cities', []),
@@ -734,6 +734,485 @@ def get_products_by_warehouse(warehouse_id):
 def health():
     return jsonify({'status': 'ok'})
 
+@app.route('/test-db', methods=['GET'])
+def test_db():
+    print("=== TEST DB ENDPOINT CALLED ===")
+    try:
+        conn, cursor = product_repository._get_connection()
+
+        # Obtener productos
+        cursor.execute("SELECT * FROM products.products")
+        products = cursor.fetchall()
+
+        # Obtener categorías
+        cursor.execute("SELECT * FROM products.category")
+        categories = cursor.fetchall()
+
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            'message': 'DB test successful',
+            'products': [dict(row) for row in products],
+            'categories': [dict(row) for row in categories],
+            'products_count': len(products),
+            'categories_count': len(categories)
+        })
+    except Exception as e:
+        print(f"ERROR en test-db: {str(e)}")
+        return jsonify({'error': f'DB test failed: {str(e)}'}), 500
+
+@app.route('/debug-upload', methods=['POST'])
+def debug_upload():
+    print("=== DEBUG UPLOAD ENDPOINT CALLED ===")
+    try:
+        files = request.files.getlist('files')
+        print(f"Archivos recibidos: {len(files)}")
+
+        if not files:
+            return jsonify({"error": "No files received"}), 400
+
+        file = files[0]
+        print(f"Procesando archivo: {file.filename}")
+
+        # Leer el archivo
+        if file.filename.lower().endswith('.csv'):
+            df = pd.read_csv(file)
+            print(f"CSV leído con {len(df)} filas")
+            print(f"Columnas: {list(df.columns)}")
+
+            # Verificar columnas requeridas
+            required_columns = ['sku', 'name', 'value', 'category_name', 'quantity', 'warehouse_id']
+            missing_columns = [col for col in required_columns if col not in df.columns]
+
+            if missing_columns:
+                return jsonify({"error": f"Missing columns: {missing_columns}"}), 400
+
+            # Mostrar primera fila
+            first_row = df.iloc[0].to_dict()
+            print(f"Primera fila: {first_row}")
+
+            return jsonify({
+                "message": "Debug upload successful",
+                "rows": len(df),
+                "columns": list(df.columns),
+                "first_row": first_row
+            })
+        else:
+            return jsonify({"error": "Only CSV files are supported"}), 400
+
+    except Exception as e:
+        print(f"ERROR en debug upload: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Debug upload failed: {str(e)}"}), 500
+
+@app.route('/cities', methods=['GET'])
+def get_all_cities():
+    """Obtener todas las ciudades"""
+    try:
+        conn, cursor = product_repository._get_connection()
+
+        cursor.execute("""
+            SELECT city_id, name, country, active, created_at
+            FROM products.cities 
+            WHERE active = true
+            ORDER BY name
+        """)
+
+        cities = cursor.fetchall()
+
+        return jsonify({
+            "success": True,
+            "cities": cities
+        })
+
+    except Exception as e:
+        print(f"Error getting cities: {str(e)}")
+        return jsonify({"error": f"Error getting cities: {str(e)}"}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+
+@app.route('/warehouses', methods=['GET'])
+def get_all_warehouses():
+    """Obtener todas las bodegas con información de ciudad"""
+    try:
+        conn, cursor = product_repository._get_connection()
+
+        cursor.execute("""
+            SELECT 
+                w.warehouse_id,
+                w.name,
+                w.address,
+                w.phone,
+                w.manager_name,
+                w.active,
+                w.created_at,
+                c.name as city_name,
+                c.country
+            FROM products.warehouses w
+            LEFT JOIN products.cities c ON w.city_id = c.city_id
+            WHERE w.active = true
+            ORDER BY c.name, w.name
+        """)
+
+        warehouses = cursor.fetchall()
+
+        return jsonify({
+            "success": True,
+            "warehouses": warehouses
+        })
+
+    except Exception as e:
+        print(f"Error getting warehouses: {str(e)}")
+        return jsonify({"error": f"Error getting warehouses: {str(e)}"}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+
+@app.route('/warehouses/by-city/<int:city_id>', methods=['GET'])
+def get_warehouses_by_city(city_id):
+    """Obtener bodegas por ciudad"""
+    try:
+        conn, cursor = product_repository._get_connection()
+
+        cursor.execute("""
+            SELECT 
+                w.warehouse_id,
+                w.name,
+                w.address,
+                w.phone,
+                w.manager_name,
+                w.active,
+                c.name as city_name,
+                c.country
+            FROM products.warehouses w
+            LEFT JOIN products.cities c ON w.city_id = c.city_id
+            WHERE w.city_id = %s AND w.active = true
+            ORDER BY w.name
+        """, (city_id,))
+
+        warehouses = cursor.fetchall()
+
+        return jsonify({
+            "success": True,
+            "city_id": city_id,
+            "warehouses": warehouses
+        })
+
+    except Exception as e:
+        print(f"Error getting warehouses by city: {str(e)}")
+        return jsonify({"error": f"Error getting warehouses by city: {str(e)}"}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+
+@app.route('/products/by-city/<int:city_id>', methods=['GET'])
+def get_products_by_city_id(city_id):
+    """Obtener productos disponibles por ciudad (con stock)"""
+    try:
+        conn, cursor = product_repository._get_connection()
+
+        cursor.execute("""
+            SELECT 
+                p.product_id,
+                p.sku,
+                p.name,
+                p.value,
+                p.status,
+                c.name as category_name,
+                ci.name as city_name,
+                ci.city_id,
+                ci.country,
+                w.name as warehouse_name,
+                w.warehouse_id,
+                ps.quantity,
+                ps.lote,
+                ps.expiry_date,
+                ps.reserved_quantity,
+                wl.section,
+                wl.aisle,
+                wl.shelf,
+                wl."level"
+            FROM products.products p
+            JOIN products.productstock ps ON p.product_id = ps.product_id
+            JOIN products.warehouses w ON ps.warehouse_id = w.warehouse_id
+            JOIN products.cities ci ON w.city_id = ci.city_id
+            JOIN products.category c ON p.category_id = c.category_id
+            LEFT JOIN products.warehouse_locations wl ON ps.location_id = wl.location_id
+            WHERE ci.city_id = %s AND p.status = 'activo' AND ps.quantity > 0
+            ORDER BY ps.quantity DESC
+        """, (city_id,))
+
+        products = cursor.fetchall()
+
+        return jsonify({
+            "success": True,
+            "city_id": city_id,
+            "products": products
+        })
+
+    except Exception as e:
+        print(f"Error getting products by city: {str(e)}")
+        return jsonify({"error": f"Error getting products by city: {str(e)}"}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+
+@app.route('/products/by-warehouse/<int:warehouse_id>', methods=['GET'])
+def get_products_by_warehouse_id(warehouse_id):
+    """Obtener productos disponibles por bodega (con stock o sin stock según parámetro)"""
+    try:
+        conn, cursor = product_repository._get_connection()
+
+        # Verificar si se quiere incluir productos con stock = 0
+        include_zero = request.args.get('include_zero', 'false').lower() == 'true'
+
+        # Construir la query según si se incluyen productos con stock = 0
+        if include_zero:
+            quantity_filter = ""
+        else:
+            quantity_filter = "AND ps.quantity > 0"
+
+        query = f"""
+            SELECT 
+                p.product_id,
+                p.sku,
+                p.name,
+                p.value,
+                p.status,
+                c.name as category_name,
+                w.name as warehouse_name,
+                ci.name as city_name,
+                ci.city_id,
+                ci.country,
+                ps.quantity,
+                ps.lote,
+                ps.country as stock_country,
+                ps.expiry_date,
+                ps.reserved_quantity,
+                wl.section,
+                wl.aisle,
+                wl.shelf,
+                wl."level"
+            FROM products.products p
+            JOIN products.productstock ps ON p.product_id = ps.product_id
+            JOIN products.warehouses w ON ps.warehouse_id = w.warehouse_id
+            JOIN products.cities ci ON w.city_id = ci.city_id
+            JOIN products.category c ON p.category_id = c.category_id
+            LEFT JOIN products.warehouse_locations wl ON ps.location_id = wl.location_id
+            WHERE ps.warehouse_id = %s AND p.status = 'activo' {quantity_filter}
+            ORDER BY ps.quantity DESC
+        """
+
+        cursor.execute(query, (warehouse_id,))
+
+        products = cursor.fetchall()
+
+        # Verificar si se quiere incluir las ubicaciones (locations) de cada producto
+        include_locations = request.args.get('include_locations', 'false').lower() == 'true'
+
+        # Si se requiere incluir locations, agrupar por producto y calcular totales
+        if include_locations:
+            # Agrupar productos y calcular total por producto en esta bodega
+            products_dict = {}
+            for product in products:
+                product_id = product['product_id']
+                if product_id not in products_dict:
+                    products_dict[product_id] = {
+                        'product_id': product['product_id'],
+                        'sku': product['sku'],
+                        'name': product['name'],
+                        'value': product['value'],
+                        'status': product['status'],
+                        'category_name': product['category_name'],
+                        'warehouse_name': product['warehouse_name'],
+                        'city_name': product['city_name'],
+                        'city_id': product['city_id'],
+                        'country': product['country'],
+                        'stock_country': product['stock_country'],
+                        'total_quantity': 0,
+                        'locations': []
+                    }
+                # Sumar la cantidad
+                products_dict[product_id]['total_quantity'] += product['quantity']
+
+            # Ahora buscar todos los lotes para cada producto (solo de esta bodega)
+            products_with_locations = []
+            for product_id, product_info in products_dict.items():
+                # Buscar todas las ubicaciones donde este producto tiene stock EN ESTA BODEGA
+                locations_query = """
+                    SELECT 
+                        w.warehouse_id,
+                        w.name as warehouse_name,
+                        ci.city_id,
+                        ci.name as city_name,
+                        ci.country,
+                        ps.quantity,
+                        ps.lote,
+                        ps.expiry_date,
+                        ps.reserved_quantity,
+                        wl.section,
+                        wl.aisle,
+                        wl.shelf,
+                        wl."level"
+                    FROM products.productstock ps
+                    JOIN products.warehouses w ON ps.warehouse_id = w.warehouse_id
+                    JOIN products.cities ci ON w.city_id = ci.city_id
+                    LEFT JOIN products.warehouse_locations wl ON ps.location_id = wl.location_id
+                    WHERE ps.product_id = %s AND ps.warehouse_id = %s AND w.active = true
+                    ORDER BY ps.quantity DESC
+                """
+
+                cursor.execute(locations_query, (product_id, warehouse_id))
+                locations = cursor.fetchall()
+
+                # Agregar el array locations al producto
+                product_info['locations'] = [dict(loc) for loc in locations]
+                # Usar total_quantity como quantity principal
+                product_info['quantity'] = product_info['total_quantity']
+                products_with_locations.append(product_info)
+
+            return jsonify({
+                "success": True,
+                "warehouse_id": warehouse_id,
+                "products": products_with_locations
+            })
+        else:
+            # Sin locations: agrupar por producto y sumar cantidades
+            products_dict = {}
+            for product in products:
+                product_id = product['product_id']
+                if product_id not in products_dict:
+                    products_dict[product_id] = dict(product)
+                    products_dict[product_id]['quantity'] = 0
+                products_dict[product_id]['quantity'] += product['quantity']
+
+            return jsonify({
+                "success": True,
+                "warehouse_id": warehouse_id,
+                "products": list(products_dict.values())
+            })
+
+    except Exception as e:
+        print(f"Error getting products by warehouse: {str(e)}")
+        return jsonify({"error": f"Error getting products by warehouse: {str(e)}"}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+
+@app.route('/products/stock-summary', methods=['GET'])
+def get_stock_summary():
+    """Obtener resumen de stock por ciudad y bodega"""
+    try:
+        conn, cursor = product_repository._get_connection()
+
+        # Resumen por ciudad
+        cursor.execute("""
+            SELECT 
+                ci.city_id,
+                ci.name as city_name,
+                ci.country,
+                COUNT(DISTINCT w.warehouse_id) as total_warehouses,
+                COUNT(DISTINCT ps.product_id) as total_products,
+                SUM(ps.quantity) as total_stock
+            FROM products.cities ci
+            LEFT JOIN products.warehouses w ON ci.city_id = w.city_id AND w.active = true
+            LEFT JOIN products.productstock ps ON w.warehouse_id = ps.warehouse_id
+            WHERE ci.active = true
+            GROUP BY ci.city_id, ci.name, ci.country
+            ORDER BY total_stock DESC
+        """)
+
+        cities_summary = cursor.fetchall()
+
+        # Resumen por bodega
+        cursor.execute("""
+            SELECT 
+                w.warehouse_id,
+                w.name as warehouse_name,
+                ci.name as city_name,
+                COUNT(DISTINCT ps.product_id) as total_products,
+                SUM(ps.quantity) as total_stock
+            FROM products.warehouses w
+            LEFT JOIN products.cities ci ON w.city_id = ci.city_id
+            LEFT JOIN products.productstock ps ON w.warehouse_id = ps.warehouse_id
+            WHERE w.active = true
+            GROUP BY w.warehouse_id, w.name, ci.name
+            ORDER BY total_stock DESC
+        """)
+
+        warehouses_summary = cursor.fetchall()
+
+        return jsonify({
+            "success": True,
+            "cities_summary": cities_summary,
+            "warehouses_summary": warehouses_summary
+        })
+
+    except Exception as e:
+        print(f"Error getting stock summary: {str(e)}")
+        return jsonify({"error": f"Error getting stock summary: {str(e)}"}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+
+@app.route('/products/without-stock', methods=['GET'])
+def get_products_without_stock():
+    """Obtener productos sin stock"""
+    try:
+        conn, cursor = product_repository._get_connection()
+
+        cursor.execute("""
+            SELECT 
+                p.product_id,
+                p.sku,
+                p.name,
+                p.value,
+                p.status,
+                c.name as category_name
+            FROM products.products p
+            JOIN products.category c ON p.category_id = c.category_id
+            LEFT JOIN products.productstock ps ON p.product_id = ps.product_id
+            WHERE ps.product_id IS NULL AND p.status = 'activo'
+            ORDER BY p.name
+        """)
+
+        products = cursor.fetchall()
+
+        return jsonify({
+            "success": True,
+            "products_without_stock": products
+        })
+
+    except Exception as e:
+        print(f"Error getting products without stock: {str(e)}")
+        return jsonify({"error": f"Error getting products without stock: {str(e)}"}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080, debug=False)
+    app.run(host='0.0.0.0', port=8080, debug=True)
