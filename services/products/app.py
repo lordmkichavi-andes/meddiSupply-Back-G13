@@ -1612,11 +1612,20 @@ def get_products_by_city_id(city_id):
 
 @app.route('/products/by-warehouse/<int:warehouse_id>', methods=['GET'])
 def get_products_by_warehouse_id(warehouse_id):
-    """Obtener productos disponibles por bodega (con stock)"""
+    """Obtener productos disponibles por bodega (con stock o sin stock según parámetro)"""
     try:
         conn, cursor = product_repository._get_connection()
         
-        cursor.execute("""
+        # Verificar si se quiere incluir productos con stock = 0
+        include_zero = request.args.get('include_zero', 'false').lower() == 'true'
+        
+        # Construir la query según si se incluyen productos con stock = 0
+        if include_zero:
+            quantity_filter = ""
+        else:
+            quantity_filter = "AND ps.quantity > 0"
+        
+        query = f"""
             SELECT 
                 p.product_id,
                 p.sku,
@@ -1634,9 +1643,11 @@ def get_products_by_warehouse_id(warehouse_id):
             JOIN products.warehouses w ON ps.warehouse_id = w.warehouse_id
             JOIN products.cities ci ON w.city_id = ci.city_id
             JOIN products.category c ON p.category_id = c.category_id
-            WHERE ps.warehouse_id = %s AND p.status = 'activo' AND ps.quantity > 0
+            WHERE ps.warehouse_id = %s AND p.status = 'activo' {quantity_filter}
             ORDER BY ps.quantity DESC
-        """, (warehouse_id,))
+        """
+        
+        cursor.execute(query, (warehouse_id,))
         
         products = cursor.fetchall()
         
