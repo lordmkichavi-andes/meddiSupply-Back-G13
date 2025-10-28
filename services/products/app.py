@@ -1264,6 +1264,22 @@ def get_products_by_warehouse(warehouse_id):
             'products': products,
             'total_products': len(products),
             'total_quantity': total_quantity,
+            'totalAvailable': total_quantity,
+            'hasAvailability': total_quantity > 0,
+            'warehouse': warehouse_id,
+            'locations': [
+                {
+                    'id': warehouse_id,
+                    'name': f'Almacén {warehouse_id}',
+                    'address': f'Dirección del Almacén {warehouse_id}',
+                    'city': 'Bogotá',
+                    'country': 'Colombia',
+                    'coordinates': {
+                        'lat': 4.6097,
+                        'lng': -74.0817
+                    }
+                }
+            ],
             'summary': {
                 'categories': list(set([product['category_name'] for product in products])),
                 'countries': list(set([product['country'] for product in products if product.get('country')])),
