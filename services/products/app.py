@@ -105,6 +105,17 @@ def get_product_by_id(product_id):
         return jsonify({"error": "Product not found"}), 404
 
 
+@app.route('/products/active', methods=['GET'])
+@cache_control_header(timeout=300, key="products_active")
+def get_active_products():
+    """
+    Endpoint para obtener todos los productos activos con información completa.
+    Incluye información de unidades y categorías para planes de venta.
+    """
+    products = product_repository.get_all_active_products()
+    return jsonify(products), 200
+
+
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({'status': 'ok'})
