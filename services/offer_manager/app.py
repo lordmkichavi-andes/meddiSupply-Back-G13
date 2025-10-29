@@ -1,18 +1,31 @@
-from flask import Flask, jsonify, request, make_response
-from functools import wraps
-import os
-import json
+from flask import Flask, jsonify
+from flask_cors import CORS
 
 
+def create_app() -> Flask:
+    app = Flask(__name__)
+    
+    # Configurar CORS
+    CORS(app, resources={
+        r"/*": {
+            "origins": "*",
+            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            "allow_headers": ["Content-Type", "Authorization", "X-Requested-With"]
+        }
+    })
 
-app = Flask(__name__)
-app.config.from_mapping(config)
+    # Registro del blueprint de planes de venta
+    from src.blueprints.sales_plans import sales_plans_bp
+    app.register_blueprint(sales_plans_bp, url_prefix='/sales-plans')
+
+    @app.route('/health', methods=['GET'])
+    def health():
+        return jsonify({'status': 'ok'})
+
+    return app
 
 
-
-@app.route('/health', methods=['GET'])
-def health():
-    return jsonify({'status': 'ok'})
+app = create_app()
 
 
 if __name__ == '__main__':
