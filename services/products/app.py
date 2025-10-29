@@ -887,7 +887,7 @@ def get_warehouses_by_city(city_id):
             SELECT 
                 w.warehouse_id,
                 w.name,
-                w.address,
+                w.location,
                 w.phone,
                 w.manager_name,
                 w.active,
