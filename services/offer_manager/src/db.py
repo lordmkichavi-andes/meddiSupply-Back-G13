@@ -19,7 +19,7 @@ def get_connection():
             database=os.getenv('DB_NAME', 'postgres'),
             user=os.getenv('DB_USER', 'postgres'),
             password=os.getenv('DB_PASSWORD'),
-            sslmode='require'
+            sslmode=os.getenv('DB_SSLMODE', 'disable')
         )
         return conn
     except Exception as e:
@@ -176,3 +176,23 @@ def get_sales_plan_products(plan_id: int) -> List[Dict[str, Any]]:
         enriched_products.append(enriched_item)
     
     return enriched_products
+
+
+def get_sales_plan_by_id(plan_id: int) -> Optional[Dict[str, Any]]:
+    """Obtiene un plan de venta específico por su ID."""
+    query = """
+    SELECT 
+        sp.plan_id,
+        sp.region,
+        sp.quarter,
+        sp.year,
+        sp.total_goal,
+        sp.is_active,
+        sp.creation_date,
+        sp.created_by
+    FROM sales_plans.sales_plans sp
+    WHERE sp.plan_id = %s
+    """
+
+    result = execute_query(query, (plan_id,), fetch_one=True)
+    return result

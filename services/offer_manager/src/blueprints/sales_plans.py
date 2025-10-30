@@ -5,7 +5,8 @@ from src.db import (
     get_products, 
     create_sales_plan, 
     get_sales_plans, 
-    get_sales_plan_products
+    get_sales_plan_products,
+    get_sales_plan_by_id,
 )
 from src.models import SalesPlan, SalesPlanProduct, Product
 from src.services.sales_plan_service import SalesPlanService
@@ -110,17 +111,15 @@ def get_sales_plans_endpoint():
 def get_sales_plan_endpoint(plan_id):
     """Obtener un plan de venta específico con sus productos."""
     try:
-        # Obtener el plan
-        plans_data = get_sales_plans()
-        plan_data = next((p for p in plans_data if p['plan_id'] == plan_id), None)
-        
+        # Obtener el plan directamente desde la base de datos
+        plan_data = get_sales_plan_by_id(plan_id)
         if not plan_data:
             return jsonify({"message": "Plan no encontrado"}), 404
-        
+
         # Obtener los productos del plan
         products_data = get_sales_plan_products(plan_id)
         plan_data['products'] = products_data
-        
+
         plan = SalesPlan.from_dict(plan_data)
         return jsonify(plan.to_dict()), 200
         
