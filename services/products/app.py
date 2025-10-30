@@ -1213,6 +1213,138 @@ def get_products_without_stock():
         if conn:
             conn.close()
 
+@app.route('/products/active', methods=['GET'])
+@cache_control_header(timeout=300, key="products_active")
+def get_active_products():
+    """
+    Endpoint para obtener todos los productos activos con información completa.
+    Incluye información de unidades y categorías para planes de venta.
+    """
+    conn, cursor = product_repository._get_connection()
+
+    try:
+        query = '''
+        SELECT 
+            p.product_id,
+            p.sku,
+            p.name,
+            p.value,
+            p.objective_profile,
+            u.name as unit_name,
+            u.symbol as unit_symbol,
+            c.name as category_name,
+            COALESCE(ps.total_quantity, 0) as max_quantity
+        FROM 
+            products.products p
+        JOIN 
+            products.units u ON p.unit_id = u.unit_id
+        JOIN 
+            products.category c ON p.category_id = c.category_id
+        LEFT JOIN (
+            SELECT product_id, SUM(quantity) as total_quantity
+            FROM products.productstock 
+            WHERE quantity > 0
+            GROUP BY product_id
+        ) ps ON p.product_id = ps.product_id
+        WHERE
+            p.status = 'activo'
+        ORDER BY
+            p.name;
+        '''
+
+        cursor.execute(query)
+        results = cursor.fetchall()
+        products = [dict(row) for row in results]
+        return jsonify(products), 200
+
+    finally:
+        cursor.close()
+        conn.close()
+
+@app.route('/products/search', methods=['GET'])
+@cache_control_header(timeout=180, key="products_search")
+def search_products():
+    """
+    Endpoint para buscar productos por nombre (para el selector con búsqueda).
+    Parámetros:
+    - q: término de búsqueda (opcional)
+    """
+    search_term = request.args.get('q', '').strip()
+
+    conn, cursor = product_repository._get_connection()
+
+    try:
+        if not search_term:
+            # Si no hay término de búsqueda, devolver todos los activos
+            query = '''
+            SELECT 
+                p.product_id,
+                p.sku,
+                p.name,
+                p.value,
+                p.objective_profile,
+                u.name as unit_name,
+                u.symbol as unit_symbol,
+                c.name as category_name,
+                COALESCE(ps.total_quantity, 0) as max_quantity
+            FROM 
+                products.products p
+            JOIN 
+                products.units u ON p.unit_id = u.unit_id
+            JOIN 
+                products.category c ON p.category_id = c.category_id
+            LEFT JOIN (
+                SELECT product_id, SUM(quantity) as total_quantity
+                FROM products.productstock 
+                WHERE quantity > 0
+                GROUP BY product_id
+            ) ps ON p.product_id = ps.product_id
+            WHERE
+                p.status = 'activo'
+            ORDER BY
+                p.name;
+            '''
+            cursor.execute(query)
+        else:
+            # Buscar por nombre
+            query = '''
+            SELECT 
+                p.product_id,
+                p.sku,
+                p.name,
+                p.value,
+                p.objective_profile,
+                u.name as unit_name,
+                u.symbol as unit_symbol,
+                c.name as category_name,
+                COALESCE(ps.total_quantity, 0) as max_quantity
+            FROM 
+                products.products p
+            JOIN 
+                products.units u ON p.unit_id = u.unit_id
+            JOIN 
+                products.category c ON p.category_id = c.category_id
+            LEFT JOIN (
+                SELECT product_id, SUM(quantity) as total_quantity
+                FROM products.productstock 
+                WHERE quantity > 0
+                GROUP BY product_id
+            ) ps ON p.product_id = ps.product_id
+            WHERE
+                p.status = 'activo'
+                AND LOWER(p.name) LIKE LOWER(%s)
+            ORDER BY
+                p.name;
+            '''
+            cursor.execute(query, (f'%{search_term}%',))
+
+        results = cursor.fetchall()
+        products = [dict(row) for row in results]
+        return jsonify(products), 200
+
+    finally:
+        cursor.close()
+        conn.close()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080, debug=True)
