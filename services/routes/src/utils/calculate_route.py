@@ -214,8 +214,8 @@ def generate_optimized_route(locations: List[Dict]):
         coordinates_float = []
         for loc in locations:
             # Asumiendo que las claves son 'latitud' y 'longitud'
-            lat = float(loc['latitud'])
-            lon = float(loc['longitud'])
+            lat = float(loc['latitude'])
+            lon = float(loc['longitude'])
             coordinates_float.append((lat, lon))
     except (ValueError, KeyError):
         print("\nERROR: Los datos de entrada son inválidos o faltan claves ('latitud', 'longitud').")

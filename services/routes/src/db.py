@@ -89,18 +89,21 @@ def get_clientes_by_seller(seller_id: int) -> List[Dict[str, Any]]:
     query = """
     SELECT
     c.client_id AS id,
-    c.name AS nombre,
-    c.address AS direccion,
-    c.latitude AS latitud,
-    c.longitude AS longitud
+    c.name AS name,
+    u.name ||' '||u.last_name AS client,
+    c.address AS address,
+    c.latitude AS latitude,
+    c.longitude AS longitude
     FROM
         users.Clients c
     LEFT JOIN
         orders.Orders o ON c.client_id = o.client_id
+    LEFT JOIN
+        users.users u ON c.user_id = u.user_id
     WHERE
         c.seller_id = %s
     GROUP BY
-        c.client_id, c.name, c.address, c.latitude, c.longitude
+        c.client_id, c.name, c.address, c.latitude, c.longitude, u.name, u.last_name
     """
     result = execute_query(query, (seller_id,), fetch_all=True)
     return result or []
