@@ -10,3 +10,5 @@ pytest-cov
 pytest-mock
 coverage
 pytest-flask
+requests
+ortools

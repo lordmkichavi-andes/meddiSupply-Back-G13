@@ -95,7 +95,7 @@ CREATE TABLE IF NOT EXISTS users.sellers (
 -- Crear tabla Client
 CREATE TABLE IF NOT EXISTS users.Clients (
     client_id SERIAL PRIMARY KEY,
-    user_id INTEGER UNIQUE NOT NULL,
+    user_id INTEGER NOT NULL,
     nit VARCHAR(50) UNIQUE,
     balance DECIMAL(15, 2) DEFAULT 0.00,
     name TEXT,
