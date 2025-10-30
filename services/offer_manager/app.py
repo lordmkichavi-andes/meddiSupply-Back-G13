@@ -6,7 +6,11 @@ import json
 
 
 app = Flask(__name__)
-app.config.from_mapping(config)
+
+# Registro de blueprints
+from src.blueprints.sales_plans import sales_plans_bp
+app.register_blueprint(sales_plans_bp)
+
 
 
 
