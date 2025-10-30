@@ -37,11 +37,19 @@ def execute_query(query: str, params: tuple = None, fetch_one: bool = False, fet
             
         with conn.cursor(cursor_factory=RealDictCursor) as cursor:
             cursor.execute(query, params)
-            
+
             if fetch_one:
-                return cursor.fetchone()
+                result = cursor.fetchone()
+                # Asegurar commit para operaciones como INSERT ... RETURNING
+                try:
+                    if cursor.statusmessage and cursor.statusmessage.split()[0] in {"INSERT", "UPDATE", "DELETE"}:
+                        conn.commit()
+                except Exception:
+                    pass
+                return result
             elif fetch_all:
-                return cursor.fetchall()
+                result = cursor.fetchall()
+                return result
             else:
                 conn.commit()
                 return cursor.rowcount
