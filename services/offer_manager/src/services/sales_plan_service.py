@@ -129,21 +129,8 @@ class SalesPlanService:
     
     @classmethod
     def validate_total_goal_consistency(cls, data: Dict[str, Any]) -> List[str]:
-        """Valida que la meta total coincida con la suma de metas individuales."""
-        errors = []
-        
-        if 'products' in data and 'total_goal' in data:
-            calculated_total = cls.calculate_total_goal_from_products(data['products'])
-            provided_total = Decimal(str(data['total_goal']))
-            
-            # Permitir pequeñas diferencias por redondeo
-            tolerance = Decimal('0.01')
-            if abs(calculated_total - provided_total) > tolerance:
-                errors.append(
-                    f"La meta total ({provided_total}) no coincide con la suma de metas individuales ({calculated_total})"
-                )
-        
-        return errors
+        """Sin validación: se permite cualquier total_goal enviado por el cliente."""
+        return []
     
     @classmethod
     def get_region_options(cls) -> List[Dict[str, str]]:
