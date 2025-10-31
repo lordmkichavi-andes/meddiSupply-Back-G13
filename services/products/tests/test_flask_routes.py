@@ -41,195 +41,9 @@ def mock_db_connection():
     return mock_conn, mock_cursor
 
 
+## Tests de /products/upload3 eliminados (endpoint removido)
 class TestUploadProductsString:
-    """Tests para el endpoint /products/upload3 (upload_products_string)"""
-
-    def test_upload3_empty_request(self, client):
-        """Test: Debe retornar error cuando no se reciben datos."""
-        response = client.post('/products/upload3', 
-                              data='',
-                              content_type='text/plain')
-        assert response.status_code == 400
-        data = json.loads(response.data)
-        assert data['success'] is False
-        assert data['total_records'] == 0
-        assert 'No se recibieron datos' in data['message']
-
-    def test_upload3_invalid_json(self, client):
-        """Test: Debe retornar error cuando el JSON es inválido."""
-        response = client.post('/products/upload3',
-                              data='{invalid json}',
-                              content_type='text/plain')
-        assert response.status_code == 400
-        data = json.loads(response.data)
-        assert data['success'] is False
-        assert 'Error al parsear JSON' in data['message']
-
-    def test_upload3_not_array(self, client):
-        """Test: Debe retornar error cuando los datos no son un array."""
-        response = client.post('/products/upload3',
-                              data='{"sku": "TEST-001"}',
-                              content_type='text/plain')
-        assert response.status_code == 400
-        data = json.loads(response.data)
-        assert data['success'] is False
-        assert 'deben ser un array' in data['message']
-
-    def test_upload3_empty_array(self, client):
-        """Test: Debe retornar error cuando el array está vacío."""
-        response = client.post('/products/upload3',
-                              data='[]',
-                              content_type='text/plain')
-        assert response.status_code == 400
-        data = json.loads(response.data)
-        assert data['success'] is False
-        assert 'No se recibieron productos' in data['message']
-
-    def test_upload3_missing_required_fields(self, client):
-        """Test: Debe retornar error cuando faltan campos obligatorios."""
-        product_data = [
-            {
-                "sku": "TEST-001",
-                "name": "Producto Test"
-                # Faltan: value, category_name, quantity, warehouse_id
-            }
-        ]
-        response = client.post('/products/upload3',
-                              data=json.dumps(product_data),
-                              content_type='text/plain')
-        assert response.status_code == 400
-        data = json.loads(response.data)
-        assert data['success'] is False
-        assert len(data['errors']) > 0
-        assert any('value' in error.lower() for error in data['errors'])
-
-    def test_upload3_invalid_value(self, client):
-        """Test: Debe retornar error cuando el valor es inválido."""
-        product_data = [
-            {
-                "sku": "TEST-001",
-                "name": "Producto Test",
-                "value": -100,  # Valor negativo
-                "category_name": "MEDICATION",
-                "quantity": "10",
-                "warehouse_id": "1"
-            }
-        ]
-        response = client.post('/products/upload3',
-                              data=json.dumps(product_data),
-                              content_type='text/plain')
-        assert response.status_code == 400
-        data = json.loads(response.data)
-        assert data['success'] is False
-        assert any('valor debe ser mayor a 0' in error.lower() for error in data['errors'])
-
-    def test_upload3_invalid_quantity(self, client):
-        """Test: Debe retornar error cuando la cantidad es negativa."""
-        product_data = [
-            {
-                "sku": "TEST-001",
-                "name": "Producto Test",
-                "value": "100",
-                "category_name": "MEDICATION",
-                "quantity": "-10",  # Cantidad negativa
-                "warehouse_id": "1"
-            }
-        ]
-        response = client.post('/products/upload3',
-                              data=json.dumps(product_data),
-                              content_type='text/plain')
-        assert response.status_code == 400
-        data = json.loads(response.data)
-        assert data['success'] is False
-        assert any('cantidad no puede ser negativa' in error.lower() for error in data['errors'])
-
-    @patch('app.product_repository._get_connection')
-    def test_upload3_success_single_product(self, mock_get_conn, client, mock_db_connection):
-        """Test: Debe insertar un producto exitosamente."""
-        mock_conn, mock_cursor = mock_db_connection
-        mock_get_conn.return_value = (mock_conn, mock_cursor)
-
-        # Orden correcto de fetchone() según el flujo en app.py:
-        mock_cursor.fetchone.side_effect = [
-            {'id': 1},        # 1. upload_id (línea 267)
-            None,             # 2. category no existe (línea 282)
-            [6],              # 3. MAX(category_id) + 1 (línea 289) - retorna lista/tupla
-            {'category_id': 6},  # 4. categoria creada (línea 296)
-            {'product_id': 100}  # 5. producto creado (línea 318)
-        ]
-
-        product_data = [
-            {
-                "sku": "TEST-001",
-                "name": "Producto Test",
-                "value": "100",
-                "category_name": "MEDICATION",
-                "quantity": "10",
-                "warehouse_id": "1"
-            }
-        ]
-
-        response = client.post('/products/upload3',
-                              data=json.dumps(product_data),
-                              content_type='text/plain')
-        
-        assert response.status_code == 200
-        data = json.loads(response.data)
-        assert data['success'] is True
-        assert data['total_records'] == 1
-        assert data['successful_records'] == 1
-        assert data['failed_records'] == 0
-        assert 'upload_id' in data
-
-    @patch('app.product_repository._get_connection')
-    def test_upload3_duplicate_sku(self, mock_get_conn, client, mock_db_connection):
-        """Test: Debe manejar SKU duplicado correctamente."""
-        mock_conn, mock_cursor = mock_db_connection
-        mock_get_conn.return_value = (mock_conn, mock_cursor)
-
-        # Crear un mock del error UniqueViolation con pgcode configurado
-        # Usamos una clase mock personalizada para simular psycopg2.errors.UniqueViolation
-        class MockUniqueViolation(Exception):
-            pgcode = '23505'
-            def __init__(self):
-                super().__init__("duplicate key value violates unique constraint")
-        
-        duplicate_error = MockUniqueViolation()
-        
-        # Mock: orden correcto de fetchone()
-        mock_cursor.fetchone.side_effect = [
-            {'id': 1},        # upload_id (línea 267)
-            {'category_id': 1},  # categoria existe (línea 282)
-        ]
-        
-        # Configurar execute para que falle en el INSERT del producto
-        call_count = {'count': 0}
-        def execute_side_effect(*args, **kwargs):
-            call_count['count'] += 1
-            if call_count['count'] == 3:  # El tercer execute es el INSERT del producto
-                raise duplicate_error
-        mock_cursor.execute.side_effect = execute_side_effect
-
-        product_data = [
-            {
-                "sku": "DUPLICATE-001",
-                "name": "Producto Duplicado",
-                "value": "100",
-                "category_name": "MEDICATION",
-                "quantity": "10",
-                "warehouse_id": "1"
-            }
-        ]
-
-        response = client.post('/products/upload3',
-                              data=json.dumps(product_data),
-                              content_type='text/plain')
-        
-        # Debe procesar pero con error en el producto
-        assert response.status_code == 200
-        data = json.loads(response.data)
-        assert data['failed_records'] == 1
-        assert len(data['errors']) > 0
+    pass
 
 
 class TestGetWarehouses:
@@ -588,8 +402,9 @@ class TestHealthEndpoint:
         assert data['status'] == 'ok'
 
 
+## Tests de validaciones /products/upload3 eliminados (endpoint removido)
 class TestUpload3Validations:
-    """Tests para validaciones adicionales de upload3"""
+    pass
 
     def test_upload3_product_not_dict(self, client):
         """Test: Debe validar que cada producto sea un diccionario."""
@@ -599,14 +414,7 @@ class TestUpload3Validations:
              "category_name": "MEDICATION", "quantity": "10", "warehouse_id": "1"}
         ]
 
-        response = client.post('/products/upload3',
-                             data=json.dumps(product_data),
-                             content_type='text/plain')
-        
-        assert response.status_code == 400
-        data = json.loads(response.data)
-        assert data['success'] is False
-        assert any('objeto JSON' in error for error in data['errors'])
+        pytest.skip("/products/upload3 fue removido")
 
     def test_upload3_invalid_value_type(self, client):
         """Test: Debe validar que value sea un número válido."""
@@ -621,14 +429,7 @@ class TestUpload3Validations:
             }
         ]
 
-        response = client.post('/products/upload3',
-                             data=json.dumps(product_data),
-                             content_type='text/plain')
-        
-        assert response.status_code == 400
-        data = json.loads(response.data)
-        assert data['success'] is False
-        assert any('número válido' in error for error in data['errors'])
+        pytest.skip("/products/upload3 fue removido")
 
     def test_upload3_invalid_quantity_type(self, client):
         """Test: Debe validar que quantity sea un entero válido."""
@@ -643,14 +444,7 @@ class TestUpload3Validations:
             }
         ]
 
-        response = client.post('/products/upload3',
-                             data=json.dumps(product_data),
-                             content_type='text/plain')
-        
-        assert response.status_code == 400
-        data = json.loads(response.data)
-        assert data['success'] is False
-        assert any('número entero válido' in error for error in data['errors'])
+        pytest.skip("/products/upload3 fue removido")
 
     def test_upload3_invalid_warehouse_id_zero(self, client):
         """Test: Debe validar que warehouse_id sea mayor a 0."""
@@ -665,14 +459,7 @@ class TestUpload3Validations:
             }
         ]
 
-        response = client.post('/products/upload3',
-                             data=json.dumps(product_data),
-                             content_type='text/plain')
-        
-        assert response.status_code == 400
-        data = json.loads(response.data)
-        assert data['success'] is False
-        assert any('warehouse_id debe ser mayor a 0' in error for error in data['errors'])
+        pytest.skip("/products/upload3 fue removido")
 
     def test_upload3_invalid_warehouse_id_type(self, client):
         """Test: Debe validar que warehouse_id sea un entero válido."""
@@ -687,14 +474,7 @@ class TestUpload3Validations:
             }
         ]
 
-        response = client.post('/products/upload3',
-                             data=json.dumps(product_data),
-                             content_type='text/plain')
-        
-        assert response.status_code == 400
-        data = json.loads(response.data)
-        assert data['success'] is False
-        assert any('warehouse_id debe ser un número entero válido' in error for error in data['errors'])
+        pytest.skip("/products/upload3 fue removido")
 
 
 class TestErrorHandlers:
@@ -702,21 +482,7 @@ class TestErrorHandlers:
 
     @patch('app.product_repository._get_connection')
     def test_upload3_exception_handler(self, mock_get_conn, client):
-        """Test: Debe manejar excepciones en upload_products_string."""
-        # Simular error al obtener conexión
-        mock_get_conn.side_effect = Exception("Database connection failed")
-
-        product_data = [{"sku": "TEST-001", "name": "Test", "value": "100", 
-                        "category_name": "MEDICATION", "quantity": "10", "warehouse_id": "1"}]
-
-        response = client.post('/products/upload3',
-                             data=json.dumps(product_data),
-                             content_type='text/plain')
-        
-        assert response.status_code == 500
-        data = json.loads(response.data)
-        assert data['success'] is False
-        assert 'error' in data['message'].lower() or 'interno' in data['message'].lower()
+        pass
 
     @patch('app.product_repository._get_connection')
     def test_get_warehouses_no_data_with_city_id(self, mock_get_conn, client, mock_db_connection):
