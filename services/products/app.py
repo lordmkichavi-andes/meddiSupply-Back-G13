@@ -8,6 +8,7 @@ from functools import wraps
 import os
 import json
 import io
+import re
 import pandas as pd
 from datetime import datetime
 
@@ -276,7 +277,52 @@ def upload_products_string():
             row_num = index + 1
             print(f"Procesando producto {row_num}: {product.get('sku', 'N/A')}")
             
+            # Crear un savepoint antes de procesar cada producto
+            savepoint_name = f"sp_product_{row_num}"
             try:
+                cursor.execute(f"SAVEPOINT {savepoint_name}")
+            except Exception as sp_error:
+                # Si hay un error creando el savepoint, puede ser que la transacción ya esté abortada
+                error_msg = f"Fila {row_num}: No se pudo crear savepoint - {str(sp_error)}"
+                print(f"Error creando savepoint para producto {row_num}: {str(sp_error)}")
+                processed_errors.append(error_msg)
+                failed_records += 1
+                
+                # Intentar hacer rollback de la transacción completa
+                try:
+                    conn.rollback()
+                    print("Rollback completo ejecutado debido a error en savepoint")
+                    # Reinsertar el upload_id después del rollback si es necesario
+                    cursor.execute(upload_insert, (
+                        'string_upload',
+                        'string',
+                        len(data_string),
+                        len(products_data),
+                        0,
+                        0,
+                        'procesando',
+                        1
+                    ))
+                    upload_id = cursor.fetchone()['id']
+                    print(f"Upload ID recreado: {upload_id}")
+                except Exception as rollback_err:
+                    print(f"Error en rollback/recreación de upload: {str(rollback_err)}")
+                    # Si no podemos recuperar, marcar todos los productos restantes como fallidos y salir
+                    for remaining_index in range(index, len(products_data)):
+                        remaining_row = remaining_index + 1
+                        processed_errors.append(f"Fila {remaining_row}: No procesado debido a error de transacción")
+                        failed_records += 1
+                    break
+                continue
+            
+            try:
+                # Validar si el SKU ya existe antes de intentar insertar
+                cursor.execute("SELECT product_id, sku, name FROM products.products WHERE sku = %s", (product['sku'],))
+                existing_product = cursor.fetchone()
+                
+                if existing_product:
+                    raise Exception(f"SKU duplicado: El producto con SKU '{product['sku']}' ya existe en la base de datos (ID: {existing_product['product_id']}, Nombre: {existing_product['name']})")
+                
                 # Obtener o crear category_id
                 cursor.execute("SELECT category_id FROM products.category WHERE name = %s", (product['category_name'],))
                 category_result = cursor.fetchone()
@@ -369,31 +415,78 @@ def upload_products_string():
                     product_id
                 ))
                 
+                # Liberar el savepoint al completar exitosamente
+                cursor.execute(f"RELEASE SAVEPOINT {savepoint_name}")
+                
                 successful_records += 1
                 print(f"Producto {row_num} procesado exitosamente")
                 
             except Exception as row_error:
-                error_msg = f"Fila {row_num}: {str(row_error)}"
-                print(f"Error en producto {row_num}: {str(row_error)}")
+                # Extraer información más específica del error
+                error_str = str(row_error)
+                product_sku = product.get('sku', 'N/A')
+                product_name = product.get('name', 'N/A')
+                
+                # Mejorar el mensaje de error para SKUs duplicados
+                if 'duplicate key' in error_str.lower() and 'sku' in error_str.lower():
+                    # Extraer el SKU del mensaje de error si es posible
+                    sku_match = re.search(r"\(sku\)=\(([^)]+)\)", error_str)
+                    if sku_match:
+                        duplicate_sku = sku_match.group(1)
+                        error_msg = f"Fila {row_num} (SKU: {product_sku}, Nombre: {product_name}): El SKU '{duplicate_sku}' ya existe en la base de datos"
+                    else:
+                        error_msg = f"Fila {row_num} (SKU: {product_sku}, Nombre: {product_name}): SKU duplicado - el producto ya existe en la base de datos"
+                else:
+                    # Para otros errores, incluir información del producto
+                    error_msg = f"Fila {row_num} (SKU: {product_sku}, Nombre: {product_name}): {error_str}"
+                
+                print(f"Error en producto {row_num} (SKU: {product_sku}): {error_str}")
                 processed_errors.append(error_msg)
                 
-                # Insertar en product_upload_details (fallo)
-                details_insert = """
-                    INSERT INTO products.product_upload_details 
-                    (upload_id, row_id, code, name, price, category, status, errors)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                """
+                # Hacer rollback al savepoint para restaurar el estado antes del procesamiento de este producto
+                try:
+                    cursor.execute(f"ROLLBACK TO SAVEPOINT {savepoint_name}")
+                    print(f"Rollback a savepoint {savepoint_name} ejecutado")
+                except Exception as rollback_error:
+                    print(f"Error en rollback a savepoint: {str(rollback_error)}")
                 
-                cursor.execute(details_insert, (
-                    upload_id,
-                    row_num,
-                    product.get('sku', 'N/A'),
-                    product.get('name', 'N/A'),
-                    float(product.get('value', 0)),
-                    product.get('category_name', 'N/A'),
-                    'fallido',
-                    str(row_error)
-                ))
+                # Ahora intentar insertar el registro de error en product_upload_details
+                try:
+                    details_insert = """
+                        INSERT INTO products.product_upload_details 
+                        (upload_id, row_id, code, name, price, category, status, errors)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    """
+                    
+                    cursor.execute(details_insert, (
+                        upload_id,
+                        row_num,
+                        product.get('sku', 'N/A'),
+                        product.get('name', 'N/A'),
+                        float(product.get('value', 0)),
+                        product.get('category_name', 'N/A'),
+                        'fallido',
+                        str(row_error)
+                    ))
+                    print(f"Registro de error insertado para producto {row_num}")
+                except Exception as details_error:
+                    # Si aún falla, hacer rollback completo y reinsertar upload
+                    print(f"Error insertando detalles de error: {str(details_error)}")
+                    try:
+                        conn.rollback()
+                        cursor.execute(upload_insert, (
+                            'string_upload',
+                            'string',
+                            len(data_string),
+                            len(products_data),
+                            0,
+                            0,
+                            'procesando',
+                            1
+                        ))
+                        upload_id = cursor.fetchone()['id']
+                    except:
+                        pass
                 
                 failed_records += 1
         
