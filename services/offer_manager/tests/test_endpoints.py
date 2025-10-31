@@ -23,8 +23,8 @@ class TestHealthEndpoint:
 class TestProductsEndpoint:
     """Tests para el endpoint /products"""
     
-    @patch('src.blueprints.sales_plans.Product')
-    @patch('src.blueprints.sales_plans.get_products')
+    @patch('src.blueprints.offers.Product')
+    @patch('src.blueprints.offers.get_products')
     def test_get_products_success(self, mock_get_products, mock_product_cls, client):
         mock_get_products.return_value = [
             {
@@ -47,7 +47,7 @@ class TestProductsEndpoint:
         assert isinstance(data, list)
         assert data[0]['sku'] == 'TEST-001'
     
-    @patch('src.blueprints.sales_plans.get_products')
+    @patch('src.blueprints.offers.get_products')
     def test_get_products_empty_response(self, mock_get_products, client):
         mock_get_products.return_value = []
         resp = client.get('/offers/products')
@@ -120,8 +120,8 @@ class TestSalesPlansEndpoint:
         assert isinstance(data, list)
         assert len(data) == 0
     
-    @patch('src.blueprints.sales_plans.get_sales_plan_by_id')
-    @patch('src.blueprints.sales_plans.get_sales_plan_products')
+    @patch('src.blueprints.offers.get_sales_plan_by_id')
+    @patch('src.blueprints.offers.get_sales_plan_products')
     def test_get_plan_detail_success(self, mock_get_products, mock_get_by_id, client):
         mock_get_by_id.return_value = {
             'plan_id': 9,
@@ -151,7 +151,7 @@ class TestSalesPlansEndpoint:
         assert data['plan_id'] == 9
         assert len(data['products']) == 1
     
-    @patch('src.blueprints.sales_plans.get_sales_plan_by_id')
+    @patch('src.blueprints.offers.get_sales_plan_by_id')
     def test_get_plan_detail_not_found(self, mock_get_by_id, client):
         mock_get_by_id.return_value = None
         resp = client.get('/offers/plans/999')
