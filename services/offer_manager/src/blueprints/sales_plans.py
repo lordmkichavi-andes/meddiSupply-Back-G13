@@ -11,7 +11,7 @@ from src.db import (
 from src.models import SalesPlan, SalesPlanProduct, Product
 from src.services.sales_plan_service import SalesPlanService
 
-sales_plans_bp = Blueprint('sales_plans', __name__)
+sales_plans_bp = Blueprint('offer_manager', __name__)
 
 
 @sales_plans_bp.get('/products')

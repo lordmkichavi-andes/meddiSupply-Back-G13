@@ -41,7 +41,7 @@ class TestProductsEndpoint:
         mock_instance.to_dict.return_value = {'product_id': 1, 'sku': 'TEST-001'}
         mock_product_cls.from_dict.return_value = mock_instance
 
-        resp = client.get('/products')
+        resp = client.get('/offers/products')
         assert resp.status_code == 200
         data = resp.get_json()
         assert isinstance(data, list)
@@ -50,7 +50,7 @@ class TestProductsEndpoint:
     @patch('src.blueprints.sales_plans.get_products')
     def test_get_products_empty_response(self, mock_get_products, client):
         mock_get_products.return_value = []
-        resp = client.get('/products')
+        resp = client.get('/offers/products')
         assert resp.status_code == 200
         data = resp.get_json()
         assert isinstance(data, list)
@@ -82,14 +82,14 @@ class TestSalesPlansEndpoint:
         with patch('src.services.sales_plan_service.products_client.get_all_active_products', return_value=[
             {'product_id': 1}, {'product_id': 2}
         ]):
-            resp = client.post('/plans', data=json.dumps(payload), content_type='application/json')
+            resp = client.post('/offers/plans', data=json.dumps(payload), content_type='application/json')
         assert resp.status_code == 201
         data = resp.get_json()
         assert data['plan_id'] == 123
     
     def test_create_plan_missing_fields(self, client):
         payload = {'region': 'Centro'}  # Falta quarter, year, etc.
-        resp = client.post('/plans', data=json.dumps(payload), content_type='application/json')
+        resp = client.post('/offers/plans', data=json.dumps(payload), content_type='application/json')
         assert resp.status_code == 400
     
     @patch('src.db.execute_query')
@@ -105,7 +105,7 @@ class TestSalesPlansEndpoint:
                 'creation_date': '2025-01-01'
             }
         ]
-        resp = client.get('/plans')
+        resp = client.get('/offers/plans')
         assert resp.status_code == 200
         data = resp.get_json()
         assert isinstance(data, list)
@@ -114,7 +114,7 @@ class TestSalesPlansEndpoint:
     @patch('src.db.execute_query')
     def test_get_plans_empty(self, mock_exec, client):
         mock_exec.return_value = []
-        resp = client.get('/plans')
+        resp = client.get('/offers/plans')
         assert resp.status_code == 200
         data = resp.get_json()
         assert isinstance(data, list)
@@ -145,7 +145,7 @@ class TestSalesPlansEndpoint:
                 'unit_symbol': 'Cj'
             }
         ]
-        resp = client.get('/plans/9')
+        resp = client.get('/offers/plans/9')
         assert resp.status_code == 200
         data = resp.get_json()
         assert data['plan_id'] == 9
@@ -154,7 +154,7 @@ class TestSalesPlansEndpoint:
     @patch('src.blueprints.sales_plans.get_sales_plan_by_id')
     def test_get_plan_detail_not_found(self, mock_get_by_id, client):
         mock_get_by_id.return_value = None
-        resp = client.get('/plans/999')
+        resp = client.get('/offers/plans/999')
         assert resp.status_code == 404
 
 
@@ -162,14 +162,14 @@ class TestOptionsEndpoints:
     """Tests para endpoints de opciones /regions y /quarters"""
     
     def test_get_regions(self, client):
-        resp = client.get('/regions')
+        resp = client.get('/offers/regions')
         assert resp.status_code == 200
         data = resp.get_json()
         assert isinstance(data, list)
         assert len(data) > 0
     
     def test_get_quarters(self, client):
-        resp = client.get('/quarters')
+        resp = client.get('/offers/quarters')
         assert resp.status_code == 200
         data = resp.get_json()
         assert isinstance(data, list)

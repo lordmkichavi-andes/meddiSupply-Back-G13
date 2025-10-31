@@ -266,28 +266,57 @@ jobs:
         run: |
             set -euo pipefail
             
-            # 1. Crear el patrón de búsqueda (Ej: ProductsService)
-            SERVICE_SLUG_CAPITALIZED_PREFIX="$(echo "$SERVICE_SLUG" | sed 's/\(.\)/\U\1/')"Service
+            # 1. Crear el patrón de búsqueda capitalizando correctamente
+            # Convierte "offer_manager" -> "OfferManager" o "products" -> "Products"
+            # Capitaliza primera letra de cada palabra separada por _ o - y elimina esos separadores
+            SERVICE_SLUG_CAPITALIZED=$(echo "$SERVICE_SLUG" | sed -E 's/(^|_|-)([a-z])/\U\2/g' | sed 's/[_\-]//g')
+            SERVICE_SLUG_CAPITALIZED_PREFIX="${SERVICE_SLUG_CAPITALIZED}Service"
             
             echo "🔍 Buscando servicio ECS que contenga: $SERVICE_SLUG_CAPITALIZED_PREFIX"
             
             # 2. OBTENCIÓN ROBUSTA Y LIMPIA DEL NOMBRE LARGO CON JQ
             # -----------------------------------------------------------
             # A. Obtener todos los ARNs de servicio como JSON.
-            # B. Filtrar el array de ARNs usando 'select' (que actúa como grep)
+            # B. Filtrar el array de ARNs usando 'select' con búsqueda case-insensitive
             #    para encontrar el ARN que contiene el patrón capitalizado.
+            #    Los servicios en ECS tienen formato: MediSupplyStack-OfferManagerService...
             # C. Extraer el nombre largo (el último segmento después del /)
             
             FULL_SERVICE_NAME=$(aws ecs list-services --cluster "$CLUSTER" --region "$AWS_REGION" --output json | \
                 jq -r --arg prefix "$SERVICE_SLUG_CAPITALIZED_PREFIX" '.serviceArns[] | 
-                    select(contains($prefix)) | 
+                    select(test($prefix; "i")) | 
                     split("/") | 
                     .[2]' || true) # El índice [2] es el nombre del servicio para ARN v2 (service/cluster/name)
+            
+            # Si no se encuentra, intentar búsqueda más flexible con solo el nombre sin "Service"
+            if [ -z "$FULL_SERVICE_NAME" ]; then
+               echo "⚠️  No se encontró con patrón exacto '$SERVICE_SLUG_CAPITALIZED_PREFIX', intentando búsqueda flexible..."
+               # Búsqueda flexible: busca solo el nombre capitalizado sin "Service"
+               FULL_SERVICE_NAME=$(aws ecs list-services --cluster "$CLUSTER" --region "$AWS_REGION" --output json | \
+                   jq -r --arg search "$SERVICE_SLUG_CAPITALIZED" '.serviceArns[] | 
+                       select(test($search; "i")) | 
+                       split("/") | 
+                       .[2]' || true)
+            fi
+            
+            # Si aún no se encuentra, intentar búsqueda con el slug original (case-insensitive)
+            if [ -z "$FULL_SERVICE_NAME" ]; then
+               echo "⚠️  Intentando búsqueda con slug original: $SERVICE_SLUG"
+               # Búsqueda con el slug original convertido a mayúsculas para coincidencia flexible
+               FULL_SERVICE_NAME=$(aws ecs list-services --cluster "$CLUSTER" --region "$AWS_REGION" --output json | \
+                   jq -r --arg search "$SERVICE_SLUG" '.serviceArns[] | 
+                       select(test($search; "i")) | 
+                       split("/") | 
+                       .[2]' || true)
+            fi
             
             # -----------------------------------------------------------
             
             if [ -z "$FULL_SERVICE_NAME" ]; then
-               echo "❌ ERROR FATAL: No se encontró ningún servicio ECS que coincida con '$SERVICE_SLUG_CAPITALIZED_PREFIX' en el cluster '$CLUSTER'."
+               echo "❌ ERROR FATAL: No se encontró ningún servicio ECS que coincida con '$SERVICE_SLUG_CAPITALIZED_PREFIX' o variaciones en el cluster '$CLUSTER'."
+               echo "📋 Servicios disponibles en el cluster:"
+               aws ecs list-services --cluster "$CLUSTER" --region "$AWS_REGION" --output json | \
+                   jq -r '.serviceArns[] | split("/") | .[2]' || true
                exit 1
             fi
             
