@@ -268,8 +268,8 @@ jobs:
             
             # 1. Crear el patrón de búsqueda capitalizando correctamente
             # Convierte "offer_manager" -> "OfferManager" o "products" -> "Products"
-            # Capitaliza primera letra de cada palabra separada por _ o -
-            SERVICE_SLUG_CAPITALIZED=$(echo "$SERVICE_SLUG" | sed -E 's/(^|_|-)([a-z])/\U\2/g')
+            # Capitaliza primera letra de cada palabra separada por _ o - y elimina esos separadores
+            SERVICE_SLUG_CAPITALIZED=$(echo "$SERVICE_SLUG" | sed -E 's/(^|_|-)([a-z])/\U\2/g' | sed 's/[_\-]//g')
             SERVICE_SLUG_CAPITALIZED_PREFIX="${SERVICE_SLUG_CAPITALIZED}Service"
             
             echo "🔍 Buscando servicio ECS que contenga: $SERVICE_SLUG_CAPITALIZED_PREFIX"
