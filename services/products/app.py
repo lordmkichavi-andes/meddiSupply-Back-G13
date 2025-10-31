@@ -118,14 +118,515 @@ def get_product_by_id(product_id):
     else:
         return jsonify({"error": "Product not found"}), 404
 
-@app.route('/products/upload3', methods=['POST'])
-def upload_products_string():
-    print("=== INICIO UPLOAD PRODUCTS STRING ===")
+def validate_products_data(products_data):
+    """
+    Valida los productos antes de insertarlos en la base de datos.
+    
+    Args:
+        products_data: Lista de diccionarios con productos a validar
+        
+    Returns:
+        Tupla: (is_valid: bool, errors: list, warnings: list, validated_products: list)
+        - is_valid: True si pasa todas las validaciones
+        - errors: Lista de errores críticos que bloquean la inserción
+        - warnings: Lista de advertencias que no bloquean la inserción
+        - validated_products: Lista de productos validados (vacía si hay errores)
+    """
+    errors = []
+    warnings = []
+    validated_products = []
+    required_fields = ['sku', 'name', 'value', 'category_name', 'quantity', 'warehouse_id']
+    
+    # Validar que sea una lista y no esté vacía
+    if not isinstance(products_data, list):
+        errors.append("Los datos deben ser un array de productos")
+        return False, errors, warnings, validated_products
+    
+    if not products_data:
+        errors.append("No se recibieron productos para procesar")
+        return False, errors, warnings, validated_products
+    
+    # Validar cada producto
+    for index, product in enumerate(products_data):
+        row_num = index + 1
+        
+        # Verificar que sea un diccionario
+        if not isinstance(product, dict):
+            errors.append(f"Fila {row_num}: El producto debe ser un objeto JSON")
+            continue
+        
+        product_errors = []
+        product_warnings = []
+        
+        # Verificar campos obligatorios
+        for field in required_fields:
+            if field not in product or product[field] is None or str(product[field]).strip() == '':
+                product_errors.append(f"Fila {row_num}: {field} es obligatorio")
+        
+        # Validaciones específicas de SKU
+        if 'sku' in product and product['sku']:
+            sku_str = str(product['sku']).strip()
+            if len(sku_str) < 3:
+                product_warnings.append(f"Fila {row_num}: SKU muy corto (mínimo 3 caracteres)")
+        
+        # Validaciones específicas de value
+        if 'value' in product and product['value']:
+            try:
+                value = float(str(product['value']))
+                if value <= 0:
+                    product_errors.append(f"Fila {row_num}: El valor debe ser mayor a 0")
+            except (ValueError, TypeError):
+                product_errors.append(f"Fila {row_num}: El valor debe ser un número válido")
+        
+        # Validaciones específicas de quantity
+        if 'quantity' in product and product['quantity']:
+            try:
+                quantity = int(str(product['quantity']))
+                if quantity < 0:
+                    product_errors.append(f"Fila {row_num}: La cantidad no puede ser negativa")
+            except (ValueError, TypeError):
+                product_errors.append(f"Fila {row_num}: La cantidad debe ser un número entero válido")
+        
+        # Validaciones específicas de warehouse_id
+        if 'warehouse_id' in product and product['warehouse_id']:
+            try:
+                warehouse_id = int(str(product['warehouse_id']))
+                if warehouse_id <= 0:
+                    product_errors.append(f"Fila {row_num}: El warehouse_id debe ser mayor a 0")
+            except (ValueError, TypeError):
+                product_errors.append(f"Fila {row_num}: El warehouse_id debe ser un número entero válido")
+        
+        # Si hay errores en este producto, agregarlos a la lista general
+        if product_errors:
+            errors.extend(product_errors)
+        else:
+            # Si no hay errores, agregar el producto a la lista de validados
+            validated_products.append(product)
+        
+        # Agregar warnings
+        if product_warnings:
+            warnings.extend(product_warnings)
+    
+    # Validar SKUs duplicados en la base de datos
+    if validated_products:
+        try:
+            conn, cursor = product_repository._get_connection()
+            
+            # Obtener todos los SKUs que ya existen
+            skus_to_check = [p['sku'] for p in validated_products]
+            placeholders = ','.join(['%s'] * len(skus_to_check))
+            cursor.execute(f"SELECT product_id, sku, name FROM products.products WHERE sku IN ({placeholders})", skus_to_check)
+            existing_products = cursor.fetchall()
+            
+            if existing_products:
+                # Crear un diccionario de productos existentes por SKU
+                existing_by_sku = {row['sku']: row for row in existing_products}
+                
+                # Validar cada producto validado contra los existentes
+                filtered_validated = []
+                for product in validated_products:
+                    if product['sku'] in existing_by_sku:
+                        existing = existing_by_sku[product['sku']]
+                        row_num = next((i+1 for i, p in enumerate(products_data) if p.get('sku') == product['sku']), 'N/A')
+                        errors.append(
+                            f"Fila {row_num} (SKU: {product['sku']}, Nombre: {product.get('name', 'N/A')}): "
+                            f"El SKU '{product['sku']}' ya existe en la base de datos "
+                            f"(ID: {existing['product_id']}, Nombre: {existing['name']})"
+                        )
+                    else:
+                        filtered_validated.append(product)
+                
+                validated_products = filtered_validated
+            
+            cursor.close()
+            conn.close()
+        except Exception as db_error:
+            print(f"Error validando SKUs en la base de datos: {str(db_error)}")
+            # Si hay error en la validación de DB, no bloquear pero registrar warning
+            warnings.append("No se pudo validar SKUs duplicados en la base de datos. Se validará durante la inserción.")
+    
+    is_valid = len(errors) == 0 and len(validated_products) > 0
+    return is_valid, errors, warnings, validated_products
+
+
+def insert_products(products_data, conn, cursor, data_string):
+    """
+    Inserta los productos validados en la base de datos.
+    
+    Args:
+        products_data: Lista de productos validados a insertar
+        conn: Conexión a la base de datos
+        cursor: Cursor de la conexión
+        data_string: String original de los datos (para file_size)
+        
+    Returns:
+        Tupla: (successful_records: int, failed_records: int, errors: list, upload_id: int, warnings: list)
+        - successful_records: Número de productos insertados exitosamente
+        - failed_records: Número de productos que fallaron
+        - errors: Lista de errores de inserción
+        - upload_id: ID del registro de upload creado
+        - warnings: Lista de advertencias (vacía, pero se mantiene para compatibilidad)
+    """
+    successful_records = 0
+    failed_records = 0
+    processed_errors = []
+    warnings = []
+    
+    # 1. Crear registro en product_uploads
+    upload_insert = """
+        INSERT INTO products.product_uploads 
+        (file_name, file_type, file_size, total_records, successful_records, failed_records, state, start_date, user_id)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, NOW(), %s)
+        RETURNING id
+    """
+    
+    cursor.execute(upload_insert, (
+        'string_upload',
+        'string',
+        len(data_string),
+        len(products_data),
+        0,  # successful_records
+        0,  # failed_records
+        'procesando',
+        1   # user_id (hardcoded por ahora)
+    ))
+    
+    upload_id = cursor.fetchone()['id']
+    print(f"Upload ID creado: {upload_id}")
+    
+    # 2. Procesar cada producto del JSON
+    for index, product in enumerate(products_data):
+        row_num = index + 1
+        print(f"Procesando producto {row_num}: {product.get('sku', 'N/A')}")
+        
+        # Crear un savepoint antes de procesar cada producto
+        savepoint_name = f"sp_product_{row_num}"
+        try:
+            cursor.execute(f"SAVEPOINT {savepoint_name}")
+        except Exception as sp_error:
+            # Si hay un error creando el savepoint, puede ser que la transacción ya esté abortada
+            error_msg = f"Fila {row_num}: No se pudo crear savepoint - {str(sp_error)}"
+            print(f"Error creando savepoint para producto {row_num}: {str(sp_error)}")
+            processed_errors.append(error_msg)
+            failed_records += 1
+            
+            # Intentar hacer rollback de la transacción completa
+            try:
+                conn.rollback()
+                print("Rollback completo ejecutado debido a error en savepoint")
+                # Reinsertar el upload_id después del rollback si es necesario
+                cursor.execute(upload_insert, (
+                    'string_upload',
+                    'string',
+                    len(data_string),
+                    len(products_data),
+                    0,
+                    0,
+                    'procesando',
+                    1
+                ))
+                upload_id = cursor.fetchone()['id']
+                print(f"Upload ID recreado: {upload_id}")
+            except Exception as rollback_err:
+                print(f"Error en rollback/recreación de upload: {str(rollback_err)}")
+                # Si no podemos recuperar, marcar todos los productos restantes como fallidos y salir
+                for remaining_index in range(index, len(products_data)):
+                    remaining_row = remaining_index + 1
+                    processed_errors.append(f"Fila {remaining_row}: No procesado debido a error de transacción")
+                    failed_records += 1
+                break
+            continue
+        
+        try:
+            # Validar si el SKU ya existe antes de intentar insertar (validación adicional)
+            cursor.execute("SELECT product_id, sku, name FROM products.products WHERE sku = %s", (product['sku'],))
+            existing_product = cursor.fetchone()
+            
+            if existing_product:
+                raise Exception(
+                    f"SKU duplicado: El producto con SKU '{product['sku']}' ya existe en la base de datos "
+                    f"(ID: {existing_product['product_id']}, Nombre: {existing_product['name']})"
+                )
+            
+            # Obtener o crear category_id
+            cursor.execute("SELECT category_id FROM products.category WHERE name = %s", (product['category_name'],))
+            category_result = cursor.fetchone()
+            
+            if category_result:
+                category_id = category_result['category_id']
+            else:
+                # Crear nueva categoría si no existe - obtener el siguiente ID disponible
+                cursor.execute("SELECT COALESCE(MAX(category_id), 0) + 1 FROM products.category")
+                next_category_id = cursor.fetchone()[0]
+
+                cursor.execute("""
+                    INSERT INTO products.category (category_id, name) 
+                    VALUES (%s, %s) 
+                    RETURNING category_id
+                """, (next_category_id, product['category_name']))
+                category_id = cursor.fetchone()['category_id']
+                print(f"Nueva categoría creada: {product['category_name']} (ID: {category_id})")
+            
+            # Insertar producto
+            product_insert = """
+                INSERT INTO products.products 
+                (sku, name, value, category_id, provider_id, status, objective_profile, unit_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING product_id
+            """
+            
+            cursor.execute(product_insert, (
+                product['sku'],
+                product['name'],
+                float(product['value']),
+                category_id,
+                1,  # provider_id (hardcoded)
+                'activo',
+                '',  # objective_profile
+                1    # unit_id (hardcoded)
+            ))
+            
+            product_id = cursor.fetchone()['product_id']
+            print(f"Producto creado: {product['sku']} (ID: {product_id})")
+            
+            # Insertar stock
+            stock_insert = """
+                INSERT INTO products.productstock 
+                (product_id, quantity, lote, warehouse_id, provider_id, country)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """
+            
+            cursor.execute(stock_insert, (
+                product_id,
+                int(product['quantity']),
+                f"LOTE-{product['sku']}-{datetime.now().strftime('%Y%m%d')}",  # lote generado
+                int(product['warehouse_id']),
+                1,  # provider_id
+                'COL'  # country (hardcoded)
+            ))
+            print(f"Stock creado para producto {product_id}")
+            
+            # Insertar en product_history
+            history_insert = """
+                INSERT INTO products.product_history 
+                (product_id, new_value, change_type, user_id, upload_id)
+                VALUES (%s, %s, %s, %s, %s)
+            """
+            
+            cursor.execute(history_insert, (
+                product_id,
+                float(product['value']),
+                'creacion',
+                1,  # user_id
+                upload_id
+            ))
+            print(f"Historial creado para producto {product_id}")
+            
+            # Insertar en product_upload_details (éxito)
+            details_insert = """
+                INSERT INTO products.product_upload_details 
+                (upload_id, row_id, code, name, price, category, status, product_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """
+            
+            cursor.execute(details_insert, (
+                upload_id,
+                row_num,
+                product['sku'],
+                product['name'],
+                float(product['value']),
+                product['category_name'],
+                'exitoso',
+                product_id
+            ))
+            
+            # Liberar el savepoint al completar exitosamente
+            cursor.execute(f"RELEASE SAVEPOINT {savepoint_name}")
+            
+            successful_records += 1
+            print(f"Producto {row_num} procesado exitosamente")
+            
+        except Exception as row_error:
+            # Extraer información más específica del error
+            error_str = str(row_error)
+            product_sku = product.get('sku', 'N/A')
+            product_name = product.get('name', 'N/A')
+            
+            # Mejorar el mensaje de error para SKUs duplicados
+            if 'duplicate key' in error_str.lower() and 'sku' in error_str.lower():
+                # Extraer el SKU del mensaje de error si es posible
+                sku_match = re.search(r"\(sku\)=\(([^)]+)\)", error_str)
+                if sku_match:
+                    duplicate_sku = sku_match.group(1)
+                    error_msg = f"Fila {row_num} (SKU: {product_sku}, Nombre: {product_name}): El SKU '{duplicate_sku}' ya existe en la base de datos"
+                else:
+                    error_msg = f"Fila {row_num} (SKU: {product_sku}, Nombre: {product_name}): SKU duplicado - el producto ya existe en la base de datos"
+            else:
+                # Para otros errores, incluir información del producto
+                error_msg = f"Fila {row_num} (SKU: {product_sku}, Nombre: {product_name}): {error_str}"
+            
+            print(f"Error en producto {row_num} (SKU: {product_sku}): {error_str}")
+            processed_errors.append(error_msg)
+            
+            # Hacer rollback al savepoint para restaurar el estado antes del procesamiento de este producto
+            try:
+                cursor.execute(f"ROLLBACK TO SAVEPOINT {savepoint_name}")
+                print(f"Rollback a savepoint {savepoint_name} ejecutado")
+            except Exception as rollback_error:
+                print(f"Error en rollback a savepoint: {str(rollback_error)}")
+            
+            # Ahora intentar insertar el registro de error en product_upload_details
+            try:
+                details_insert = """
+                    INSERT INTO products.product_upload_details 
+                    (upload_id, row_id, code, name, price, category, status, errors)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """
+                
+                cursor.execute(details_insert, (
+                    upload_id,
+                    row_num,
+                    product.get('sku', 'N/A'),
+                    product.get('name', 'N/A'),
+                    float(product.get('value', 0)),
+                    product.get('category_name', 'N/A'),
+                    'fallido',
+                    str(row_error)
+                ))
+                print(f"Registro de error insertado para producto {row_num}")
+            except Exception as details_error:
+                # Si aún falla, hacer rollback completo y reinsertar upload
+                print(f"Error insertando detalles de error: {str(details_error)}")
+                try:
+                    conn.rollback()
+                    cursor.execute(upload_insert, (
+                        'string_upload',
+                        'string',
+                        len(data_string),
+                        len(products_data),
+                        0,
+                        0,
+                        'procesando',
+                        1
+                    ))
+                    upload_id = cursor.fetchone()['id']
+                except:
+                    pass
+            
+            failed_records += 1
+    
+    # 3. Actualizar product_uploads con resultados finales
+    update_upload = """
+        UPDATE products.product_uploads 
+        SET successful_records = %s, failed_records = %s, state = %s, end_date = NOW()
+        WHERE id = %s
+    """
+    
+    cursor.execute(update_upload, (
+        successful_records,
+        failed_records,
+        'completado',
+        upload_id
+    ))
+    
+    print(f"Transacción completada. Exitosos: {successful_records}, Fallidos: {failed_records}")
+    
+    return successful_records, failed_records, processed_errors, upload_id, warnings
+
+
+@app.route('/products/upload3/validate', methods=['POST'])
+def validate_products_endpoint():
+    """
+    Endpoint para validar productos sin insertarlos en la base de datos.
+    Solo realiza la validación y retorna el resultado.
+    """
+    print("=== INICIO VALIDACIÓN DE PRODUCTOS ===")
+    
+    try:
+        # 1. Obtener y parsear datos del request
+        data_string = request.get_data(as_text=True)
+
+        if not data_string or data_string.strip() == '':
+            return jsonify({
+                "success": False,
+                "message": "No se recibieron datos para procesar",
+                "total_records": 0,
+                "valid_records": 0,
+                "invalid_records": 0,
+                "errors": ["No se recibieron datos para procesar"],
+                "warnings": []
+            }), 400
+
+        print(f"Datos recibidos como string: {data_string[:200]}...")
+
+        # Limpiar el string (remover espacios en blanco al inicio y final)
+        data_string = data_string.strip()
+
+        # Intentar parsear como JSON
+        try:
+            products_data = json.loads(data_string)
+        except json.JSONDecodeError as e:
+            return jsonify({
+                "success": False,
+                "message": "Error al parsear JSON",
+                "total_records": 0,
+                "valid_records": 0,
+                "invalid_records": 0,
+                "errors": [f"Error de sintaxis JSON: {str(e)}"],
+                "warnings": []
+            }), 400
+
+        print(f"Productos parseados: {len(products_data)}")
+
+        # 2. Validar productos
+        is_valid, errors, warnings, validated_products = validate_products_data(products_data)
+
+        # Preparar respuesta
+        valid_records = len(validated_products)
+        invalid_records = len(products_data) - valid_records
+        
+        response_data = {
+            "success": is_valid,
+            "message": f"Validación completada: {valid_records} productos válidos de {len(products_data)} totales" if is_valid else f"Validación fallida: {invalid_records} productos con errores",
+            "total_records": len(products_data),
+            "valid_records": valid_records,
+            "invalid_records": invalid_records,
+            "errors": errors,
+            "warnings": warnings,
+            "validated_products": validated_products if is_valid else []  # Incluir productos validados si todo está bien
+        }
+        
+        # Retornar 200 con resultado de validación (éxito o fallo en los datos)
+        return jsonify(response_data), 200
+        
+    except Exception as e:
+        print(f"ERROR en validación: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        
+        return jsonify({
+            "success": False,
+            "message": "Error interno del servidor durante la validación",
+            "total_records": len(products_data) if 'products_data' in locals() else 0,
+            "valid_records": 0,
+            "invalid_records": len(products_data) if 'products_data' in locals() else 0,
+            "errors": [f"Error interno: {str(e)}"],
+            "warnings": []
+        }), 500
+
+
+@app.route('/products/upload3/insert', methods=['POST'])
+def insert_products_endpoint():
+    """
+    Endpoint para insertar productos validados en la base de datos.
+    Asume que los productos ya fueron validados previamente.
+    """
+    print("=== INICIO INSERCIÓN DE PRODUCTOS ===")
     conn = None
     cursor = None
     
     try:
-        # Obtener los datos como cadena de texto
+        # 1. Obtener y parsear datos del request
         data_string = request.get_data(as_text=True)
 
         if not data_string or data_string.strip() == '':
@@ -158,351 +659,28 @@ def upload_products_string():
                 "warnings": []
             }), 400
 
-        # Verificar que sea un array
-        if not isinstance(products_data, list):
+        print(f"Productos parseados para inserción: {len(products_data)}")
+
+        # 2. Validación rápida básica (estructura mínima)
+        if not isinstance(products_data, list) or not products_data:
             return jsonify({
                 "success": False,
-                "message": "Los datos deben ser un array de productos",
+                "message": "Los datos deben ser un array de productos no vacío",
                 "total_records": 0,
                 "successful_records": 0,
                 "failed_records": 0,
-                "errors": ["Los datos deben ser un array de productos"],
+                "errors": ["Los datos deben ser un array de productos no vacío"],
                 "warnings": []
-            }), 400
-
-        if not products_data:
-            return jsonify({
-                "success": False,
-                "message": "No se recibieron productos para procesar",
-                "total_records": 0,
-                "successful_records": 0,
-                "failed_records": 0,
-                "errors": ["No se recibieron productos para procesar"],
-                "warnings": []
-            }), 400
-
-        print(f"Productos parseados: {len(products_data)}")
-
-        # Validar campos obligatorios
-        required_fields = ['sku', 'name', 'value', 'category_name', 'quantity', 'warehouse_id']
-        errors = []
-        warnings = []
-
-        for index, product in enumerate(products_data):
-            row_num = index + 1
-
-            # Verificar que sea un diccionario
-            if not isinstance(product, dict):
-                errors.append(f"Fila {row_num}: El producto debe ser un objeto JSON")
-                continue
-
-            # Verificar campos obligatorios
-            for field in required_fields:
-                if field not in product or product[field] is None or str(product[field]).strip() == '':
-                    errors.append(f"Fila {row_num}: {field} es obligatorio")
-
-            # Validaciones específicas
-            if 'sku' in product and product['sku']:
-                if len(str(product['sku']).strip()) < 3:
-                    warnings.append(f"Fila {row_num}: SKU muy corto (mínimo 3 caracteres)")
-
-            if 'value' in product and product['value']:
-                try:
-                    value = float(str(product['value']))
-                    if value <= 0:
-                        errors.append(f"Fila {row_num}: El valor debe ser mayor a 0")
-                except (ValueError, TypeError):
-                    errors.append(f"Fila {row_num}: El valor debe ser un número válido")
-
-            if 'quantity' in product and product['quantity']:
-                try:
-                    quantity = int(str(product['quantity']))
-                    if quantity < 0:
-                        errors.append(f"Fila {row_num}: La cantidad no puede ser negativa")
-                except (ValueError, TypeError):
-                    errors.append(f"Fila {row_num}: La cantidad debe ser un número entero válido")
-
-            if 'warehouse_id' in product and product['warehouse_id']:
-                try:
-                    warehouse_id = int(str(product['warehouse_id']))
-                    if warehouse_id <= 0:
-                        errors.append(f"Fila {row_num}: El warehouse_id debe ser mayor a 0")
-                except (ValueError, TypeError):
-                    errors.append(f"Fila {row_num}: El warehouse_id debe ser un número entero válido")
-
-        # Si hay errores de validación, retornar error
-        if errors:
-            return jsonify({
-                "success": False,
-                "message": "Error en la validación",
-                "total_records": len(products_data),
-                "successful_records": 0,
-                "failed_records": len(products_data),
-                "errors": errors,
-                "warnings": warnings
             }), 400
         
-        # Conectar a la base de datos
+        # 3. Conectar a la base de datos e insertar
         conn, cursor = product_repository._get_connection()
         print("Conexión a BD establecida")
         
-        # 1. Crear registro en product_uploads
-        upload_insert = """
-            INSERT INTO products.product_uploads 
-            (file_name, file_type, file_size, total_records, successful_records, failed_records, state, start_date, user_id)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, NOW(), %s)
-            RETURNING id
-        """
-        
-        cursor.execute(upload_insert, (
-            'string_upload',
-            'string',
-            len(data_string),  # file_size basado en la longitud del string
-            len(products_data),
-            0,  # successful_records
-            0,  # failed_records
-            'procesando',
-            1   # user_id (hardcoded por ahora)
-        ))
-        
-        upload_id = cursor.fetchone()['id']
-        print(f"Upload ID creado: {upload_id}")
-        
-        successful_records = 0
-        failed_records = 0
-        processed_errors = []
-
-        # 2. Procesar cada producto del JSON
-        for index, product in enumerate(products_data):
-            row_num = index + 1
-            print(f"Procesando producto {row_num}: {product.get('sku', 'N/A')}")
-            
-            # Crear un savepoint antes de procesar cada producto
-            savepoint_name = f"sp_product_{row_num}"
-            try:
-                cursor.execute(f"SAVEPOINT {savepoint_name}")
-            except Exception as sp_error:
-                # Si hay un error creando el savepoint, puede ser que la transacción ya esté abortada
-                error_msg = f"Fila {row_num}: No se pudo crear savepoint - {str(sp_error)}"
-                print(f"Error creando savepoint para producto {row_num}: {str(sp_error)}")
-                processed_errors.append(error_msg)
-                failed_records += 1
-                
-                # Intentar hacer rollback de la transacción completa
-                try:
-                    conn.rollback()
-                    print("Rollback completo ejecutado debido a error en savepoint")
-                    # Reinsertar el upload_id después del rollback si es necesario
-                    cursor.execute(upload_insert, (
-                        'string_upload',
-                        'string',
-                        len(data_string),
-                        len(products_data),
-                        0,
-                        0,
-                        'procesando',
-                        1
-                    ))
-                    upload_id = cursor.fetchone()['id']
-                    print(f"Upload ID recreado: {upload_id}")
-                except Exception as rollback_err:
-                    print(f"Error en rollback/recreación de upload: {str(rollback_err)}")
-                    # Si no podemos recuperar, marcar todos los productos restantes como fallidos y salir
-                    for remaining_index in range(index, len(products_data)):
-                        remaining_row = remaining_index + 1
-                        processed_errors.append(f"Fila {remaining_row}: No procesado debido a error de transacción")
-                        failed_records += 1
-                    break
-                continue
-            
-            try:
-                # Validar si el SKU ya existe antes de intentar insertar
-                cursor.execute("SELECT product_id, sku, name FROM products.products WHERE sku = %s", (product['sku'],))
-                existing_product = cursor.fetchone()
-                
-                if existing_product:
-                    raise Exception(f"SKU duplicado: El producto con SKU '{product['sku']}' ya existe en la base de datos (ID: {existing_product['product_id']}, Nombre: {existing_product['name']})")
-                
-                # Obtener o crear category_id
-                cursor.execute("SELECT category_id FROM products.category WHERE name = %s", (product['category_name'],))
-                category_result = cursor.fetchone()
-                
-                if category_result:
-                    category_id = category_result['category_id']
-                else:
-                    # Crear nueva categoría si no existe - obtener el siguiente ID disponible
-                    cursor.execute("SELECT COALESCE(MAX(category_id), 0) + 1 FROM products.category")
-                    next_category_id = cursor.fetchone()[0]
-
-                    cursor.execute("""
-                        INSERT INTO products.category (category_id, name) 
-                        VALUES (%s, %s) 
-                        RETURNING category_id
-                    """, (next_category_id, product['category_name']))
-                    category_id = cursor.fetchone()['category_id']
-                    print(f"Nueva categoría creada: {product['category_name']} (ID: {category_id})")
-                
-                # Insertar producto
-                product_insert = """
-                    INSERT INTO products.products 
-                    (sku, name, value, category_id, provider_id, status, objective_profile, unit_id)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                    RETURNING product_id
-                """
-                
-                cursor.execute(product_insert, (
-                    product['sku'],
-                    product['name'],
-                    float(product['value']),
-                    category_id,
-                    1,  # provider_id (hardcoded)
-                    'activo',
-                    '',  # objective_profile
-                    1    # unit_id (hardcoded)
-                ))
-                
-                product_id = cursor.fetchone()['product_id']
-                print(f"Producto creado: {product['sku']} (ID: {product_id})")
-                
-                # Insertar stock
-                stock_insert = """
-                    INSERT INTO products.productstock 
-                    (product_id, quantity, lote, warehouse_id, provider_id, country)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                """
-                
-                cursor.execute(stock_insert, (
-                    product_id,
-                    int(product['quantity']),
-                    f"LOTE-{product['sku']}-{datetime.now().strftime('%Y%m%d')}",  # lote generado
-                    int(product['warehouse_id']),
-                    1,  # provider_id
-                    'COL'  # country (hardcoded)
-                ))
-                print(f"Stock creado para producto {product_id}")
-                
-                # Insertar en product_history
-                history_insert = """
-                    INSERT INTO products.product_history 
-                    (product_id, new_value, change_type, user_id, upload_id)
-                    VALUES (%s, %s, %s, %s, %s)
-                """
-                
-                cursor.execute(history_insert, (
-                    product_id,
-                    float(product['value']),
-                    'creacion',
-                    1,  # user_id
-                    upload_id
-                ))
-                print(f"Historial creado para producto {product_id}")
-                
-                # Insertar en product_upload_details (éxito)
-                details_insert = """
-                    INSERT INTO products.product_upload_details 
-                    (upload_id, row_id, code, name, price, category, status, product_id)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                """
-                
-                cursor.execute(details_insert, (
-                    upload_id,
-                    row_num,
-                    product['sku'],
-                    product['name'],
-                    float(product['value']),
-                    product['category_name'],
-                    'exitoso',
-                    product_id
-                ))
-                
-                # Liberar el savepoint al completar exitosamente
-                cursor.execute(f"RELEASE SAVEPOINT {savepoint_name}")
-                
-                successful_records += 1
-                print(f"Producto {row_num} procesado exitosamente")
-                
-            except Exception as row_error:
-                # Extraer información más específica del error
-                error_str = str(row_error)
-                product_sku = product.get('sku', 'N/A')
-                product_name = product.get('name', 'N/A')
-                
-                # Mejorar el mensaje de error para SKUs duplicados
-                if 'duplicate key' in error_str.lower() and 'sku' in error_str.lower():
-                    # Extraer el SKU del mensaje de error si es posible
-                    sku_match = re.search(r"\(sku\)=\(([^)]+)\)", error_str)
-                    if sku_match:
-                        duplicate_sku = sku_match.group(1)
-                        error_msg = f"Fila {row_num} (SKU: {product_sku}, Nombre: {product_name}): El SKU '{duplicate_sku}' ya existe en la base de datos"
-                    else:
-                        error_msg = f"Fila {row_num} (SKU: {product_sku}, Nombre: {product_name}): SKU duplicado - el producto ya existe en la base de datos"
-                else:
-                    # Para otros errores, incluir información del producto
-                    error_msg = f"Fila {row_num} (SKU: {product_sku}, Nombre: {product_name}): {error_str}"
-                
-                print(f"Error en producto {row_num} (SKU: {product_sku}): {error_str}")
-                processed_errors.append(error_msg)
-                
-                # Hacer rollback al savepoint para restaurar el estado antes del procesamiento de este producto
-                try:
-                    cursor.execute(f"ROLLBACK TO SAVEPOINT {savepoint_name}")
-                    print(f"Rollback a savepoint {savepoint_name} ejecutado")
-                except Exception as rollback_error:
-                    print(f"Error en rollback a savepoint: {str(rollback_error)}")
-                
-                # Ahora intentar insertar el registro de error en product_upload_details
-                try:
-                    details_insert = """
-                        INSERT INTO products.product_upload_details 
-                        (upload_id, row_id, code, name, price, category, status, errors)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                    """
-                    
-                    cursor.execute(details_insert, (
-                        upload_id,
-                        row_num,
-                        product.get('sku', 'N/A'),
-                        product.get('name', 'N/A'),
-                        float(product.get('value', 0)),
-                        product.get('category_name', 'N/A'),
-                        'fallido',
-                        str(row_error)
-                    ))
-                    print(f"Registro de error insertado para producto {row_num}")
-                except Exception as details_error:
-                    # Si aún falla, hacer rollback completo y reinsertar upload
-                    print(f"Error insertando detalles de error: {str(details_error)}")
-                    try:
-                        conn.rollback()
-                        cursor.execute(upload_insert, (
-                            'string_upload',
-                            'string',
-                            len(data_string),
-                            len(products_data),
-                            0,
-                            0,
-                            'procesando',
-                            1
-                        ))
-                        upload_id = cursor.fetchone()['id']
-                    except:
-                        pass
-                
-                failed_records += 1
-        
-        # 3. Actualizar product_uploads con resultados finales
-        update_upload = """
-            UPDATE products.product_uploads 
-            SET successful_records = %s, failed_records = %s, state = %s, end_date = NOW()
-            WHERE id = %s
-        """
-        
-        cursor.execute(update_upload, (
-            successful_records,
-            failed_records,
-            'completado',
-            upload_id
-        ))
+        # Insertar productos
+        successful_records, failed_records, processed_errors, upload_id, insert_warnings = insert_products(
+            products_data, conn, cursor, data_string
+        )
         
         # Commit de la transacción
         conn.commit()
@@ -519,7 +697,130 @@ def upload_products_string():
             "failed_records": failed_records,
             "upload_id": upload_id,
             "errors": processed_errors,
-            "warnings": warnings
+            "warnings": insert_warnings
+        })
+        
+    except Exception as e:
+        print(f"ERROR en inserción: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        
+        if conn:
+            conn.rollback()
+            print("Rollback ejecutado")
+        
+        return jsonify({
+            "success": False,
+            "message": "Error interno del servidor durante la inserción",
+            "total_records": len(products_data) if 'products_data' in locals() else 0,
+            "successful_records": 0,
+            "failed_records": len(products_data) if 'products_data' in locals() else 0,
+            "errors": [f"Error interno: {str(e)}"],
+            "warnings": []
+        }), 500
+        
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+        print("Conexiones cerradas")
+
+
+@app.route('/products/upload3', methods=['POST'])
+def upload_products_string():
+    """
+    Endpoint principal para subir productos (compatibilidad hacia atrás).
+    Orquesta el flujo completo: validación + inserción en un solo llamado.
+    
+    NOTA: Se recomienda usar los endpoints separados:
+    - /products/upload3/validate para solo validar
+    - /products/upload3/insert para solo insertar
+    """
+    print("=== INICIO UPLOAD PRODUCTS STRING (COMPATIBILIDAD) ===")
+    conn = None
+    cursor = None
+    
+    try:
+        # 1. Obtener y parsear datos del request
+        data_string = request.get_data(as_text=True)
+
+        if not data_string or data_string.strip() == '':
+            return jsonify({
+                "success": False,
+                "message": "No se recibieron datos para procesar",
+                "total_records": 0,
+                "successful_records": 0,
+                "failed_records": 0,
+                "errors": ["No se recibieron datos para procesar"],
+                "warnings": []
+            }), 400
+
+        print(f"Datos recibidos como string: {data_string[:200]}...")
+
+        # Limpiar el string (remover espacios en blanco al inicio y final)
+        data_string = data_string.strip()
+
+        # Intentar parsear como JSON
+        try:
+            products_data = json.loads(data_string)
+        except json.JSONDecodeError as e:
+            return jsonify({
+                "success": False,
+                "message": "Error al parsear JSON",
+                "total_records": 0,
+                "successful_records": 0,
+                "failed_records": 0,
+                "errors": [f"Error de sintaxis JSON: {str(e)}"],
+                "warnings": []
+            }), 400
+
+        print(f"Productos parseados: {len(products_data)}")
+
+        # 2. Validar productos
+        is_valid, errors, warnings, validated_products = validate_products_data(products_data)
+
+        # Si hay errores de validación, retornar error
+        if not is_valid:
+            return jsonify({
+                "success": False,
+                "message": "Error en la validación",
+                "total_records": len(products_data),
+                "successful_records": 0,
+                "failed_records": len(products_data),
+                "errors": errors,
+                "warnings": warnings
+            }), 400
+        
+        # 3. Si la validación pasó, proceder con la inserción
+        # Conectar a la base de datos
+        conn, cursor = product_repository._get_connection()
+        print("Conexión a BD establecida")
+        
+        # Insertar productos validados
+        successful_records, failed_records, processed_errors, upload_id, insert_warnings = insert_products(
+            validated_products, conn, cursor, data_string
+        )
+        
+        # Commit de la transacción
+        conn.commit()
+        print(f"Transacción completada. Exitosos: {successful_records}, Fallidos: {failed_records}")
+
+        # Combinar warnings de validación e inserción
+        all_warnings = warnings + insert_warnings
+
+        # Determinar si fue exitoso
+        success = failed_records == 0
+        
+        return jsonify({
+            "success": success,
+            "message": f"Procesados {len(products_data)} productos" if success else f"Procesados {len(products_data)} productos con {failed_records} errores",
+            "total_records": len(products_data),
+            "successful_records": successful_records,
+            "failed_records": failed_records,
+            "upload_id": upload_id,
+            "errors": processed_errors,
+            "warnings": all_warnings
         })
         
     except Exception as e:
