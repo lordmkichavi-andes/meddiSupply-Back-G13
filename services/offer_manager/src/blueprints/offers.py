@@ -1,4 +1,4 @@
-"""Blueprint para planes de venta."""
+"""Blueprint para ofertas/planes de venta."""
 
 from flask import Blueprint, jsonify, request
 from src.db import (
@@ -11,10 +11,10 @@ from src.db import (
 from src.models import SalesPlan, SalesPlanProduct, Product
 from src.services.sales_plan_service import SalesPlanService
 
-sales_plans_bp = Blueprint('offer_manager', __name__)
+offers_bp = Blueprint('offer_manager', __name__)
 
 
-@sales_plans_bp.get('/products')
+@offers_bp.get('/products')
 def get_products_endpoint():
     """Obtener lista de productos para el selector."""
     try:
@@ -25,21 +25,21 @@ def get_products_endpoint():
         return jsonify({"message": f"Error obteniendo productos: {str(e)}"}), 500
 
 
-@sales_plans_bp.get('/regions')
+@offers_bp.get('/regions')
 def get_regions_endpoint():
     """Obtener lista de regiones disponibles."""
     regions = SalesPlanService.get_region_options()
     return jsonify(regions), 200
 
 
-@sales_plans_bp.get('/quarters')
+@offers_bp.get('/quarters')
 def get_quarters_endpoint():
     """Obtener lista de trimestres disponibles."""
     quarters = SalesPlanService.get_quarter_options()
     return jsonify(quarters), 200
 
 
-@sales_plans_bp.post('/plans')
+@offers_bp.post('/plans')
 def create_sales_plan_endpoint():
     """Crear un nuevo plan de venta."""
     try:
@@ -93,7 +93,7 @@ def create_sales_plan_endpoint():
         }), 500
 
 
-@sales_plans_bp.get('/plans')
+@offers_bp.get('/plans')
 def get_sales_plans_endpoint():
     """Obtener planes de venta."""
     try:
@@ -107,7 +107,7 @@ def get_sales_plans_endpoint():
         return jsonify({"message": f"Error obteniendo planes: {str(e)}"}), 500
 
 
-@sales_plans_bp.get('/plans/<int:plan_id>')
+@offers_bp.get('/plans/<int:plan_id>')
 def get_sales_plan_endpoint(plan_id):
     """Obtener un plan de venta específico con sus productos."""
     try:
@@ -127,7 +127,8 @@ def get_sales_plan_endpoint(plan_id):
         return jsonify({"message": f"Error obteniendo plan: {str(e)}"}), 500
 
 
-@sales_plans_bp.get('/health')
+@offers_bp.get('/health')
 def health():
     """Health check endpoint."""
     return jsonify({"status": "ok"}), 200
+
