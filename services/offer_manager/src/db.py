@@ -77,7 +77,7 @@ def create_sales_plan(plan_data: Dict[str, Any]) -> Optional[int]:
     """Crea un nuevo plan de venta y retorna el ID del plan creado."""
     # Crear el plan principal
     plan_query = """
-    INSERT INTO sales_plans.sales_plans 
+    INSERT INTO offers.sales_plans 
     (region, quarter, year, total_goal, created_by)
     VALUES (%s, %s, %s, %s, %s)
     RETURNING plan_id
@@ -100,7 +100,7 @@ def create_sales_plan(plan_data: Dict[str, Any]) -> Optional[int]:
     # Crear los productos del plan
     for product in plan_data['products']:
         product_query = """
-        INSERT INTO sales_plans.sales_plan_products 
+        INSERT INTO offers.sales_plan_products 
         (plan_id, product_id, individual_goal)
         VALUES (%s, %s, %s)
         """
@@ -127,7 +127,7 @@ def get_sales_plans(region: Optional[str] = None) -> List[Dict[str, Any]]:
         sp.total_goal,
         sp.is_active,
         sp.creation_date
-    FROM sales_plans.sales_plans sp
+    FROM offers.sales_plans sp
     """
     
     if region:
@@ -148,7 +148,7 @@ def get_sales_plan_products(plan_id: int) -> List[Dict[str, Any]]:
         spp.plan_product_id,
         spp.product_id,
         spp.individual_goal
-    FROM sales_plans.sales_plan_products spp
+    FROM offers.sales_plan_products spp
     WHERE spp.plan_id = %s
     ORDER BY spp.plan_product_id
     """
@@ -198,7 +198,7 @@ def get_sales_plan_by_id(plan_id: int) -> Optional[Dict[str, Any]]:
         sp.is_active,
         sp.creation_date,
         sp.created_by
-    FROM sales_plans.sales_plans sp
+    FROM offers.sales_plans sp
     WHERE sp.plan_id = %s
     """
 
