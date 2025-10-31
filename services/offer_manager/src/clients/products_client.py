@@ -13,7 +13,7 @@ class ProductsClient:
     
     def __init__(self):
         # Por defecto 8081 para entorno local (host). En Docker se sobreescribe con env.
-        self.base_url = os.getenv('PRODUCTS_SERVICE_URL', 'http://localhost:8081')
+        self.base_url = os.getenv('PRODUCTS_SERVICE_URL', 'http://MediSu-MediS-5XPY2MhrDivI-109634141.us-east-1.elb.amazonaws.com/')
         self.timeout = int(os.getenv('PRODUCTS_SERVICE_TIMEOUT', '10'))
     
     def _get(self, endpoint: str) -> Optional[Dict[str, Any]]:
