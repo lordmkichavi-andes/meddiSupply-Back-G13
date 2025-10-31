@@ -1,4 +1,5 @@
 from flask import Flask, jsonify, request, make_response
+from flask_cors import CORS
 from functools import wraps
 import os
 import json
@@ -6,7 +7,20 @@ import json
 
 
 app = Flask(__name__)
-app.config.from_mapping(config)
+
+# Configurar CORS como en routes
+CORS(app, resources={
+    r"/*": {
+        "origins": "*",
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization", "X-Requested-With"]
+    }
+})
+
+# Registro de blueprints
+from src.blueprints.sales_plans import sales_plans_bp
+app.register_blueprint(sales_plans_bp)
+
 
 
 
