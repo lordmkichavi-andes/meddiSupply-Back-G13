@@ -40,7 +40,7 @@ services:
       PRODUCTS_SERVICE_URL: http://products:8080
       PRODUCTS_SERVICE_TIMEOUT: 10
     ports:
-      - "8082:8080"
+      - "8080:8080"
     networks:
       - offer_manager_net
       - products_default

@@ -13,13 +13,21 @@ logger = logging.getLogger(__name__)
 def get_connection():
     """Obtiene conexión a la base de datos."""
     try:
+        host = os.getenv('DB_HOST')
+        # Si es RDS (contiene .rds.amazonaws.com), usar SSL por defecto
+        sslmode = os.getenv('DB_SSLMODE')
+        if not sslmode and host and '.rds.amazonaws.com' in host:
+            sslmode = 'require'
+        elif not sslmode:
+            sslmode = 'disable'
+        
         conn = psycopg2.connect(
-            host=os.getenv('DB_HOST'),
+            host=host,
             port=os.getenv('DB_PORT', 5432),
             database=os.getenv('DB_NAME', 'postgres'),
             user=os.getenv('DB_USER', 'postgres'),
             password=os.getenv('DB_PASSWORD'),
-            sslmode=os.getenv('DB_SSLMODE', 'disable')
+            sslmode=sslmode
         )
         return conn
     except Exception as e:
@@ -75,45 +83,55 @@ def get_products() -> List[Dict[str, Any]]:
 
 def create_sales_plan(plan_data: Dict[str, Any]) -> Optional[int]:
     """Crea un nuevo plan de venta y retorna el ID del plan creado."""
-    # Crear el plan principal
-    plan_query = """
-    INSERT INTO offers.sales_plans 
-    (region, quarter, year, total_goal, created_by)
-    VALUES (%s, %s, %s, %s, %s)
-    RETURNING plan_id
-    """
-    
-    plan_params = (
-        plan_data['region'],
-        plan_data['quarter'],
-        plan_data['year'],
-        plan_data['total_goal'],
-        plan_data['created_by']
-    )
-    
-    plan_result = execute_query(plan_query, plan_params, fetch_one=True)
-    if not plan_result:
-        return None
-    
-    plan_id = plan_result['plan_id']
-    
-    # Crear los productos del plan
-    for product in plan_data['products']:
-        product_query = """
-        INSERT INTO offers.sales_plan_products 
-        (plan_id, product_id, individual_goal)
-        VALUES (%s, %s, %s)
+    try:
+        # Crear el plan principal
+        plan_query = """
+        INSERT INTO offers.sales_plans 
+        (region, quarter, year, total_goal, created_by)
+        VALUES (%s, %s, %s, %s, %s)
+        RETURNING plan_id
         """
         
-        product_params = (
-            plan_id,
-            product['product_id'],
-            product['individual_goal']
+        plan_params = (
+            plan_data['region'],
+            plan_data['quarter'],
+            plan_data['year'],
+            plan_data['total_goal'],
+            plan_data['created_by']
         )
         
-        execute_query(product_query, product_params)
-    
-    return plan_id
+        plan_result = execute_query(plan_query, plan_params, fetch_one=True)
+        if not plan_result:
+            logger.error("Error: plan_result es None después de insertar plan principal")
+            return None
+        
+        plan_id = plan_result['plan_id']
+        logger.info(f"Plan creado con ID: {plan_id}")
+        
+        # Crear los productos del plan
+        for product in plan_data['products']:
+            product_query = """
+            INSERT INTO offers.sales_plan_products 
+            (plan_id, product_id, individual_goal)
+            VALUES (%s, %s, %s)
+            """
+            
+            product_params = (
+                plan_id,
+                product['product_id'],
+                product['individual_goal']
+            )
+            
+            result = execute_query(product_query, product_params)
+            if result is None:
+                logger.error(f"Error insertando producto {product['product_id']} para plan {plan_id}")
+                return None
+            
+        logger.info(f"Plan {plan_id} creado exitosamente con {len(plan_data['products'])} productos")
+        return plan_id
+    except Exception as e:
+        logger.error(f"Error en create_sales_plan: {str(e)}", exc_info=True)
+        return None
 
 
 def get_sales_plans(region: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -223,3 +241,49 @@ def db_save_evidence(evidence_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     
     new_evidence = execute_query(query, params, fetch_one=True)
     return new_evidence
+    
+def save_visit(client_id: int, seller_id: int, date: str, findings: str):
+    """
+    Guarda la información de una nueva visita en la base de datos.
+
+    :param visit_data: Diccionario con client_id, seller_id, date y findings.
+    :return: Una instancia de la Visita recién creada con su visit_id.
+    """
+    conn = None
+    new_visit_id = None
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Consulta SQL para insertar la nueva visita
+    # RETURNING visit_id es crucial para obtener el ID generado automáticamente
+    query = """
+        INSERT INTO users.Visits (client_id, seller_id, date, findings)
+        VALUES (%s, %s, %s, %s)
+        RETURNING visit_id;
+    """
+
+
+
+    # 1. Ejecutamos la inserción
+    new_visit_id = execute_query(query, (
+        client_id,
+        seller_id,
+        date,  # La fecha ya viene validada como objeto date o similar
+        findings,
+    ), fetch_one=True)
+
+
+    # 4. Creamos y devolvemos el objeto de dominio (Visita)
+    # Asumiendo que existe una clase 'Visit' para mapear el registro.
+    # Si no tienes una clase, simplemente devuelve el diccionario con el ID:
+    return {
+        "visit_id": new_visit_id,
+        "client_id": client_id,
+        "seller_id": seller_id,
+        "date": date,
+        "findings":findings,
+    }
+    # Si tienes una clase Visit, sería:
+    # return Visit(visit_id=new_visit_id, client_id=..., seller_id=..., findings=...)
+

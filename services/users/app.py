@@ -6,7 +6,6 @@ import datetime
 # Importaciones de arquitectura limpia
 from src.infrastructure.web.flask_user_routes import create_user_api_blueprint
 from src.application.use_cases import GetClientUsersUseCase
-from src.application.register_visit_usecase import RegisterVisitUseCase
 from src.infrastructure.persistence.pg_user_repository import PgUserRepository
 from src.infrastructure.persistence.db_connector import init_db_pool
 from src.infrastructure.persistence.db_initializer import initialize_database
@@ -99,9 +98,6 @@ def create_app():
     get_client_users_use_case = GetClientUsersUseCase(
         user_repository=user_repository
     )
-    register_visit_use_case = RegisterVisitUseCase(
-        user_repository=user_repository
-    )
     
     # Configurar CORS
     CORS(app, resources={
@@ -113,10 +109,7 @@ def create_app():
     })
     
     # 3. Capa de Presentación (Web) - Arquitectura Limpia
-    user_api_bp = create_user_api_blueprint(
-        get_client_users_use_case,
-        register_visit_use_case
-    )
+    user_api_bp = create_user_api_blueprint(get_client_users_use_case)
     
     # --- REGISTRO DE RUTAS ---
     app.register_blueprint(user_api_bp, url_prefix='/users')
