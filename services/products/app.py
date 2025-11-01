@@ -1045,7 +1045,7 @@ def health():
 
 ## Endpoint /debug-upload eliminado
 
-@app.route('/cities', methods=['GET'])
+@app.route('/products/cities', methods=['GET'])
 def get_all_cities():
     """Obtener todas las ciudades"""
     try:
@@ -1075,7 +1075,7 @@ def get_all_cities():
             conn.close()
 
 
-@app.route('/warehouses', methods=['GET'])
+@app.route('/products/warehouses', methods=['GET'])
 def get_all_warehouses():
     """Obtener todas las bodegas con información de ciudad"""
     try:
@@ -1085,7 +1085,7 @@ def get_all_warehouses():
             SELECT 
                 w.warehouse_id,
                 w.name,
-                w.address,
+                w.location,
                 w.phone,
                 w.manager_name,
                 w.active,
@@ -1115,7 +1115,7 @@ def get_all_warehouses():
             conn.close()
 
 
-@app.route('/warehouses/by-city/<int:city_id>', methods=['GET'])
+@app.route('/products/warehouses/by-city/<int:city_id>', methods=['GET'])
 def get_warehouses_by_city(city_id):
     """Obtener bodegas por ciudad"""
     try:
