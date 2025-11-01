@@ -6,4 +6,5 @@ gunicorn
 psycopg2-binary
 requests
 flask-cors
+boto3
 python-dateutil

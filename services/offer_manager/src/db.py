@@ -223,6 +223,25 @@ def get_sales_plan_by_id(plan_id: int) -> Optional[Dict[str, Any]]:
     result = execute_query(query, (plan_id,), fetch_one=True)
     return result
 
+def db_save_evidence(evidence_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Guarda los datos de la evidencia de visita en la base de datos."""
+    query = """
+    INSERT INTO users.visual_evidences 
+    (visit_id, type, url_file, description)
+    VALUES (%s, %s, %s, %s)
+    RETURNING *; -- Retorna todos los campos del registro insertado
+    """
+    
+    params = (
+        evidence_data['visit_id'],
+        evidence_data['type'],
+        evidence_data['url_file'],
+        evidence_data['description']
+    )
+    
+    new_evidence = execute_query(query, params, fetch_one=True)
+    return new_evidence
+    
 def save_visit(client_id: int, seller_id: int, date: str, findings: str):
     """
     Guarda la información de una nueva visita en la base de datos.
@@ -268,3 +287,22 @@ def save_visit(client_id: int, seller_id: int, date: str, findings: str):
     # Si tienes una clase Visit, sería:
     # return Visit(visit_id=new_visit_id, client_id=..., seller_id=..., findings=...)
 
+def db_get_visit_by_id(visit_id: int) -> Optional[Dict[str, Any]]:
+    """
+    Verifica la existencia de una visita por su ID en la tabla users.visits.
+    Retorna el registro de la visita si existe.
+    """
+    query = """
+    SELECT 
+        v.visit_id,
+        v.seller_id,
+        v.client_id,
+        v.date,
+        v.findings
+    FROM users.visits v
+    WHERE v.visit_id = %s
+    """
+
+    result = execute_query(query, (visit_id,), fetch_one=True)
+    
+    return result
