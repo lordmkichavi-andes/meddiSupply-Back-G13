@@ -18,11 +18,6 @@ class MockGetClientUsersUseCase(MagicMock):
     """
     pass
 
-class MockRegisterVisitUseCase(MagicMock):
-     """Mock para RegisterVisitUseCase"""
-     pass
-
-
 class UserAPITestCase(unittest.TestCase):
     """
     Clase de prueba para las rutas del Blueprint 'api'.
@@ -31,7 +26,6 @@ class UserAPITestCase(unittest.TestCase):
     def setUp(self):
         # 1. Configurar Mocks y Flask App
         self.mock_get_users_uc = MockGetClientUsersUseCase()
-        self.mock_register_visit_uc = MockRegisterVisitUseCase()
 
         # Necesitas una instancia de Flask para montar el Blueprint
         self.app = Flask(__name__)
@@ -39,7 +33,6 @@ class UserAPITestCase(unittest.TestCase):
         # El blueprint se crea con los mocks inyectados
         user_api_bp = create_user_api_blueprint(
             self.mock_get_users_uc,
-            self.mock_register_visit_uc
         )
 
         # Registrar el Blueprint en la app base
