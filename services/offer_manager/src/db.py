@@ -204,3 +204,22 @@ def get_sales_plan_by_id(plan_id: int) -> Optional[Dict[str, Any]]:
 
     result = execute_query(query, (plan_id,), fetch_one=True)
     return result
+
+def db_save_evidence(evidence_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Guarda los datos de la evidencia de visita en la base de datos."""
+    query = """
+    INSERT INTO users.visual_evidences 
+    (visit_id, type, url_file, description)
+    VALUES (%s, %s, %s, %s)
+    RETURNING *; -- Retorna todos los campos del registro insertado
+    """
+    
+    params = (
+        evidence_data['visit_id'],
+        evidence_data['type'],
+        evidence_data['url_file'],
+        evidence_data['description']
+    )
+    
+    new_evidence = execute_query(query, params, fetch_one=True)
+    return new_evidence
