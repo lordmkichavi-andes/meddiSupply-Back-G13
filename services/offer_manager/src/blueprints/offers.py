@@ -88,6 +88,9 @@ def create_sales_plan_endpoint():
             }), 500
             
     except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error creando plan de venta: {str(e)}", exc_info=True)
         return jsonify({
             "message": "¡Ups! Hubo un problema al crear el plan. Intenta nuevamente en unos minutos"
         }), 500

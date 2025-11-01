@@ -249,7 +249,7 @@ def validate_products_data(products_data):
     return is_valid, errors, warnings, validated_products
 
 
-def insert_products(products_data, conn, cursor, data_string):
+def insert_products(products_data, conn, cursor, data_string, file_name='json_upload', file_type='csv'):
     """
     Inserta los productos validados en la base de datos.
     
@@ -258,6 +258,8 @@ def insert_products(products_data, conn, cursor, data_string):
         conn: Conexión a la base de datos
         cursor: Cursor de la conexión
         data_string: String original de los datos (para file_size)
+        file_name: Nombre del archivo (default: 'json_upload')
+        file_type: Tipo de archivo - debe ser 'csv', 'xlsx' o 'xls' (default: 'csv')
         
     Returns:
         Tupla: (successful_records: int, failed_records: int, errors: list, upload_id: int, warnings: list)
@@ -272,6 +274,14 @@ def insert_products(products_data, conn, cursor, data_string):
     processed_errors = []
     warnings = []
     
+    # Validar file_type contra el constraint (solo permite 'csv', 'xlsx', 'xls')
+    allowed_file_types = ['csv', 'xlsx', 'xls']
+    if file_type.lower() not in allowed_file_types:
+        file_type = 'csv'  # Default a 'csv' si no es válido
+    
+    # Truncar file_type a 10 caracteres (límite de la columna VARCHAR(10))
+    file_type = file_type[:10]
+    
     # 1. Crear registro en product_uploads
     upload_insert = """
         INSERT INTO products.product_uploads 
@@ -281,8 +291,8 @@ def insert_products(products_data, conn, cursor, data_string):
     """
     
     cursor.execute(upload_insert, (
-        'string_upload',
-        'string',
+        file_name,
+        file_type,
         len(data_string),
         len(products_data),
         0,  # successful_records
@@ -316,8 +326,8 @@ def insert_products(products_data, conn, cursor, data_string):
                 print("Rollback completo ejecutado debido a error en savepoint")
                 # Reinsertar el upload_id después del rollback si es necesario
                 cursor.execute(upload_insert, (
-                    'string_upload',
-                    'string',
+                    file_name,
+                    file_type,
                     len(data_string),
                     len(products_data),
                     0,
@@ -461,6 +471,10 @@ def insert_products(products_data, conn, cursor, data_string):
                     error_msg = f"Fila {row_num} (SKU: {product_sku}, Nombre: {product_name}): El SKU '{duplicate_sku}' ya existe en la base de datos"
                 else:
                     error_msg = f"Fila {row_num} (SKU: {product_sku}, Nombre: {product_name}): SKU duplicado - el producto ya existe en la base de datos"
+            # Detectar errores de FOREIGN KEY para warehouse_id inexistente
+            elif 'foreign key' in error_str.lower() and 'warehouse' in error_str.lower():
+                warehouse_id = product.get('warehouse_id', 'N/A')
+                error_msg = f"Fila {row_num} (SKU: {product_sku}, Nombre: {product_name}): El warehouse_id '{warehouse_id}' no existe en la base de datos"
             else:
                 # Para otros errores, incluir información del producto
                 error_msg = f"Fila {row_num} (SKU: {product_sku}, Nombre: {product_name}): {error_str}"
@@ -500,8 +514,8 @@ def insert_products(products_data, conn, cursor, data_string):
                 try:
                     conn.rollback()
                     cursor.execute(upload_insert, (
-                        'string_upload',
-                        'string',
+                        file_name,
+                        file_type,
                         len(data_string),
                         len(products_data),
                         0,
@@ -673,13 +687,32 @@ def insert_products_endpoint():
                 "warnings": []
             }), 400
         
-        # 3. Conectar a la base de datos e insertar
+        # 3. Determinar file_name y file_type desde headers o usar defaults
+        # Si viene del frontend con headers, usarlos; si no, usar defaults
+        file_name = request.headers.get('X-File-Name')
+        file_type = request.headers.get('X-File-Type', 'csv')
+        
+        # Validar que file_type sea uno de los valores permitidos por el constraint
+        # Constraint permite: 'csv', 'xlsx', 'xls'
+        allowed_file_types = ['csv', 'xlsx', 'xls']
+        if file_type.lower() not in allowed_file_types:
+            file_type = 'csv'  # Default a 'csv' si no es válido
+        else:
+            file_type = file_type.lower()
+        
+        # Si no hay file_name, usar uno basado en timestamp
+        if not file_name:
+            from datetime import datetime
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            file_name = f'json_upload_{timestamp}'
+        
+        # 4. Conectar a la base de datos e insertar
         conn, cursor = product_repository._get_connection()
         print("Conexión a BD establecida")
         
         # Insertar productos
         successful_records, failed_records, processed_errors, upload_id, insert_warnings = insert_products(
-            products_data, conn, cursor, data_string
+            products_data, conn, cursor, data_string, file_name=file_name, file_type=file_type
         )
         
         # Commit de la transacción
