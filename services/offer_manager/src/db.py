@@ -287,3 +287,22 @@ def save_visit(client_id: int, seller_id: int, date: str, findings: str):
     # Si tienes una clase Visit, sería:
     # return Visit(visit_id=new_visit_id, client_id=..., seller_id=..., findings=...)
 
+def db_get_visit_by_id(visit_id: int) -> Optional[Dict[str, Any]]:
+    """
+    Verifica la existencia de una visita por su ID en la tabla users.visits.
+    Retorna el registro de la visita si existe.
+    """
+    query = """
+    SELECT 
+        v.visit_id,
+        v.seller_id,
+        v.client_id,
+        v.date,
+        v.findings
+    FROM users.visits v
+    WHERE v.visit_id = %s
+    """
+
+    result = execute_query(query, (visit_id,), fetch_one=True)
+    
+    return result

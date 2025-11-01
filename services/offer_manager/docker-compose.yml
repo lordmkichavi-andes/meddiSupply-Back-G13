@@ -39,6 +39,9 @@ services:
       # URL del microservicio de products dentro de su red existente
       PRODUCTS_SERVICE_URL: http://products:8080
       PRODUCTS_SERVICE_TIMEOUT: 10
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_REGION: ${AWS_REGION}
     ports:
       - "8080:8080"
     networks:
