@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 offers_bp = Blueprint('offer_manager', __name__)
 
-recommendation_agent = RecommendationAgent()
+#recommendation_agent = RecommendationAgent()
 
 @offers_bp.get('/products')
 def get_products_endpoint():
