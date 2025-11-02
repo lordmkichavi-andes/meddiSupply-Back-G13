@@ -268,5 +268,36 @@ class TestGetClientUsersUseCase(unittest.TestCase):
         self.mock_storage_service.upload_file.assert_called_once()
         self.mock_repository.save_evidence.assert_not_called()
 
+    def test_get_user_by_id_success(self):
+        """Verifica que get_user_by_id llama al repositorio y retorna el perfil."""
+        test_client_id = 15
+        mock_data = {"client_id": 15, "name": "Test Client"}
+
+        # Configurar el mock para que devuelva datos
+        self.mock_repository.db_get_client_data.return_value = mock_data
+
+        # ACT
+        result = self.use_case.get_user_by_id(test_client_id)
+
+        # ASSERT
+        # 1. Verificar la llamada al repositorio
+        self.mock_repository.db_get_client_data.assert_called_once_with(test_client_id)
+
+        # 2. Verificar el resultado
+        self.assertEqual(result, mock_data)
+
+    def test_get_user_by_id_not_found(self):
+        """Verifica que get_user_by_id retorna None si el repositorio no encuentra datos."""
+        test_client_id = 999
+
+        # Configurar el mock para que devuelva None
+        self.mock_repository.db_get_client_data.return_value = None
+
+        # ACT
+        result = self.use_case.get_user_by_id(test_client_id)
+
+        # ASSERT
+        self.mock_repository.db_get_client_data.assert_called_once_with(test_client_id)
+        self.assertIsNone(result)
 if __name__ == '__main__':
     unittest.main()

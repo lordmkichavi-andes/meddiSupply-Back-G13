@@ -210,64 +210,6 @@ def register_visit():
             "error": str(e)
         }), 500
 
-@offers_bp.post('/visits/<int:visit_id>/evidences')
-def upload_visit_evidences_endpoint(visit_id):
-    visit = db_get_visit_by_id(visit_id)
-
-    if visit is None:
-        return jsonify({
-            "message": f"Error: La visita con ID {visit_id} no existe en el sistema."
-        }), 404
-
-    uploaded_files = request.files.getlist('files')
-
-    if not uploaded_files or uploaded_files[0].filename == '':
-        return jsonify({
-            "message": "No se adjuntaron archivos para la evidencia."
-        }), 400
-
-    saved_evidences = []
-
-    for file in uploaded_files:
-        file_name = file.filename
-        content_type = file.mimetype
-        
-        file_type = "photo" 
-        if 'video' in content_type:
-            file_type = "video"
-        elif 'image' in content_type:
-            file_type = "photo"
-            
-        try:
-            url_file = StorageService.upload_file(
-                file=file, 
-                visit_id=visit_id
-            )
-            
-            db_data = {
-                "visit_id": visit_id,
-                "type": file_type,
-                "url_file": url_file,
-                "description": file_name,
-            }
-            
-            new_evidence_data = db_save_evidence(db_data)
-            
-            saved_evidences.append(new_evidence_data)
-
-        except Exception as e:
-            print(f"Error al procesar el archivo {file_name} para visit_id {visit_id}: {str(e)}")
-            return jsonify({
-                "message": f"Fallo en el procesamiento de la evidencia: {file_name}",
-                "error_detail": str(e)
-            }), 500
-
-    return jsonify({
-        "message": f"Se subieron y registraron {len(saved_evidences)} evidencias con éxito para la visita {visit_id}.",
-        "evidences": saved_evidences
-    }), 201
-
-
 @offers_bp.post('/recommendations')
 def post_recommendations_endpoint():
     """
