@@ -1211,6 +1211,7 @@ def get_products_by_city_id(city_id):
 
 
 @app.route('/products/by-warehouse/<int:warehouse_id>', methods=['GET'])
+@cache_control_header(timeout=120, key="")
 def get_products_by_warehouse_id(warehouse_id):
     """Obtener productos disponibles por bodega (con stock o sin stock según parámetro)"""
     try:
@@ -1218,6 +1219,7 @@ def get_products_by_warehouse_id(warehouse_id):
 
         # Verificar si se quiere incluir productos con stock = 0
         include_zero = request.args.get('include_zero', 'false').lower() == 'true'
+        include_locations = request.args.get('include_locations', 'false').lower() == 'true'
 
         # Construir la query según si se incluyen productos con stock = 0
         if include_zero:
@@ -1225,112 +1227,129 @@ def get_products_by_warehouse_id(warehouse_id):
         else:
             quantity_filter = "AND ps.quantity > 0"
 
-        query = f"""
-            SELECT 
-                p.product_id,
-                p.sku,
-                p.name,
-                p.value,
-                p.status,
-                c.name as category_name,
-                w.name as warehouse_name,
-                ci.name as city_name,
-                ci.city_id,
-                ci.country,
-                ps.quantity,
-                ps.lote,
-                ps.country as stock_country,
-                ps.expiry_date,
-                ps.reserved_quantity,
-                wl.section,
-                wl.aisle,
-                wl.shelf,
-                wl."level"
-            FROM products.products p
-            JOIN products.productstock ps ON p.product_id = ps.product_id
-            JOIN products.warehouses w ON ps.warehouse_id = w.warehouse_id
-            JOIN products.cities ci ON w.city_id = ci.city_id
-            JOIN products.category c ON p.category_id = c.category_id
-            LEFT JOIN products.warehouse_locations wl ON ps.location_id = wl.location_id
-            WHERE ps.warehouse_id = %s AND p.status = 'activo' {quantity_filter}
-            ORDER BY ps.quantity DESC
-        """
-
-        cursor.execute(query, (warehouse_id,))
-
-        products = cursor.fetchall()
-
-        # Verificar si se quiere incluir las ubicaciones (locations) de cada producto
-        include_locations = request.args.get('include_locations', 'false').lower() == 'true'
-
-        # Si se requiere incluir locations, agrupar por producto y calcular totales
+        # OPTIMIZACIÓN: Si include_locations=true, traer todo en una sola query para evitar N+1
         if include_locations:
-            # Agrupar productos y calcular total por producto en esta bodega
+            # Query única optimizada que trae todo en un solo query
+            query = f"""
+                SELECT 
+                    p.product_id,
+                    p.sku,
+                    p.name,
+                    p.value,
+                    p.status,
+                    c.name as category_name,
+                    w.name as warehouse_name,
+                    ci.name as city_name,
+                    ci.city_id,
+                    ci.country,
+                    ps.quantity,
+                    ps.lote,
+                    ps.country as stock_country,
+                    ps.expiry_date,
+                    ps.reserved_quantity,
+                    wl.section,
+                    wl.aisle,
+                    wl.shelf,
+                    wl."level"
+                FROM products.products p
+                JOIN products.productstock ps ON p.product_id = ps.product_id
+                JOIN products.warehouses w ON ps.warehouse_id = w.warehouse_id
+                JOIN products.cities ci ON w.city_id = ci.city_id
+                JOIN products.category c ON p.category_id = c.category_id
+                LEFT JOIN products.warehouse_locations wl ON ps.location_id = wl.location_id
+                WHERE ps.warehouse_id = %s AND p.status = 'activo' {quantity_filter}
+                ORDER BY p.product_id, ps.quantity DESC
+            """
+
+            cursor.execute(query, (warehouse_id,))
+            all_rows = cursor.fetchall()
+
+            # Agrupar por producto y construir locations
             products_dict = {}
-            for product in products:
-                product_id = product['product_id']
+            for row in all_rows:
+                product_id = row['product_id']
+                
                 if product_id not in products_dict:
                     products_dict[product_id] = {
-                        'product_id': product['product_id'],
-                        'sku': product['sku'],
-                        'name': product['name'],
-                        'value': product['value'],
-                        'status': product['status'],
-                        'category_name': product['category_name'],
-                        'warehouse_name': product['warehouse_name'],
-                        'city_name': product['city_name'],
-                        'city_id': product['city_id'],
-                        'country': product['country'],
-                        'stock_country': product['stock_country'],
+                        'product_id': row['product_id'],
+                        'sku': row['sku'],
+                        'name': row['name'],
+                        'value': row['value'],
+                        'status': row['status'],
+                        'category_name': row['category_name'],
+                        'warehouse_name': row['warehouse_name'],
+                        'city_name': row['city_name'],
+                        'city_id': row['city_id'],
+                        'country': row['country'],
+                        'stock_country': row['stock_country'],
                         'total_quantity': 0,
                         'locations': []
                     }
+                
                 # Sumar la cantidad
-                products_dict[product_id]['total_quantity'] += product['quantity']
+                products_dict[product_id]['total_quantity'] += row['quantity']
+                
+                # Agregar location si tiene datos
+                location_data = {
+                    'warehouse_id': warehouse_id,
+                    'warehouse_name': row['warehouse_name'],
+                    'city_id': row['city_id'],
+                    'city_name': row['city_name'],
+                    'country': row['country'],
+                    'quantity': row['quantity'],
+                    'lote': row['lote'],
+                    'expiry_date': str(row['expiry_date']) if row['expiry_date'] else None,
+                    'reserved_quantity': row['reserved_quantity'],
+                    'section': row['section'],
+                    'aisle': row['aisle'],
+                    'shelf': row['shelf'],
+                    'level': row['level']
+                }
+                products_dict[product_id]['locations'].append(location_data)
 
-            # Ahora buscar todos los lotes para cada producto (solo de esta bodega)
-            products_with_locations = []
+            # Convertir a lista y agregar total_quantity como quantity
+            products_list = []
             for product_id, product_info in products_dict.items():
-                # Buscar todas las ubicaciones donde este producto tiene stock EN ESTA BODEGA
-                locations_query = """
-                    SELECT 
-                        w.warehouse_id,
-                        w.name as warehouse_name,
-                        ci.city_id,
-                        ci.name as city_name,
-                        ci.country,
-                        ps.quantity,
-                        ps.lote,
-                        ps.expiry_date,
-                        ps.reserved_quantity,
-                        wl.section,
-                        wl.aisle,
-                        wl.shelf,
-                        wl."level"
-                    FROM products.productstock ps
-                    JOIN products.warehouses w ON ps.warehouse_id = w.warehouse_id
-                    JOIN products.cities ci ON w.city_id = ci.city_id
-                    LEFT JOIN products.warehouse_locations wl ON ps.location_id = wl.location_id
-                    WHERE ps.product_id = %s AND ps.warehouse_id = %s AND w.active = true
-                    ORDER BY ps.quantity DESC
-                """
-
-                cursor.execute(locations_query, (product_id, warehouse_id))
-                locations = cursor.fetchall()
-
-                # Agregar el array locations al producto
-                product_info['locations'] = [dict(loc) for loc in locations]
-                # Usar total_quantity como quantity principal
                 product_info['quantity'] = product_info['total_quantity']
-                products_with_locations.append(product_info)
+                products_list.append(product_info)
 
             return jsonify({
                 "success": True,
                 "warehouse_id": warehouse_id,
-                "products": products_with_locations
+                "products": products_list
             })
         else:
-            # Sin locations: agrupar por producto y sumar cantidades
+            # Sin locations: query más simple
+            query = f"""
+                SELECT 
+                    p.product_id,
+                    p.sku,
+                    p.name,
+                    p.value,
+                    p.status,
+                    c.name as category_name,
+                    w.name as warehouse_name,
+                    ci.name as city_name,
+                    ci.city_id,
+                    ci.country,
+                    ps.quantity,
+                    ps.lote,
+                    ps.country as stock_country,
+                    ps.expiry_date,
+                    ps.reserved_quantity
+                FROM products.products p
+                JOIN products.productstock ps ON p.product_id = ps.product_id
+                JOIN products.warehouses w ON ps.warehouse_id = w.warehouse_id
+                JOIN products.cities ci ON w.city_id = ci.city_id
+                JOIN products.category c ON p.category_id = c.category_id
+                WHERE ps.warehouse_id = %s AND p.status = 'activo' {quantity_filter}
+                ORDER BY ps.quantity DESC
+            """
+
+            cursor.execute(query, (warehouse_id,))
+            products = cursor.fetchall()
+
+            # Agrupar por producto y sumar cantidades
             products_dict = {}
             for product in products:
                 product_id = product['product_id']
