@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List
+from typing import List, Optional, Dict, Any
 from .entities import Client
 
 class UserRepository(ABC):
@@ -15,4 +15,9 @@ class UserRepository(ABC):
     @abstractmethod
     def get_users_by_seller(self, seller_id: int) -> List[Client]:
         """Recupera la lista de usuarios con un rol específico."""
+        pass
+
+    @abstractmethod
+    def db_get_client_data(self, client_id: int) -> Optional[Dict[str, Any]]:
+        """Obtiene el perfil enriquecido para el motor de recomendaciones."""
         pass
