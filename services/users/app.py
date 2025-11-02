@@ -2,8 +2,8 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
 import datetime
+import logging 
 
-# Importaciones de arquitectura limpia
 from src.infrastructure.web.flask_user_routes import create_user_api_blueprint
 from src.application.use_cases import GetClientUsersUseCase
 from src.application.register_visit_usecase import RegisterVisitUseCase
@@ -12,11 +12,11 @@ from src.infrastructure.persistence.pg_user_repository import PgUserRepository
 from src.infrastructure.persistence.db_connector import init_db_pool
 from src.infrastructure.persistence.db_initializer import initialize_database
 from config import Config
-
-# Cargar variables de entorno del archivo .env (si existe)
+from src.services.storage_service import StorageService 
 load_dotenv()
 
-# Datos quemados que se devolverán
+logger = logging.getLogger(__name__)
+
 datos_quemados = {
     "usuarios": [
         {
@@ -88,7 +88,7 @@ def create_app():
         print("✅ Base de datos inicializada correctamente")
     except Exception as e:
         print(f"❌ CRITICAL ERROR: Fallo al inicializar la BD. {e}")
-        # Opción 1: Re-lanzar la excepción para que la app no arranque
+        logger.exception("Fallo crítico al inicializar la BD.")
         raise
     
     # --- CABLEADO DE DEPENDENCIAS (Dependency Injection - DI) ---
@@ -96,9 +96,11 @@ def create_app():
     # 1. Infraestructura de Persistencia (Implementación real de PostgreSQL)
     user_repository = PgUserRepository()
     
-    # 2. Capa de Aplicación (Use Case)
+    storage_service = StorageService() 
+
     get_client_users_use_case = GetClientUsersUseCase(
-        user_repository=user_repository
+        user_repository=user_repository,
+        storage_service=storage_service 
     )
 
     register_visit_use_case = RegisterVisitUseCase(
@@ -164,6 +166,7 @@ def create_app():
             return jsonify(respuesta), 200
             
         except Exception as e:
+            logger.error("Error al procesar la petición /datos", exc_info=True)
             return jsonify({
                 "success": False,
                 "mensaje": "Error al procesar la petición",
@@ -188,6 +191,7 @@ def create_app():
             return jsonify(respuesta), 200
             
         except Exception as e:
+            logger.error("Error al obtener usuarios /usuarios", exc_info=True)
             return jsonify({
                 "success": False,
                 "mensaje": "Error al obtener usuarios",
@@ -212,6 +216,7 @@ def create_app():
             return jsonify(respuesta), 200
             
         except Exception as e:
+            logger.error("Error al obtener productos /productos", exc_info=True)
             return jsonify({
                 "success": False,
                 "mensaje": "Error al obtener productos",
@@ -243,6 +248,7 @@ def create_app():
             }), 200
             
         except Exception as e:
+            logger.error("Error en health check", exc_info=True)
             return jsonify({
                 "status": "unhealthy",
                 "error": str(e),
@@ -261,7 +267,8 @@ if __name__ == '__main__':
     print("   POST /usuarios - Obtener usuarios")
     print("   POST /productos - Obtener productos")
     print("   GET  /health - Health check para CI/CD")
-    print("   GET  /api/users/clients - Obtener usuarios CLIENT de BD")
+    print("   GET  /users/clients - Obtener usuarios CLIENT de BD")
+    print("   POST /users/visits/<id>/evidences - Subir evidencias") # Nuevo endpoint
     print("🌐 Servidor ejecutándose en: http://localhost:8080")
     print("🔧 Versión: 2.1.4 - Proper ECS Deploy Test")
     app.run(host='0.0.0.0', port=8080, debug=False)

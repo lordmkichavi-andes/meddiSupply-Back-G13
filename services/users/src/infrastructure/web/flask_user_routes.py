@@ -4,7 +4,7 @@ from dateutil import parser
 
 from src.application.use_cases import GetClientUsersUseCase
 from src.application.register_visit_usecase import RegisterVisitUseCase
-
+from datetime import datetime, timedelta, timezone
 
 
 def create_user_api_blueprint(
@@ -97,6 +97,49 @@ def create_user_api_blueprint(
                 "message": "Error al obtener la información del usuario. Intenta nuevamente.",
                 "error": str(e)
             }), 500
+    
+    
+    @user_api_bp.route('/visits/<int:visit_id>/evidences', methods=['POST'])
+    def upload_visit_evidences_endpoint(visit_id):
+        """
+        Maneja la carga de evidencias (fotos/videos) asociadas a una visita,
+        delegando la lógica principal de validación y guardado al caso de uso.
+        """
+        try:
+            uploaded_files = request.files.getlist('files')
+            
+            if not uploaded_files or uploaded_files[0].filename == '':
+                return jsonify({
+                    "message": "No se adjuntaron archivos para la evidencia."
+                }), 400
+
+            saved_evidences = use_case.upload_visit_evidences(
+                visit_id=visit_id,
+                files=uploaded_files
+            )
+
+            return jsonify({
+                "message": f"Se subieron {len(saved_evidences)} evidencias con éxito para la visita {visit_id}.",
+                "evidences": saved_evidences
+            }), 201
+
+        except FileNotFoundError as e:
+            return jsonify({
+                "message": "Error: La visita no existe o el sistema de archivos falló.",
+                "error": str(e)
+            }), 404 
+        
+        except ValueError as e:
+            return jsonify({
+                "message": str(e)
+            }), 404
+
+        except Exception as e:
+            return jsonify({
+                "message": "No se pudieron subir las evidencias. Intenta nuevamente.",
+                "error": str(e)
+            }), 500
+
 
     @user_api_bp.route('/visit', methods=['POST'])
     def register_visit():
@@ -176,4 +219,5 @@ def create_user_api_blueprint(
                 "message": "No se pudo registrar la visita. Intenta nuevamente.",
                 "error": str(e)
             }), 500
+    
     return user_api_bp

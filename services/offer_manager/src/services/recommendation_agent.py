@@ -170,7 +170,7 @@ class RecommendationAgent:
         
     def generate_recommendations(self, client_id: int, regional_setting: str) -> Optional[Dict[str, Any]]:
         """
-        Flujo de trabajo principal del agente: recolecta datos y llama a la IA.
+        Main agent workflow: collects data and calls the AI.
         """
         
         catalog = get_products()
