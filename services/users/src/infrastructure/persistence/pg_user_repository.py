@@ -229,3 +229,64 @@ class PgUserRepository(UserRepository):
             # 🚨 Liberamos la conexión
             if conn:
                 release_connection(conn)
+
+    def save_visit(self, client_id: int, seller_id: int, date: str, findings: str):
+        """
+        Guarda la información de una nueva visita en la base de datos.
+        :param visit_data: Diccionario con client_id, seller_id, date y findings.
+        :return: Una instancia de la Visita recién creada con su visit_id.
+        """
+        conn = None
+        new_visit_id = None
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+
+            # Consulta SQL para insertar la nueva visita
+            # RETURNING visit_id es crucial para obtener el ID generado automáticamente
+            query = """
+                INSERT INTO users.Visits (client_id, seller_id, date, findings)
+                VALUES (%s, %s, %s, %s)
+                RETURNING visit_id;
+            """
+
+            # Los valores se toman del diccionario visit_data
+            values = (
+                client_id,
+                seller_id,
+                date,  # La fecha ya viene validada como objeto date o similar
+                findings,
+            )
+
+            # 1. Ejecutamos la inserción
+            cursor.execute(query, values)
+
+            # 2. Obtenemos el ID de la visita recién insertada
+            new_visit_id = cursor.fetchone()[0]
+
+            # 3. Confirmamos la transacción
+            conn.commit()
+
+            # 4. Creamos y devolvemos el objeto de dominio (Visita)
+            # Asumiendo que existe una clase 'Visit' para mapear el registro.
+            # Si no tienes una clase, simplemente devuelve el diccionario con el ID:
+            return {
+                "visit_id": new_visit_id,
+                "client_id": client_id,
+                "seller_id": seller_id,
+                "date": date,
+                "findings": findings,
+            }
+            # Si tienes una clase Visit, sería:
+            # return Visit(visit_id=new_visit_id, client_id=..., seller_id=..., findings=...)
+
+        except psycopg2.Error as e:
+            # Si hay un error, revertimos cualquier cambio
+            if conn:
+                conn.rollback()
+            print(f"ERROR de base de datos al guardar visita: {e}")
+            # Relanzar una excepción genérica de dominio/aplicación para aislar la capa
+            raise Exception("Database error during visit saving.")
+        finally:
+            if conn:
+                release_connection(conn)
