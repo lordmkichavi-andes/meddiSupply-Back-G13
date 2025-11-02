@@ -1,5 +1,4 @@
 from flask import Blueprint, jsonify, request
-from datetime import datetime, timedelta
 from dateutil import parser
 
 from src.application.use_cases import GetClientUsersUseCase
@@ -181,7 +180,7 @@ def create_user_api_blueprint(
                 "message": "La cadena proporcionada no corresponde a un formato de fecha válido."
             }), 400
 
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
         thirty_days_ago = now - timedelta(days=30)
 
         # La fecha no debe ser mayor a la fecha actual
