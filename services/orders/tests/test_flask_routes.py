@@ -5,6 +5,11 @@ from flask import Flask
 # Importamos la función de fábrica desde la infraestructura
 from orders.src.infrastructure.web.flask_routes import create_api_blueprint
 
+class MockOrder:
+    def __init__(self, order_id, client_id, **kwargs):
+        self.order_id = order_id
+        self.client_id = client_id
+
 # Definición de datos de prueba
 MOCK_ORDER_DATA = [
     {"id": "ORD001", "status": "En tránsito", "item": "Medicamento X"},
