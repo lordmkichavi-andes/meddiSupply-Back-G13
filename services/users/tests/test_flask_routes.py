@@ -3,7 +3,7 @@ import json
 from unittest.mock import MagicMock, patch
 from flask import Flask, jsonify
 from datetime import datetime, date, timedelta
-import io # Importación necesaria
+import io 
 
 # Importa la función de fábrica desde tu archivo (asume que tu código se llama 'api.py')
 from src.infrastructure.web.flask_user_routes import create_user_api_blueprint
@@ -14,7 +14,13 @@ class MockGetClientUsersUseCase(MagicMock):
     """
     Mock para GetClientUsersUseCase.
     """
-    pass
+    # Se añade el método que faltaba para la ruta /detail/<id>
+    def get_user_by_id(self, client_id):
+        pass
+    
+    # Se añade el método para la ruta de subida de evidencias
+    def upload_visit_evidences(self, visit_id, files):
+        pass
 
 class UserAPITestCase(unittest.TestCase):
     """
@@ -33,14 +39,8 @@ class UserAPITestCase(unittest.TestCase):
             self.mock_get_users_uc,
         )
 
-        # Registrar el Blueprint en la app base (asumimos que la URL base es /clients,
-        # aunque el código del blueprint no lo especifica, lo inferimos de los tests GET)
-        # 🛑 NOTA IMPORTANTE: El problema del JSONDecodeError sugiere que el blueprint
-        # para /visits/<int:visit_id>/evidences no está bajo /clients.
-        # Basado en la ruta que falla en POST: /clients/visits/{id}/evidences
-        # Lo más probable es que el Blueprint NO se registre con un prefijo. 
-        # Si se registrara con prefijo /users, la URL sería /users/visits/{id}/evidences.
-        # Asumiendo que el prefijo es implícito y que el fallo está en la decodificación.
+        # Registrar el Blueprint en la app base (sin prefijo en este caso, 
+        # ya que las rutas /clients y /visits parecen estar definidas dentro del BP)
         self.app.register_blueprint(user_api_bp) 
 
         # Crear el cliente de prueba de Flask
@@ -55,10 +55,14 @@ class UserAPITestCase(unittest.TestCase):
     # Función auxiliar para decodificar JSON de forma robusta
     def _get_json(self, response):
         if not response.data:
+            # Si el cuerpo está vacío, y no es 404, es un problema.
+            # Pero para 404, puede estar vacío (o contener HTML, como se vio)
             return None
         try:
             return json.loads(response.data.decode('utf-8'))
         except json.JSONDecodeError as e:
+            # Si la respuesta no es JSON, y es 404, asumimos que la URL está mal 
+            # y elevamos el error original para la depuración
             self.fail(f"La respuesta no fue JSON. Cuerpo: {response.data.decode('utf-8')} Error: {e}")
 
     # ----------------------------------------------------------------------
@@ -144,6 +148,10 @@ class UserAPITestCase(unittest.TestCase):
         test_client_id = 15
         mock_data = {"client_id": 15, "name": "Test Client"}
 
+        # Asegurarse de que el mock tiene el método
+        if not hasattr(self.mock_get_users_uc, 'get_user_by_id'):
+            self.mock_get_users_uc.get_user_by_id = MagicMock()
+            
         self.mock_get_users_uc.get_user_by_id.return_value = mock_data
 
         response = self.client.get(f'/detail/{test_client_id}')
@@ -156,6 +164,9 @@ class UserAPITestCase(unittest.TestCase):
     def test_get_user_by_id_not_found(self):
         """Prueba cuando el usuario no se encuentra (código 404)."""
         test_client_id = 999
+        if not hasattr(self.mock_get_users_uc, 'get_user_by_id'):
+            self.mock_get_users_uc.get_user_by_id = MagicMock()
+            
         self.mock_get_users_uc.get_user_by_id.return_value = None
 
         response = self.client.get(f'/detail/{test_client_id}')
@@ -172,6 +183,9 @@ class UserAPITestCase(unittest.TestCase):
         """
         test_client_id = 999
         
+        if not hasattr(self.mock_get_users_uc, 'get_user_by_id'):
+            self.mock_get_users_uc.get_user_by_id = MagicMock()
+            
         # 1. Configurar el mock del Caso de Uso para que lance una excepción
         self.mock_get_users_uc.get_user_by_id.side_effect = Exception("DB Connection Lost")
 
@@ -179,7 +193,7 @@ class UserAPITestCase(unittest.TestCase):
         response = self.client.get(f'/detail/{test_client_id}') 
         
         # 3. Verificar el estado
-        self.assertEqual(response.status_code, 500) # 🛑 CORREGIDO a 500
+        self.assertEqual(response.status_code, 500)
         
         # 4. Verificar el contenido
         data = self._get_json(response)
@@ -204,6 +218,10 @@ class UserAPITestCase(unittest.TestCase):
             {'id': 1, 'url': 's3/f1.jpg', 'type': 'photo'},
             {'id': 2, 'url': 's3/f2.mp4', 'type': 'video'}
         ]
+        
+        if not hasattr(self.mock_get_users_uc, 'upload_visit_evidences'):
+            self.mock_get_users_uc.upload_visit_evidences = MagicMock()
+            
         self.mock_get_users_uc.upload_visit_evidences.return_value = mock_evidences
         
         data_files = {
@@ -213,10 +231,9 @@ class UserAPITestCase(unittest.TestCase):
             ]
         }
         
-        # 🛑 Usar la URL que falla: /clients/visits/{id}/evidences
-        # Si esta falla, la URL debe ser /visits/{id}/evidences (sin prefijo /clients)
+        # 🛑 CORREGIDO: URL sin el prefijo '/clients'
         response = self.client.post( 
-            f'/clients/visits/{test_visit_id}/evidences',
+            f'/visits/{test_visit_id}/evidences',
             data=data_files,
             content_type='multipart/form-data'
         )
@@ -236,8 +253,13 @@ class UserAPITestCase(unittest.TestCase):
         
         data_files = {'files': (io.BytesIO(b''), '')} 
         
+        # Asegurarse de que el mock tiene el método
+        if not hasattr(self.mock_get_users_uc, 'upload_visit_evidences'):
+            self.mock_get_users_uc.upload_visit_evidences = MagicMock()
+            
+        # 🛑 CORREGIDO: URL sin el prefijo '/clients'
         response = self.client.post(
-            f'/clients/visits/{test_visit_id}/evidences',
+            f'/visits/{test_visit_id}/evidences',
             data=data_files,
             content_type='multipart/form-data'
         )
@@ -254,12 +276,17 @@ class UserAPITestCase(unittest.TestCase):
         test_visit_id = 999
         
         error_msg = f"La visita con ID {test_visit_id} no existe en el sistema."
+        
+        if not hasattr(self.mock_get_users_uc, 'upload_visit_evidences'):
+            self.mock_get_users_uc.upload_visit_evidences = MagicMock()
+            
         self.mock_get_users_uc.upload_visit_evidences.side_effect = ValueError(error_msg)
         
         data_files = {'files': [(io.BytesIO(b"dummy"), 'dummy.jpg')]}
 
+        # 🛑 CORREGIDO: URL sin el prefijo '/clients'
         response = self.client.post(
-            f'/clients/visits/{test_visit_id}/evidences',
+            f'/visits/{test_visit_id}/evidences',
             data=data_files,
             content_type='multipart/form-data'
         )
@@ -276,12 +303,17 @@ class UserAPITestCase(unittest.TestCase):
         test_visit_id = 103
         
         simulated_exception = "Fallo en el almacenamiento del archivo"
+        
+        if not hasattr(self.mock_get_users_uc, 'upload_visit_evidences'):
+            self.mock_get_users_uc.upload_visit_evidences = MagicMock()
+            
         self.mock_get_users_uc.upload_visit_evidences.side_effect = Exception(simulated_exception)
         
         data_files = {'files': [(io.BytesIO(b"dummy"), 'dummy.jpg')]}
 
+        # 🛑 CORREGIDO: URL sin el prefijo '/clients'
         response = self.client.post(
-            f'/clients/visits/{test_visit_id}/evidences',
+            f'/visits/{test_visit_id}/evidences',
             data=data_files,
             content_type='multipart/form-data'
         )
@@ -298,12 +330,17 @@ class UserAPITestCase(unittest.TestCase):
         test_visit_id = 104
         
         error_msg = "La visita no existe en la base de datos."
+        
+        if not hasattr(self.mock_get_users_uc, 'upload_visit_evidences'):
+            self.mock_get_users_uc.upload_visit_evidences = MagicMock()
+            
         self.mock_get_users_uc.upload_visit_evidences.side_effect = FileNotFoundError(error_msg)
         
         data_files = {'files': [(io.BytesIO(b"dummy"), 'dummy.jpg')]}
 
+        # 🛑 CORREGIDO: URL sin el prefijo '/clients'
         response = self.client.post(
-            f'/clients/visits/{test_visit_id}/evidences',
+            f'/visits/{test_visit_id}/evidences',
             data=data_files,
             content_type='multipart/form-data'
         )
