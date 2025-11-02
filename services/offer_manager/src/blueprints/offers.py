@@ -1,4 +1,10 @@
-"""Blueprint para ofertas/planes de venta."""
+"""Blueprint para ofertas/planes de venta, con Agente de Razonamiento modularizado."""
+import os
+import time
+import json
+import requests
+import random
+import logging
 from datetime import datetime, timedelta
 from dateutil import parser
 from flask import Blueprint, jsonify, request
@@ -8,16 +14,21 @@ from src.db import (
     get_sales_plans, 
     get_sales_plan_products,
     get_sales_plan_by_id,
-    save_visit
+    save_visit,
+    db_save_evidence,
+    db_get_visit_by_id
 )
 from src.models import SalesPlan, SalesPlanProduct, Product
 from src.services.sales_plan_service import SalesPlanService
 from src.services.storage_service import StorageService
-from src.db import db_save_evidence
-from src.db import db_get_visit_by_id
+from typing import List, Dict, Any, Optional
+from src.services.recommendation_agent import RecommendationAgent
+
+logger = logging.getLogger(__name__)
 
 offers_bp = Blueprint('offer_manager', __name__)
 
+recommendation_agent = RecommendationAgent()
 
 @offers_bp.get('/products')
 def get_products_endpoint():
@@ -29,20 +40,17 @@ def get_products_endpoint():
     except Exception as e:
         return jsonify({"message": f"Error obteniendo productos: {str(e)}"}), 500
 
-
 @offers_bp.get('/regions')
 def get_regions_endpoint():
     """Obtener lista de regiones disponibles."""
     regions = SalesPlanService.get_region_options()
     return jsonify(regions), 200
 
-
 @offers_bp.get('/quarters')
 def get_quarters_endpoint():
     """Obtener lista de trimestres disponibles."""
     quarters = SalesPlanService.get_quarter_options()
     return jsonify(quarters), 200
-
 
 @offers_bp.post('/plans')
 def create_sales_plan_endpoint():
@@ -137,15 +145,13 @@ def get_sales_plan_endpoint(plan_id):
 @offers_bp.route('/visit', methods=['POST'])
 def register_visit():
     """
-    Maneja la solicitud HTTP POST para registrar una nueva visita,
-    validando los datos de entrada, y llama al Caso de Uso.
+    Maneja la solicitud HTTP POST para registrar una nueva visita.
     """
     data = request.get_json()
 
     # 1. Extracción y Validación de Campos Vacíos
     required_fields = ['client_id', 'seller_id', 'date', 'findings']
 
-    # Verifica que todos los campos requeridos estén en el cuerpo de la petición
     if not all(field in data for field in required_fields):
         missing_fields = [field for field in required_fields if field not in data]
         return jsonify({
@@ -153,7 +159,6 @@ def register_visit():
             "missing": missing_fields
         }), 400
 
-    # Verifica que ningún campo requerido esté vacío (o None)
     if any(not data[field] for field in required_fields):
         return jsonify({
             "message": "Ningún campo puede estar vacío."
@@ -165,11 +170,8 @@ def register_visit():
     findings = data.get('findings')
 
     try:
-        # Intenta convertir la cadena de fecha (fecha_str) a un objeto datetime
-        # 'parser.parse' intentará adivinar el formato (DD-MM-YYYY, YYYY-MM-DD, etc.)
         visit_date = parser.parse(fecha_str)
     except ValueError:
-        # Atrapa el error si la cadena no es una fecha válida en ningún formato reconocido
         return jsonify({
             "message": "La cadena proporcionada no corresponde a un formato de fecha válido."
         }), 400
@@ -177,13 +179,11 @@ def register_visit():
     now = datetime.now()
     thirty_days_ago = now - timedelta(days=30)
 
-    # La fecha no debe ser mayor a la fecha actual
     if visit_date > now:
         return jsonify({
             "message": "La fecha de la visita no puede ser posterior a la fecha actual."
         }), 400
 
-    # La fecha debe ser en los últimos 30 días
     if visit_date < thirty_days_ago:
         return jsonify({
             "message": "La fecha de la visita no puede ser anterior a 30 días."
@@ -191,12 +191,10 @@ def register_visit():
 
     try:
         # 3. Llamar al Caso de Uso (Lógica de Negocio)
-        # Se asume que el Caso de Uso espera los datos de la visita para registrarlos.
-        # Es importante que el caso de uso reciba los datos adecuados.
         response = save_visit(
             client_id=client_id,
             seller_id=seller_id,
-            date=visit_date.date(),  # Se pasa como objeto date o str según necesite tu CU
+            date=visit_date.date(),
             findings=findings,
         )
 
@@ -204,10 +202,9 @@ def register_visit():
         return jsonify({
             "message": "Visita registrada exitosamente.",
             "visit": response
-        }), 201  # 201 Created es apropiado para POST de creación
+        }), 201
 
     except Exception as e:
-        # Si el sistema no puede registrar la información (ej. error de BD)
         return jsonify({
             "message": "No se pudo registrar la visita. Intenta nuevamente.",
             "error": str(e)
@@ -270,8 +267,35 @@ def upload_visit_evidences_endpoint(visit_id):
         "evidences": saved_evidences
     }), 201
 
+
+@offers_bp.post('/recommendations')
+def post_recommendations_endpoint():
+    """
+    Genera recomendaciones de productos usando el Agente de Razonamiento (RecommendationAgent).
+    """
+    data = request.get_json()
+    client_id = data.get('client_id')
+    regional_setting = data.get('regional_setting', 'CO')
+
+    if not client_id:
+        return jsonify({"message": "Falta el 'client_id' para la recomendación"}), 400
+
+    recommendation_response = recommendation_agent.generate_recommendations(
+        client_id=client_id, 
+        regional_setting=regional_setting
+    )
+
+    if recommendation_response is None:
+        return jsonify({"message": "Fallo en el Agente de Razonamiento (LLM). Revise logs."}), 503
+    
+    recommendations = recommendation_response.get('recommendations', [])
+
+    return jsonify({
+        "status": "success", 
+        "recommendations": recommendations,
+    }), 200
+       
 @offers_bp.get('/health')
 def health():
     """Health check endpoint."""
     return jsonify({"status": "ok"}), 200
-
