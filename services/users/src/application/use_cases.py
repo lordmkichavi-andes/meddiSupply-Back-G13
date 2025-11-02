@@ -1,7 +1,6 @@
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from src.domain.interfaces import UserRepository
 from src.domain.entities import User
-
 
 class GetClientUsersUseCase:
     """
@@ -67,3 +66,8 @@ class GetClientUsersUseCase:
             })
 
         return formatted_users
+
+    def get_user_by_id(self, client_id: int) -> Optional[Dict[str, Any]]:
+        """Llama al repositorio para obtener el perfil."""
+        return self.repository.db_get_client_data(client_id)
+
