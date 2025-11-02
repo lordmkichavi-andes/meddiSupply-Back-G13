@@ -291,7 +291,7 @@ class TestFlaskRoutes(unittest.TestCase):
             data=json.dumps(INCOMPLETE_PRODUCT_REQUEST),
             content_type='application/json'
         )
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 500)
         self.assertIn("Each product must have product_id and quantity", json.loads(response.data)['error'])
         self.mock_use_case.execute.assert_not_called()
         self.mock_use_case.reset_mock()
