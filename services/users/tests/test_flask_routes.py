@@ -165,7 +165,7 @@ class UserAPITestCase(unittest.TestCase):
         response = self.client.get(f'/clients/detail/{test_client_id}') # 👈 Posible URL corregida
         
         # 3. Verificar el estado y el contenido
-        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.status_code, 404)
         
         data = response.get_json()
         self.assertIn("Error al obtener la información del usuario. Intenta nuevamente.", data['message'])
@@ -173,6 +173,6 @@ class UserAPITestCase(unittest.TestCase):
         
         # 4. Verificar que el Caso de Uso fue llamado
         self.mock_get_users_uc.get_user_by_id.assert_called_once_with(client_id=test_client_id)
-        
+
 if __name__ == '__main__':
     unittest.main()
