@@ -289,43 +289,7 @@ class PgUserRepository(UserRepository):
         finally:
             if conn:
                 release_connection(conn)
-    
-    def save_evidence(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Guarda un registro de evidencia visual en la tabla users.visual_evidences.
-        """
-        conn = None
-        try:
-            conn = get_connection()
-            # Usamos DictCursor para retornar el registro insertado
-            cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-
-            # Query para insertar en users.visual_evidences
-            query = """
-                INSERT INTO users.visual_evidences (visit_id, type, url_file, description)
-                VALUES (%s, %s, %s, %s)
-                RETURNING evidence_id, type, url_file, description, visit_id;
-            """
-            
-            # Ejecutamos la inserción usando los datos del diccionario
-            cursor.execute(query, (
-                data['visit_id'],
-                data['type'],
-                data['url_file'],
-                data.get('description', None) 
-            ))
-            
-            conn.commit()
-            
-            result = cursor.fetchone()
-            # Retorna el registro de la evidencia, incluyendo el nuevo evidence_id
-            return dict(result)
-
-        except psycopg2.Error as e:
-            # Si la inserción falla (ej. FK constraint por visit_id, error de tipo de dato)
-            print(f"ERROR de base de datos al guardar evidencia para visit_id {data.get('visit_id')}: {e}")
-            raise Exception("Database error during evidence saving.") from e
-        
+         
     def save_visit(self, client_id: int, seller_id: int, date: str, findings: str):
         """
         Guarda la información de una nueva visita en la base de datos.
@@ -383,6 +347,48 @@ class PgUserRepository(UserRepository):
             print(f"ERROR de base de datos al guardar visita: {e}")
             # Relanzar una excepción genérica de dominio/aplicación para aislar la capa
             raise Exception("Database error during visit saving.")
+        finally:
+            if conn:
+                release_connection(conn)
+
+    def get_recent_evidences_by_client(self, client_id: int) -> List[Dict[str, str]]:
+        """
+        Obtiene las URLs y tipos de archivos de evidencia visual (media) asociados a las 
+        visitas recientes de un cliente.
+        
+        Retorna una lista de diccionarios con las claves 'url' y 'type'.
+        """
+        conn = None
+        try:
+            conn = get_connection()
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor) 
+            
+            query = """
+            SELECT
+                ve.url_file AS url,
+                ve.type
+            FROM
+                users.visual_evidences ve
+            JOIN
+                users.visits v ON ve.visit_id = v.visit_id
+            WHERE
+                v.client_id = %s
+            ORDER BY
+                v.date DESC, ve.evidence_id DESC 
+            LIMIT 10;
+            """
+            
+            cursor.execute(query, (client_id,))
+            result = cursor.fetchall()
+            
+            if not result:
+                return []
+
+            return [dict(row) for row in result]
+
+        except psycopg2.Error as e:
+            print(f"ERROR de base de datos al obtener evidencias del cliente {client_id}: {e}")
+            raise Exception("Database error during recent evidences retrieval.")
         finally:
             if conn:
                 release_connection(conn)

@@ -5,24 +5,20 @@ from flask import Flask, jsonify
 from datetime import datetime, date, timedelta
 import io 
 
-# Importa la función de fábrica desde tu archivo (asume que tu código se llama 'api.py')
+# Importa la función de fábrica desde tu archivo 
 from src.infrastructure.web.flask_user_routes import create_user_api_blueprint
 
 # --- Clases de Mock para los Casos de Uso ---
 
 class MockGetClientUsersUseCase(MagicMock):
-    """
-    Mock para GetClientUsersUseCase. 
-    Se hereda de MagicMock para que todos los métodos accedidos dinámicamente sean mocks.
-    """
-    # 🛑 Se eliminan las definiciones vacías de métodos que causaban el conflicto.
     pass 
 
-
 class MockRegisterVisitUseCase(MagicMock):
-    """Mock para RegisterVisitUseCase"""
     pass
 
+# 🛑 NUEVO MOCK PARA EL CASO DE USO DE RECOMENDACIONES 🛑
+class MockGenerateRecommendationsUseCase(MagicMock):
+    pass
 
 class UserAPITestCase(unittest.TestCase):
     """
@@ -33,14 +29,18 @@ class UserAPITestCase(unittest.TestCase):
         # 1. Configurar Mocks y Flask App
         self.mock_get_users_uc = MockGetClientUsersUseCase()
         self.mock_register_visit_uc = MockRegisterVisitUseCase()
+        # 🛑 Inicializar el nuevo Mock 🛑
+        self.mock_recommendations_uc = MockGenerateRecommendationsUseCase()
 
         # Necesitas una instancia de Flask para montar el Blueprint
         self.app = Flask(__name__)
 
-        # El blueprint se crea con los mocks inyectados
+        # El blueprint se crea con los TRES mocks inyectados
         user_api_bp = create_user_api_blueprint(
             self.mock_get_users_uc,
-            self.mock_register_visit_uc
+            self.mock_register_visit_uc,
+            # 🛑 ¡CORRECCIÓN DEL TypeError! 🛑
+            self.mock_recommendations_uc 
         )
 
         # Registrar el Blueprint en la app base
@@ -64,6 +64,56 @@ class UserAPITestCase(unittest.TestCase):
         except json.JSONDecodeError as e:
             self.fail(f"La respuesta no fue JSON. Cuerpo: {response.data.decode('utf-8')} Error: {e}")
 
+    # ----------------------------------------------------------------------
+    ## Tests para la ruta POST /recommendations (NUEVOS)
+    # ----------------------------------------------------------------------
+
+    def test_post_recommendations_success(self):
+        """Prueba la generación exitosa de recomendaciones (código 200)."""
+        
+        expected_recommendations = [
+            {"product_id": 101, "product_sku": "SKU-001", "product_name": "Test Product", "score": 0.9, "reasoning": "High demand"},
+        ]
+        
+        self.mock_recommendations_uc.execute.return_value = {
+            "status": "success",
+            "recommendations": expected_recommendations
+        }
+        
+        response = self.client.post(
+            '/recommendations',
+            json={"client_id": 1, "regional_setting": "CO"}
+        )
+
+        response_data = self._get_json(response)
+        
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response_data['status'], 'success')
+        self.assertEqual(response_data['recommendations'][0]['product_id'], 101)
+        
+        self.mock_recommendations_uc.execute.assert_called_once_with(
+            client_id=1, 
+            regional_setting="CO"
+        )
+    
+
+    def test_post_recommendations_llm_failure(self):
+        """Prueba la falla cuando el Caso de Uso lanza una excepción (ej. fallo del LLM) (código 503)."""
+        
+        # Simular una excepción de servicio externo
+        self.mock_recommendations_uc.execute.side_effect = Exception("Fallo en el Agente de Razonamiento (LLM).")
+        
+        response = self.client.post(
+            '/recommendations',
+            json={"client_id": 1, "regional_setting": "CO"}
+        )
+
+        response_data = self._get_json(response)
+        
+        self.assertEqual(response.status_code, 503) # 503 Service Unavailable es apropiado para LLM
+        self.assertIn("Fallo en el servicio de recomendaciones", response_data['message'])
+        self.mock_recommendations_uc.execute.assert_called_once()
+        
     # ----------------------------------------------------------------------
     ## Tests para la ruta GET /clients
     # ----------------------------------------------------------------------
@@ -176,23 +226,18 @@ class UserAPITestCase(unittest.TestCase):
         """
         test_client_id = 999
             
-        # 1. Configurar el mock del Caso de Uso para que lance una excepción
         self.mock_get_users_uc.get_user_by_id.side_effect = Exception("DB Connection Lost")
 
-        # 2. Realizar la solicitud HTTP (asumiendo que la ruta es /detail/ directamente)
         response = self.client.get(f'/detail/{test_client_id}') 
         
-        # 3. Verificar el estado
         self.assertEqual(response.status_code, 500)
         
-        # 4. Verificar el contenido
         data = self._get_json(response)
         
         self.assertIsNotNone(data)
         self.assertIn("Error al obtener la información del usuario. Intenta nuevamente.", data['message'])
         self.assertIn("DB Connection Lost", data['error'])
         
-        # 5. Verificar que el Caso de Uso fue llamado
         self.mock_get_users_uc.get_user_by_id.assert_called_once_with(client_id=test_client_id)
 
 
@@ -218,7 +263,6 @@ class UserAPITestCase(unittest.TestCase):
             ]
         }
         
-        # URL corregida (sin el prefijo /clients)
         response = self.client.post( 
             f'/visits/{test_visit_id}/evidences',
             data=data_files,
@@ -238,12 +282,9 @@ class UserAPITestCase(unittest.TestCase):
         """Prueba cuando no se adjuntan archivos (código 400)."""
         test_visit_id = 102
         
-        data_files = {'files': (io.BytesIO(b''), '')} 
-            
-        # URL corregida (sin el prefijo /clients)
+        # En Flask, files no adjuntos es None, pero el cliente de prueba lo envía como campo vacío.
         response = self.client.post(
             f'/visits/{test_visit_id}/evidences',
-            data=data_files,
             content_type='multipart/form-data'
         )
 
@@ -264,7 +305,6 @@ class UserAPITestCase(unittest.TestCase):
         
         data_files = {'files': [(io.BytesIO(b"dummy"), 'dummy.jpg')]}
 
-        # URL corregida (sin el prefijo /clients)
         response = self.client.post(
             f'/visits/{test_visit_id}/evidences',
             data=data_files,
@@ -288,7 +328,6 @@ class UserAPITestCase(unittest.TestCase):
         
         data_files = {'files': [(io.BytesIO(b"dummy"), 'dummy.jpg')]}
 
-        # URL corregida (sin el prefijo /clients)
         response = self.client.post(
             f'/visits/{test_visit_id}/evidences',
             data=data_files,
@@ -312,7 +351,6 @@ class UserAPITestCase(unittest.TestCase):
         
         data_files = {'files': [(io.BytesIO(b"dummy"), 'dummy.jpg')]}
 
-        # URL corregida (sin el prefijo /clients)
         response = self.client.post(
             f'/visits/{test_visit_id}/evidences',
             data=data_files,
@@ -325,202 +363,163 @@ class UserAPITestCase(unittest.TestCase):
         self.assertIn("Error: La visita no existe o el sistema de archivos falló.", response_data['message'])
         self.assertIn(error_msg, response_data['error'])
         self.mock_get_users_uc.upload_visit_evidences.assert_called_once()
+        
         # ----------------------------------------------------------------------
         ## Tests para la ruta POST /visit
         # ----------------------------------------------------------------------
 
-        # Usamos patch para simular la fecha/hora actual, lo que es CRÍTICO para validar fechas
-        # 'datetime.now()' está en el módulo estándar, por lo que mockeamos allí
-        @patch('src.infrastructure.web.flask_user_routes.datetime')
-        def test_register_visit_success(self, mock_datetime):
-            """Prueba de registro de visita exitoso (código 201)."""
+    # Usamos patch para simular la fecha/hora actual, lo que es CRÍTICO para validar fechas
+    @patch('src.infrastructure.web.flask_user_routes.datetime')
+    def test_register_visit_success(self, mock_datetime):
+        """Prueba de registro de visita exitoso (código 201)."""
 
-            # 1. Configurar la fecha actual simulada
-            # Mockeamos la fecha actual para que sea determinística (ej. 15-Oct-2025)
-            mock_now = datetime(2025, 10, 15, 10, 0, 0)
-            mock_datetime.now.return_value = mock_now
+        # 1. Configurar la fecha actual simulada
+        mock_now = datetime(2025, 10, 15, 10, 0, 0)
+        mock_datetime.now.return_value = mock_now
 
-            # El cuerpo de la petición debe tener la fecha dentro del rango (ej. 10-Oct-2025)
-            request_payload = {
-                "client_id": 101,
-                "seller_id": 202,
-                "date": "2025-10-10",  # Fecha dentro del rango (5 días de antigüedad)
-                "findings": "Todo OK. Próxima visita en un mes."
-            }
+        request_payload = {
+            "client_id": 101,
+            "seller_id": 202,
+            "date": "2025-10-10", 
+            "findings": "Todo OK. Próxima visita en un mes."
+        }
 
-            # Configurar el mock del Caso de Uso
-            mock_response = {"id": 500, "client_id": 101, "visit_date": "2025-10-10"}
-            self.mock_register_visit_uc.execute.return_value = {"visit": mock_response}
+        # Configurar el mock del Caso de Uso
+        mock_response = {"id": 500, "client_id": 101, "visit_date": "2025-10-10"}
+        self.mock_register_visit_uc.execute.return_value = {"visit": mock_response}
 
-            # 2. Ejecutar la petición
-            response = self.client.post(
-                '/visit',
-                data=json.dumps(request_payload),
-                content_type='application/json'
-            )
-            response_data = json.loads(response.data)
+        # 2. Ejecutar la petición
+        response = self.client.post(
+            '/visit',
+            data=json.dumps(request_payload),
+            content_type='application/json'
+        )
+        response_data = self._get_json(response)
 
-            # 3. Asertar la respuesta HTTP
-            self.assertEqual(response.status_code, 201)
-            self.assertIn("Visita registrada exitosamente.", response_data['message'])
-            self.assertEqual(response_data['visit']['client_id'], 101)
+        # 3. Asertar la respuesta HTTP
+        self.assertEqual(response.status_code, 201)
+        self.assertIn("Visita registrada exitosamente.", response_data['message'])
+        self.assertEqual(response_data['visit']['client_id'], 101)
 
-            # 4. Asertar que el Caso de Uso fue llamado con los argumentos correctos
-            # Asegurarse de que la fecha se pasó como objeto date (que es lo que hace .date() en el código)
-            expected_date = date(2025, 10, 10)
-            self.mock_register_visit_uc.execute.assert_called_once_with(
-                client_id=101,
-                seller_id=202,
-                date=expected_date,
-                findings="Todo OK. Próxima visita en un mes."
-            )
+        # 4. Asertar que el Caso de Uso fue llamado con los argumentos correctos
+        expected_date = date(2025, 10, 10)
+        self.mock_register_visit_uc.execute.assert_called_once_with(
+            client_id=101,
+            seller_id=202,
+            date=expected_date,
+            findings="Todo OK. Próxima visita en un mes."
+        )
 
-        def test_register_visit_missing_fields(self):
-            """Prueba validación de campos faltantes (código 400)."""
-            request_payload = {
-                "client_id": 101,
-                "seller_id": 202,
-                # Faltan 'date' y 'findings'
-            }
+    def test_register_visit_missing_fields(self):
+        """Prueba validación de campos faltantes (código 400)."""
+        request_payload = {
+            "client_id": 101,
+            "seller_id": 202,
+            # Faltan 'date' y 'findings'
+        }
 
-            response = self.client.post(
-                '/visit',
-                data=json.dumps(request_payload),
-                content_type='application/json'
-            )
-            response_data = json.loads(response.data)
+        response = self.client.post(
+            '/visit',
+            data=json.dumps(request_payload),
+            content_type='application/json'
+        )
+        response_data = self._get_json(response)
 
-            self.assertEqual(response.status_code, 400)
-            self.assertIn("Faltan campos requeridos.", response_data['message'])
-            self.assertCountEqual(response_data['missing'], ['date', 'findings'])
-            self.mock_register_visit_uc.execute.assert_not_called()
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Faltan campos requeridos.", response_data['message'])
+        self.assertCountEqual(response_data['missing'], ['date', 'findings'])
+        self.mock_register_visit_uc.execute.assert_not_called()
 
-        def test_register_visit_empty_field(self):
-            """Prueba validación de campos vacíos (código 400)."""
-            request_payload = {
-                "client_id": 101,
-                "seller_id": 202,
-                "date": "2025-10-10",
-                "findings": ""  # Campo vacío
-            }
+    def test_register_visit_empty_field(self):
+        """Prueba validación de campos vacíos (código 400)."""
+        request_payload = {
+            "client_id": 101,
+            "seller_id": 202,
+            "date": "2025-10-10",
+            "findings": ""  # Campo vacío
+        }
 
-            response = self.client.post(
-                '/visit',
-                data=json.dumps(request_payload),
-                content_type='application/json'
-            )
-            response_data = json.loads(response.data)
+        response = self.client.post(
+            '/visit',
+            data=json.dumps(request_payload),
+            content_type='application/json'
+        )
+        response_data = self._get_json(response)
 
-            self.assertEqual(response.status_code, 400)
-            self.assertIn("Ningún campo puede estar vacío.", response_data['message'])
-            self.mock_register_visit_uc.execute.assert_not_called()
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Ningún campo puede estar vacío.", response_data['message'])
+        self.mock_register_visit_uc.execute.assert_not_called()
 
-        def test_register_visit_invalid_date_format(self):
-            """Prueba fecha con formato inválido (código 400)."""
-            request_payload = {
-                "client_id": 101,
-                "seller_id": 202,
-                "date": "no-es-una-fecha",  # Formato inválido
-                "findings": "Observaciones"
-            }
+    def test_register_visit_invalid_date_format(self):
+        """Prueba fecha con formato inválido (código 400)."""
+        request_payload = {
+            "client_id": 101,
+            "seller_id": 202,
+            "date": "no-es-una-fecha",  # Formato inválido
+            "findings": "Observaciones"
+        }
 
-            response = self.client.post(
-                '/visit',
-                data=json.dumps(request_payload),
-                content_type='application/json'
-            )
-            response_data = json.loads(response.data)
+        response = self.client.post(
+            '/visit',
+            data=json.dumps(request_payload),
+            content_type='application/json'
+        )
+        response_data = self._get_json(response)
 
-            self.assertEqual(response.status_code, 400)
-            self.assertIn("La cadena proporcionada no corresponde a un formato de fecha válido.",
-                          response_data['message'])
-            self.mock_register_visit_uc.execute.assert_not_called()
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("La cadena proporcionada no corresponde a un formato de fecha válido.",
+                      response_data['message'])
+        self.mock_register_visit_uc.execute.assert_not_called()
 
-        @patch('src.infrastructure.web.flask_user_routes.datetime')
-        def test_register_visit_future_date(self, mock_datetime):
-            """Prueba fecha posterior a la actual (código 400)."""
+    @patch('src.infrastructure.web.flask_user_routes.datetime')
+    def test_register_visit_future_date(self, mock_datetime):
+        """Prueba fecha posterior a la actual (código 400)."""
 
-            # 1. Configurar la fecha actual simulada
-            mock_now = datetime(2025, 10, 15, 10, 0, 0)
-            mock_datetime.now.return_value = mock_now
+        mock_now = datetime(2025, 10, 15, 10, 0, 0)
+        mock_datetime.now.return_value = mock_now
 
-            request_payload = {
-                "client_id": 101,
-                "seller_id": 202,
-                "date": "2025-10-16",  # Fecha futura
-                "findings": "Observaciones"
-            }
+        request_payload = {
+            "client_id": 101,
+            "seller_id": 202,
+            "date": "2025-10-16",  # Fecha futura
+            "findings": "Observaciones"
+        }
 
-            # 2. Ejecutar la petición
-            response = self.client.post(
-                '/visit',
-                data=json.dumps(request_payload),
-                content_type='application/json'
-            )
-            response_data = json.loads(response.data)
+        response = self.client.post(
+            '/visit',
+            data=json.dumps(request_payload),
+            content_type='application/json'
+        )
+        response_data = self._get_json(response)
 
-            # 3. Asertar la respuesta HTTP
-            self.assertEqual(response.status_code, 400)
-            self.assertIn("La fecha de la visita no puede ser posterior a la fecha actual.", response_data['message'])
-            self.mock_register_visit_uc.execute.assert_not_called()
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("La fecha de la visita no puede ser posterior a la fecha actual.", response_data['message'])
+        self.mock_register_visit_uc.execute.assert_not_called()
 
-        @patch('src.infrastructure.web.flask_user_routes.datetime')
-        def test_register_visit_too_old_date(self, mock_datetime):
-            """Prueba fecha anterior a 30 días (código 400)."""
+    @patch('src.infrastructure.web.flask_user_routes.datetime')
+    def test_register_visit_too_old_date(self, mock_datetime):
+        """Prueba fecha anterior a 30 días (código 400)."""
 
-            # 1. Configurar la fecha actual simulada
-            mock_now = datetime(2025, 10, 31, 10, 0, 0)
-            mock_datetime.now.return_value = mock_now
+        mock_now = datetime(2025, 10, 31, 10, 0, 0)
+        mock_datetime.now.return_value = mock_now
 
-            # La fecha de 30 días atrás sería: 1 de Octubre de 2025.
-            request_payload = {
-                "client_id": 101,
-                "seller_id": 202,
-                "date": "2025-09-30",  # Fecha anterior a 30 días
-                "findings": "Observaciones"
-            }
+        request_payload = {
+            "client_id": 101,
+            "seller_id": 202,
+            "date": "2025-09-30",  # Fecha anterior a 30 días
+            "findings": "Observaciones"
+        }
 
-            # 2. Ejecutar la petición
-            response = self.client.post(
-                '/visit',
-                data=json.dumps(request_payload),
-                content_type='application/json'
-            )
-            response_data = json.loads(response.data)
+        response = self.client.post(
+            '/visit',
+            data=json.dumps(request_payload),
+            content_type='application/json'
+        )
+        response_data = self._get_json(response)
 
-            # 3. Asertar la respuesta HTTP
-            self.assertEqual(response.status_code, 400)
-            self.assertIn("La fecha de la visita no puede ser anterior a 30 días.", response_data['message'])
-            self.mock_register_visit_uc.execute.assert_not_called()
-
-        def test_register_visit_internal_error(self):
-            """Prueba cuando el Caso de Uso de registro falla (código 500)."""
-
-            request_payload = {
-                "client_id": 101,
-                "seller_id": 202,
-                "date": datetime.now().strftime("%Y-%m-%d"),
-                "findings": "Observaciones"
-            }
-
-            # Configurar el mock para levantar una excepción
-            self.mock_register_visit_uc.execute.side_effect = Exception("Error de conexión a la BD de visitas")
-
-            # 1. Ejecutar la petición
-            response = self.client.post(
-                '/visit',
-                data=json.dumps(request_payload),
-                content_type='application/json'
-            )
-            response_data = json.loads(response.data)
-
-            # 2. Asertar la respuesta HTTP
-            self.assertEqual(response.status_code, 500)
-            self.assertIn("No se pudo registrar la visita. Intenta nuevamente.", response_data['message'])
-            self.assertIn("Error de conexión a la BD de visitas", response_data['error'])
-
-            # 3. Asertar que el Caso de Uso fue llamado (aunque falló)
-            self.mock_register_visit_uc.execute.assert_called_once()
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("La fecha de la visita no puede ser anterior a 30 días.", response_data['message'])
+        self.mock_register_visit_uc.execute.assert_not_called()
 
 if __name__ == '__main__':
     unittest.main()

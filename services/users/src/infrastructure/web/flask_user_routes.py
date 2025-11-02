@@ -3,12 +3,13 @@ from dateutil import parser
 
 from src.application.use_cases import GetClientUsersUseCase
 from src.application.register_visit_usecase import RegisterVisitUseCase
+from src.application.generate_recommendations_usecase import GenerateRecommendationsUseCase
 from datetime import datetime, timedelta, timezone
-
 
 def create_user_api_blueprint(
         use_case: GetClientUsersUseCase,
         register_visit_use_case: RegisterVisitUseCase,
+        generate_recommendations_uc: GenerateRecommendationsUseCase
 ):
     """
     Función de fábrica para inyectar el Caso de Uso en el Blueprint.
@@ -219,4 +220,40 @@ def create_user_api_blueprint(
                 "error": str(e)
             }), 500
     
+    @user_api_bp.route('/recommendations',  methods=['POST'])
+    def post_recommendations_endpoint():
+        """
+        Genera recomendaciones de productos llamando al Caso de Uso.
+        """
+        data = request.get_json()
+        client_id = data.get('client_id')
+        regional_setting = data.get('regional_setting', 'CO')
+
+        if not client_id:
+            return jsonify({"message": "Falta el 'client_id' para la recomendación"}), 400
+        
+        try:
+            # 🛑 LLAMADA AL CASO DE USO 🛑
+            result = generate_recommendations_uc.execute(
+                client_id=client_id, 
+                regional_setting=regional_setting
+            )
+            
+            # Retorno exitoso
+            return jsonify({
+                "status": "success", 
+                "recommendations": result.get('recommendations', []),
+            }), 200
+
+        except ValueError as e:
+            # Errores de validación (client_id faltante, etc.)
+            return jsonify({"message": str(e)}), 400
+            
+        except Exception as e:
+            # Errores del agente LLM, etc.
+            print(f"Error interno al generar recomendaciones: {e}")
+            return jsonify({
+                "message": "Fallo en el servicio de recomendaciones. Intente más tarde.",
+                "error": str(e)
+            }), 503
     return user_api_bp

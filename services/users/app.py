@@ -13,6 +13,9 @@ from src.infrastructure.persistence.db_connector import init_db_pool
 from src.infrastructure.persistence.db_initializer import initialize_database
 from config import Config
 from src.services.storage_service import StorageService 
+from src.services.recommendation_agent import RecommendationAgent 
+from src.application.generate_recommendations_usecase import GenerateRecommendationsUseCase
+
 load_dotenv()
 
 logger = logging.getLogger(__name__)
@@ -116,10 +119,18 @@ def create_app():
         }
     })
     
+    recommendation_agent = RecommendationAgent(
+        user_repository=user_repository
+    )
+    generate_recommendations_uc = GenerateRecommendationsUseCase(
+        recommendation_agent=recommendation_agent
+    )
+
     # 3. Capa de Presentación (Web) - Arquitectura Limpia
     user_api_bp = create_user_api_blueprint(
         get_client_users_use_case,
-        register_visit_use_case
+        register_visit_use_case,
+        generate_recommendations_uc
     )
     
     # --- REGISTRO DE RUTAS ---
