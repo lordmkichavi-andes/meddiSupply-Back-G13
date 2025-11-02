@@ -3,13 +3,6 @@ from unittest.mock import MagicMock
 from datetime import date
 from typing import Dict, Any
 
-
-# Asumimos que estas interfaces/entidades existen en src.domain
-# from src.domain.interfaces import UserRepository
-# from src.domain.entities import User
-
-# Redefinición de la clase para hacer el test autocontenido y ejecutable
-# En un entorno real, esta clase se importaría.
 class RegisterVisitUseCase:
     """
     Caso de uso: Registrar las visitas de los sellers

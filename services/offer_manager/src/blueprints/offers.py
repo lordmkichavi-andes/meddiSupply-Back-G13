@@ -15,7 +15,6 @@ from src.db import (
     get_sales_plan_products,
     get_sales_plan_by_id,
     save_visit,
-    db_save_evidence,
     db_get_visit_by_id
 )
 from src.models import SalesPlan, SalesPlanProduct, Product

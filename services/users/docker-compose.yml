@@ -1,39 +1,34 @@
 version: '3.8'
 
 services:
-  # 🗄️ Servicio de Base de Datos PostgreSQL
-  db:
-    image: postgres:14-alpine
-    container_name: postgres_rdwu
-    restart: always
-    environment:
-      POSTGRES_DB: medisupplydb
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: 1q2w3e4r
-    ports:
-      - "5432:5432"  # Puerto externo 5434 → interno 5432
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  usuarios-service:
+  # Servicio del Microservicio Flask
+  app:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: usuarios_service
-    platform: linux/amd64
-    ports:
-      - "8080:8080"
-    depends_on:
-      db:
-        condition: service_healthy
+    container_name: users
+    # Ya NO necesitamos 'depends_on' ni 'db' si la DB no está definida aquí.
+    # ELIMINAR depends_on COMPLETAMENTE.
+    
     environment:
-        DB_HOST: db
-        DB_PORT: 5432
-        DB_NAME: medisupplydb
-        DB_USER: postgres
-        DB_PASSWORD: 1q2w3e4r
-        RUN_DB_INIT_ON_STARTUP: true
-    command: ["gunicorn", "--bind", "0.0.0.0:8080", "app:app"]
+      # 🎯 DB_HOST ahora apunta a tu MÁQUINA HOST
+      # 'host.docker.internal' es un alias especial para acceder al host desde Docker Desktop.
+      DB_HOST: host.docker.internal 
+      DB_PORT: 5440
+      # 🎯 Usar el nombre de la DB que existe en el otro contenedor
+      DB_NAME: offer_manager_db 
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      # La inicialización sigue siendo necesaria
+      RUN_DB_INIT_ON_STARTUP: "True"
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_REGION: ${AWS_REGION}
+      PYTHONUNBUFFERED: 1
+      
+    
+    ports:
+      - "8082:8080"
+    
+    # El comando se simplifica al no esperar una dependencia interna.
+    command: ["sh", "-c", "python app.py"]
