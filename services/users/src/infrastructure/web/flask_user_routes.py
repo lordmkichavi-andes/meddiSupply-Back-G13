@@ -173,29 +173,19 @@ def create_user_api_blueprint(
 
         try:
             # Intenta convertir la cadena de fecha (fecha_str) a un objeto datetime
+            # 'parser.parse' intentará adivinar el formato (DD-MM-YYYY, YYYY-MM-DD, etc.)
             visit_date = parser.parse(fecha_str)
-            
-            # 🛑 CORRECCIÓN: Normalizar visit_date a UTC para asegurar que es aware
-            if visit_date.tzinfo is None or visit_date.tzinfo.utcoffset(visit_date) is None:
-                # Si el input es naive, asumimos que es UTC y lo hacemos aware
-                visit_date = visit_date.replace(tzinfo=timezone.utc)
-            else:
-                # Si ya es aware, lo convertimos a UTC para estandarizar
-                visit_date = visit_date.astimezone(timezone.utc)
-                
         except ValueError:
             # Atrapa el error si la cadena no es una fecha válida en ningún formato reconocido
             return jsonify({
                 "message": "La cadena proporcionada no corresponde a un formato de fecha válido."
             }), 400
 
-        # 🛑 CORRECCIÓN: Obtener la fecha actual en UTC (aware)
-        now = datetime.now(timezone.utc)
+        now = datetime.now()
         thirty_days_ago = now - timedelta(days=30)
 
-        # 🛑 CORRECCIÓN: La comparación ahora es segura ya que ambas son aware en UTC
         # La fecha no debe ser mayor a la fecha actual
-        if visit_date > now: # Línea 188 (aproximada)
+        if visit_date > now:
             return jsonify({
                 "message": "La fecha de la visita no puede ser posterior a la fecha actual."
             }), 400
@@ -209,11 +199,11 @@ def create_user_api_blueprint(
         try:
             # 3. Llamar al Caso de Uso (Lógica de Negocio)
             # Se asume que el Caso de Uso espera los datos de la visita para registrarlos.
+            # Es importante que el caso de uso reciba los datos adecuados.
             response = register_visit_use_case.execute(
                 client_id=client_id,
                 seller_id=seller_id,
-                # Se pasa la fecha normalizada a date o datetime, según requiera tu CU
-                date=visit_date.date(), 
+                date=visit_date.date(),  # Se pasa como objeto date o str según necesite tu CU
                 findings=findings,
             )
 
@@ -221,12 +211,13 @@ def create_user_api_blueprint(
             return jsonify({
                 "message": "Visita registrada exitosamente.",
                 "visit": response["visit"]
-            }), 201
+            }), 201  # 201 Created es apropiado para POST de creación
 
         except Exception as e:
             # Si el sistema no puede registrar la información (ej. error de BD)
             return jsonify({
                 "message": "No se pudo registrar la visita. Intenta nuevamente.",
                 "error": str(e)
-            }), 500   
+            }), 500
+    
     return user_api_bp

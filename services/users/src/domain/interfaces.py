@@ -20,6 +20,11 @@ class UserRepository(ABC):
     def get_by_id(self, visit_id: int) -> Optional[Dict[str, Any]]:
         pass
 
+    @abstractmethod
+    def save_visit(self, client_id: int, seller_id: int, date: str, findings: str):
+        """Registra visitas"""
+        pass
+
 @runtime_checkable
 class StorageServiceInterface(Protocol):
     """
