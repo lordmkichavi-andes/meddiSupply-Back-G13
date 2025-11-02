@@ -142,7 +142,7 @@ def get_sales_plan_endpoint(plan_id):
     except Exception as e:
         return jsonify({"message": f"Error obteniendo plan: {str(e)}"}), 500
 
-@offers_bp.route('/visit', methods=['POST'])
+@offers_bp.post('/visit')
 def register_visit():
     """
     Maneja la solicitud HTTP POST para registrar una nueva visita.
@@ -205,6 +205,8 @@ def register_visit():
         }), 201
 
     except Exception as e:
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error registrando la visita: {str(e)}", exc_info=True)
         return jsonify({
             "message": "No se pudo registrar la visita. Intenta nuevamente.",
             "error": str(e)
