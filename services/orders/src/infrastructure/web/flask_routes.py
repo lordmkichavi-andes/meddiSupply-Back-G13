@@ -1,13 +1,18 @@
-from flask import Blueprint, jsonify, request
-from src.application.use_cases import TrackOrdersUseCase, CreateOrderUseCase
+from flask import Blueprint, jsonify, request, current_app
+from src.application.use_cases import TrackOrdersUseCase, CreateOrderUseCase, GetClientPurchaseHistoryUseCase, GetAllOrdersUseCase
 from src.domain.entities import Order, OrderItem
 from datetime import datetime
+from typing import List, Dict, Any
 
 # ELIMINAMOS la declaración global de api_bp.
 # Ya no necesitamos el comentario sobre la inyección de dependencias aquí,
 # ya que la crearemos dentro de la función de fábrica.
 
-def create_api_blueprint(track_case: TrackOrdersUseCase, create_case: CreateOrderUseCase):
+def create_api_blueprint(
+    track_case: TrackOrdersUseCase, 
+    create_case: CreateOrderUseCase,
+    history_case: GetClientPurchaseHistoryUseCase,
+    all_orders_case: GetAllOrdersUseCase):
     """
     Función de fábrica para inyectar el Caso de Uso en el Blueprint.
     Crea y registra un nuevo Blueprint en cada llamada para evitar conflictos en tests.
@@ -89,4 +94,38 @@ def create_api_blueprint(track_case: TrackOrdersUseCase, create_case: CreateOrde
                 "message": "¡Ups! No pudimos crear el pedido. Intenta nuevamente."
             }), 500
 
+    @api_bp.route('/history/<int:client_id>', methods=['GET']) 
+    def get_purchase_history(client_id):
+        """
+        Endpoint para el Orquestador: Obtiene el historial reciente de productos comprados.
+        """
+        try:
+            history = history_case.execute(client_id)
+
+            if not history:
+                return jsonify({"products": []}), 404
+
+            return jsonify({"products": history}), 200
+
+        except Exception as e:
+            current_app.logger.error(f"Error al consultar historial del cliente {client_id}: {e}")
+            return jsonify({"message": "Error interno del servicio de órdenes al obtener historial."}), 500
+
+
+    @api_bp.route('/all', methods=['GET'])
+    def get_all_orders():
+        """
+        Endpoint para Reportes/Web: Retorna todas las órdenes con sus líneas detalladas.
+        """
+        try:
+            orders = all_orders_case.execute()
+
+            if not orders:
+                return jsonify({"orders": []}), 404
+
+            return jsonify({"orders": orders}), 200
+
+        except Exception as e:
+            current_app.logger.error(f"Error al consultar todas las órdenes: {e}")
+            return jsonify({"message": "Error interno del servicio de órdenes al obtener todas las órdenes."}), 500
     return api_bp

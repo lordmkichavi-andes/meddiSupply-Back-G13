@@ -23,7 +23,7 @@ def init_db_pool():
             print("INFO: Pool de conexiones a la base de datos inicializado.")
         except psycopg2.Error as e:
             print(f"ERROR: No se pudo conectar a la base de datos. {e}")
-            raise ConnectionError("Fallo en la conexión inicial a la base de datos.")
+            raise e
 
 def get_connection():
     """Obtiene una conexión del pool."""
