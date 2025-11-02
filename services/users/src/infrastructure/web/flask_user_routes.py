@@ -71,4 +71,25 @@ def create_user_api_blueprint(use_case: GetClientUsersUseCase):
                 "message": "No se pudieron obtener los clientes. Intenta nuevamente.",
                 "error": str(e)
             }), 500
+    
+    @user_api_bp.route('/detail/<int:client_id>', methods=['GET'])
+    def get_user_by_id(client_id):
+        """
+        Maneja la solicitud HTTP para obtener un usuario individual por su user_id.
+        """
+        try:
+            user_data = use_case.get_user_by_id(client_id=client_id) 
+
+            if not user_data:
+                return jsonify({
+                    "message": f"Usuario con ID {client_id} no encontrado."
+                }), 404
+
+            return jsonify(user_data), 200
+
+        except Exception as e:
+            return jsonify({
+                "message": "Error al obtener la información del usuario. Intenta nuevamente.",
+                "error": str(e)
+            }), 500
     return user_api_bp
