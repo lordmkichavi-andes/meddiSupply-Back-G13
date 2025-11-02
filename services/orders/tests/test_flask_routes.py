@@ -14,6 +14,10 @@ CLIENT_ID_EXISTS = 1
 CLIENT_ID_NOT_FOUND = 100
 CLIENT_ID_ERROR = 0
 
+MOCK_HISTORY_DATA = [
+    {"sku": "P001", "name": "Aspirina"},
+    {"sku": "P002", "name": "Termómetro"}
+]
 
 class TestFlaskRoutes(unittest.TestCase):
     """
@@ -104,6 +108,177 @@ class TestFlaskRoutes(unittest.TestCase):
         # El mensaje exacto de la ruta Flask
         self.assertEqual(response_data['message'], "¡Ups! No pudimos obtener los pedidos. Intenta nuevamente.")
 
+
+    def test_get_purchase_history_success(self):
+        """
+        [GET /history/<id>] Prueba la obtención exitosa del historial de compras.
+        """
+        self.mock_use_case.execute.return_value = MOCK_HISTORY_DATA
+
+        response = self.client.get(f'/history/{CLIENT_ID_EXISTS}')
+        response_data = json.loads(response.data)
+
+        self.mock_use_case.execute.assert_called_once_with(CLIENT_ID_EXISTS)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response_data['products'], MOCK_HISTORY_DATA)
+        
+        self.mock_use_case.reset_mock()
+
+    def test_get_purchase_history_not_found(self):
+        """
+        [GET /history/<id>] Prueba cuando el cliente no tiene historial (404).
+        """
+        self.mock_use_case.execute.return_value = []
+
+        response = self.client.get(f'/history/{CLIENT_ID_NOT_FOUND}')
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(json.loads(response.data)['products'], [])
+        
+        self.mock_use_case.reset_mock()
+
+    def test_get_purchase_history_internal_server_error(self):
+        """
+        [GET /history/<id>] Prueba cuando el caso de uso lanza un error (500).
+        """
+        self.mock_use_case.execute.side_effect = Exception("DB error history")
+
+        response = self.client.get(f'/history/{CLIENT_ID_EXISTS}')
+        
+        self.assertEqual(response.status_code, 500)
+        self.assertIn("Error interno del servicio", json.loads(response.data)['message'])
+        
+        self.mock_use_case.reset_mock()
+
+    def test_get_all_orders_success(self):
+        """
+        [GET /all] Prueba la obtención exitosa de todas las órdenes.
+        """
+        self.mock_use_case.execute.return_value = MOCK_ALL_ORDERS_DATA
+
+        response = self.client.get('/all')
+        response_data = json.loads(response.data)
+
+        self.mock_use_case.execute.assert_called_once()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response_data['orders'], MOCK_ALL_ORDERS_DATA)
+        
+        self.mock_use_case.reset_mock()
+
+    def test_get_all_orders_not_found(self):
+        """
+        [GET /all] Prueba cuando no hay órdenes en el sistema (404).
+        """
+        self.mock_use_case.execute.return_value = []
+
+        response = self.client.get('/all')
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(json.loads(response.data)['orders'], [])
+        
+        self.mock_use_case.reset_mock()
+
+    def test_create_order_success(self):
+        """
+        [POST /] Prueba la creación exitosa de una orden.
+        """
+        self.mock_use_case.execute.return_value = MOCK_CREATED_ORDER 
+
+        response = self.client.post(
+            '/',
+            data=json.dumps(NEW_ORDER_REQUEST),
+            content_type='application/json'
+        )
+        response_data = json.loads(response.data)
+
+        self.mock_use_case.execute.assert_called_once()
+        args, _ = self.mock_use_case.execute.call_args
+        
+        self.assertIsInstance(args[0], MockOrder)
+        self.assertIsInstance(args[1], List)
+        
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response_data['order_id'], MOCK_CREATED_ORDER.order_id)
+
+    def test_create_order_missing_fields(self):
+        """
+        [POST /] Prueba cuando faltan campos esenciales (400).
+        """
+        incomplete_request = {"client_id": 4}
+
+        response = self.client.post(
+            '/',
+            data=json.dumps(incomplete_request),
+            content_type='application/json'
+        )
+        
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("client_id and products are required", json.loads(response.data)['error'])
+        self.mock_use_case.execute.assert_not_called()
+
+    def test_create_order_internal_server_error(self):
+        """
+        [POST /] Prueba el escenario de error de base de datos durante la creación (500).
+        """
+        self.mock_use_case.execute.side_effect = Exception("DB insertion error")
+
+        response = self.client.post(
+            '/',
+            data=json.dumps(NEW_ORDER_REQUEST),
+            content_type='application/json'
+        )
+
+        self.assertEqual(response.status_code, 500)
+        self.assertIn("No pudimos crear el pedido", json.loads(response.data)['message'])
+
+    def test_create_order_success(self):
+        self.mock_use_case.execute.return_value = MOCK_CREATED_ORDER 
+
+        response = self.client.post(
+            '/',
+            data=json.dumps(NEW_ORDER_REQUEST),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 201)
+        self.mock_use_case.reset_mock()
+
+
+    def test_create_order_missing_fields(self):
+        incomplete_request = {"client_id": 4} # Falta 'products'
+
+        response = self.client.post(
+            '/',
+            data=json.dumps(incomplete_request),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 400)
+        self.mock_use_case.execute.assert_not_called()
+        self.mock_use_case.reset_mock()
+        
+    
+    def test_create_order_product_validation_error(self):
+        response = self.client.post(
+            '/',
+            data=json.dumps(INCOMPLETE_PRODUCT_REQUEST),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Each product must have product_id and quantity", json.loads(response.data)['error'])
+        self.mock_use_case.execute.assert_not_called()
+        self.mock_use_case.reset_mock()
+
+
+    def test_create_order_internal_server_error(self):
+        self.mock_use_case.execute.side_effect = Exception("DB insertion error")
+
+        response = self.client.post(
+            '/',
+            data=json.dumps(NEW_ORDER_REQUEST),
+            content_type='application/json'
+        )
+
+        self.assertEqual(response.status_code, 500)
+        self.mock_use_case.reset_mock()
 
 if __name__ == '__main__':
     unittest.main()
