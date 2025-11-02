@@ -145,5 +145,28 @@ class UserAPITestCase(unittest.TestCase):
         # 3. Asertar que el Caso de Uso fue llamado
         self.mock_get_users_uc.execute_by_seller.assert_called_once()
 
+    def test_get_user_by_id_server_error(self):
+        """
+        Verifica que la ruta /detail/<id> maneja y retorna correctamente
+        un error 500 cuando el Caso de Uso lanza una excepción (ej. fallo de DB).
+        """
+        test_client_id = 999
+        
+        # 1. Configurar el mock del Caso de Uso para que lance una excepción
+        # Asegúrate de que tu mock de 'use_case' esté disponible (ej. self.mock_use_case)
+        self.mock_use_case.get_user_by_id.side_effect = Exception("DB Connection Lost")
+
+        # 2. Realizar la solicitud HTTP
+        response = self.client.get(f'/users/detail/{test_client_id}')
+        
+        # 3. Verificar el estado y el contenido
+        self.assertEqual(response.status_code, 500)
+        
+        data = response.get_json()
+        self.assertIn("Error al obtener la información del usuario. Intenta nuevamente.", data['message'])
+        self.assertIn("DB Connection Lost", data['error'])
+        
+        # 4. Verificar que el Caso de Uso fue llamado
+        self.mock_use_case.get_user_by_id.assert_called_once_with(client_id=test_client_id)
 if __name__ == '__main__':
     unittest.main()
