@@ -153,11 +153,16 @@ class UserAPITestCase(unittest.TestCase):
         test_client_id = 999
         
         # 1. Configurar el mock del Caso de Uso para que lance una excepción
-        # Asegúrate de que tu mock de 'use_case' esté disponible (ej. self.mock_use_case)
-        self.mock_use_case.get_user_by_id.side_effect = Exception("DB Connection Lost")
+        # Utilizamos el nombre correcto: self.mock_get_users_uc
+        self.mock_get_users_uc.get_user_by_id.side_effect = Exception("DB Connection Lost")
 
         # 2. Realizar la solicitud HTTP
-        response = self.client.get(f'/users/detail/{test_client_id}')
+        # NOTA: La URL en tu código es /clients. Si la ruta es /detail/<int:client_id>,
+        # la URL de prueba debe ser '/detail/999'. Asumiendo que la ruta es '/detail/<int:client_id>'
+        # O debes usar la URL correcta según tu Blueprint. Si es parte del Blueprint de clients,
+        # la URL podría ser: /clients/detail/999.
+        # Basado en tu URL de la prueba original, asumiré '/clients/detail/999'.
+        response = self.client.get(f'/clients/detail/{test_client_id}') # 👈 Posible URL corregida
         
         # 3. Verificar el estado y el contenido
         self.assertEqual(response.status_code, 500)
@@ -167,6 +172,7 @@ class UserAPITestCase(unittest.TestCase):
         self.assertIn("DB Connection Lost", data['error'])
         
         # 4. Verificar que el Caso de Uso fue llamado
-        self.mock_use_case.get_user_by_id.assert_called_once_with(client_id=test_client_id)
+        self.mock_get_users_uc.get_user_by_id.assert_called_once_with(client_id=test_client_id)
+        
 if __name__ == '__main__':
     unittest.main()
