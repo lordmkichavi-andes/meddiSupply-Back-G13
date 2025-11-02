@@ -30,7 +30,7 @@ class TestFlaskRoutes(unittest.TestCase):
 
         # Usamos la función de fábrica para inyectar el mock en el Blueprint
         # Asumimos que track_case y create_case usan el mismo mock para simplificar el setup.
-        self.app.register_blueprint(create_api_blueprint(self.mock_use_case, self.mock_use_case))
+        self.app.register_blueprint(create_api_blueprint(self.mock_use_case, self.mock_use_case, self.mock_use_case, self.mock_use_case))
         self.client = self.app.test_client()
 
     def tearDown(self):
