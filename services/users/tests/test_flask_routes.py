@@ -3,7 +3,7 @@ import json
 from unittest.mock import MagicMock, patch
 from flask import Flask
 from datetime import datetime, date, timedelta
-
+import io
 # Importa la función de fábrica desde tu archivo (asume que tu código se llama 'api.py')
 from src.infrastructure.web.flask_user_routes import create_user_api_blueprint
 
