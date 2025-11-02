@@ -19,6 +19,30 @@ MOCK_HISTORY_DATA = [
     {"sku": "P002", "name": "Termómetro"}
 ]
 
+NEW_ORDER_REQUEST = {
+    "client_id": 4,
+    "status_id": 1,
+    "estimated_delivery_time": "2025-12-01T10:00:00",
+    "products": [
+        {"product_id": 50, "quantity": 2, "price_unit": 50.0},
+        {"product_id": 51, "quantity": 1, "price_unit": 75.0}
+    ]
+}
+
+INCOMPLETE_PRODUCT_REQUEST = {
+    "client_id": 4,
+    "products": [
+        {"product_id": 50, "quantity": 2, "price_unit": 50.0},
+        {"product_id": 51, "price_unit": 75.0} # Falta quantity, línea 66 en flask_routes.py
+    ]
+}
+
+MOCK_CREATED_ORDER = MockOrder(order_id=500, client_id=4)
+
+MOCK_ALL_ORDERS_DATA = [
+    {"order_id": 101, "client_id": 5, "status": "PENDIENTE"},
+]
+
 class TestFlaskRoutes(unittest.TestCase):
     """
     Clase para probar las rutas de Flask, asegurando que interactúan
