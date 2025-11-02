@@ -12,15 +12,11 @@ from src.infrastructure.web.flask_user_routes import create_user_api_blueprint
 
 class MockGetClientUsersUseCase(MagicMock):
     """
-    Mock para GetClientUsersUseCase.
+    Mock para GetClientUsersUseCase. 
+    Se hereda de MagicMock para que todos los métodos accedidos dinámicamente sean mocks.
     """
-    # Se añade el método que faltaba para la ruta /detail/<id>
-    def get_user_by_id(self, client_id):
-        pass
-    
-    # Se añade el método para la ruta de subida de evidencias
-    def upload_visit_evidences(self, visit_id, files):
-        pass
+    # 🛑 Se eliminan las definiciones vacías de métodos que causaban el conflicto.
+    pass 
 
 class UserAPITestCase(unittest.TestCase):
     """
@@ -39,8 +35,7 @@ class UserAPITestCase(unittest.TestCase):
             self.mock_get_users_uc,
         )
 
-        # Registrar el Blueprint en la app base (sin prefijo en este caso, 
-        # ya que las rutas /clients y /visits parecen estar definidas dentro del BP)
+        # Registrar el Blueprint en la app base
         self.app.register_blueprint(user_api_bp) 
 
         # Crear el cliente de prueba de Flask
@@ -55,14 +50,10 @@ class UserAPITestCase(unittest.TestCase):
     # Función auxiliar para decodificar JSON de forma robusta
     def _get_json(self, response):
         if not response.data:
-            # Si el cuerpo está vacío, y no es 404, es un problema.
-            # Pero para 404, puede estar vacío (o contener HTML, como se vio)
             return None
         try:
             return json.loads(response.data.decode('utf-8'))
         except json.JSONDecodeError as e:
-            # Si la respuesta no es JSON, y es 404, asumimos que la URL está mal 
-            # y elevamos el error original para la depuración
             self.fail(f"La respuesta no fue JSON. Cuerpo: {response.data.decode('utf-8')} Error: {e}")
 
     # ----------------------------------------------------------------------
@@ -147,10 +138,6 @@ class UserAPITestCase(unittest.TestCase):
         """Prueba la obtención exitosa de un usuario por ID (código 200)."""
         test_client_id = 15
         mock_data = {"client_id": 15, "name": "Test Client"}
-
-        # Asegurarse de que el mock tiene el método
-        if not hasattr(self.mock_get_users_uc, 'get_user_by_id'):
-            self.mock_get_users_uc.get_user_by_id = MagicMock()
             
         self.mock_get_users_uc.get_user_by_id.return_value = mock_data
 
@@ -164,8 +151,6 @@ class UserAPITestCase(unittest.TestCase):
     def test_get_user_by_id_not_found(self):
         """Prueba cuando el usuario no se encuentra (código 404)."""
         test_client_id = 999
-        if not hasattr(self.mock_get_users_uc, 'get_user_by_id'):
-            self.mock_get_users_uc.get_user_by_id = MagicMock()
             
         self.mock_get_users_uc.get_user_by_id.return_value = None
 
@@ -182,9 +167,6 @@ class UserAPITestCase(unittest.TestCase):
         un error 500 cuando el Caso de Uso lanza una excepción.
         """
         test_client_id = 999
-        
-        if not hasattr(self.mock_get_users_uc, 'get_user_by_id'):
-            self.mock_get_users_uc.get_user_by_id = MagicMock()
             
         # 1. Configurar el mock del Caso de Uso para que lance una excepción
         self.mock_get_users_uc.get_user_by_id.side_effect = Exception("DB Connection Lost")
@@ -218,9 +200,6 @@ class UserAPITestCase(unittest.TestCase):
             {'id': 1, 'url': 's3/f1.jpg', 'type': 'photo'},
             {'id': 2, 'url': 's3/f2.mp4', 'type': 'video'}
         ]
-        
-        if not hasattr(self.mock_get_users_uc, 'upload_visit_evidences'):
-            self.mock_get_users_uc.upload_visit_evidences = MagicMock()
             
         self.mock_get_users_uc.upload_visit_evidences.return_value = mock_evidences
         
@@ -231,7 +210,7 @@ class UserAPITestCase(unittest.TestCase):
             ]
         }
         
-        # 🛑 CORREGIDO: URL sin el prefijo '/clients'
+        # URL corregida (sin el prefijo /clients)
         response = self.client.post( 
             f'/visits/{test_visit_id}/evidences',
             data=data_files,
@@ -252,12 +231,8 @@ class UserAPITestCase(unittest.TestCase):
         test_visit_id = 102
         
         data_files = {'files': (io.BytesIO(b''), '')} 
-        
-        # Asegurarse de que el mock tiene el método
-        if not hasattr(self.mock_get_users_uc, 'upload_visit_evidences'):
-            self.mock_get_users_uc.upload_visit_evidences = MagicMock()
             
-        # 🛑 CORREGIDO: URL sin el prefijo '/clients'
+        # URL corregida (sin el prefijo /clients)
         response = self.client.post(
             f'/visits/{test_visit_id}/evidences',
             data=data_files,
@@ -276,15 +251,12 @@ class UserAPITestCase(unittest.TestCase):
         test_visit_id = 999
         
         error_msg = f"La visita con ID {test_visit_id} no existe en el sistema."
-        
-        if not hasattr(self.mock_get_users_uc, 'upload_visit_evidences'):
-            self.mock_get_users_uc.upload_visit_evidences = MagicMock()
             
         self.mock_get_users_uc.upload_visit_evidences.side_effect = ValueError(error_msg)
         
         data_files = {'files': [(io.BytesIO(b"dummy"), 'dummy.jpg')]}
 
-        # 🛑 CORREGIDO: URL sin el prefijo '/clients'
+        # URL corregida (sin el prefijo /clients)
         response = self.client.post(
             f'/visits/{test_visit_id}/evidences',
             data=data_files,
@@ -303,15 +275,12 @@ class UserAPITestCase(unittest.TestCase):
         test_visit_id = 103
         
         simulated_exception = "Fallo en el almacenamiento del archivo"
-        
-        if not hasattr(self.mock_get_users_uc, 'upload_visit_evidences'):
-            self.mock_get_users_uc.upload_visit_evidences = MagicMock()
             
         self.mock_get_users_uc.upload_visit_evidences.side_effect = Exception(simulated_exception)
         
         data_files = {'files': [(io.BytesIO(b"dummy"), 'dummy.jpg')]}
 
-        # 🛑 CORREGIDO: URL sin el prefijo '/clients'
+        # URL corregida (sin el prefijo /clients)
         response = self.client.post(
             f'/visits/{test_visit_id}/evidences',
             data=data_files,
@@ -330,15 +299,12 @@ class UserAPITestCase(unittest.TestCase):
         test_visit_id = 104
         
         error_msg = "La visita no existe en la base de datos."
-        
-        if not hasattr(self.mock_get_users_uc, 'upload_visit_evidences'):
-            self.mock_get_users_uc.upload_visit_evidences = MagicMock()
             
         self.mock_get_users_uc.upload_visit_evidences.side_effect = FileNotFoundError(error_msg)
         
         data_files = {'files': [(io.BytesIO(b"dummy"), 'dummy.jpg')]}
 
-        # 🛑 CORREGIDO: URL sin el prefijo '/clients'
+        # URL corregida (sin el prefijo /clients)
         response = self.client.post(
             f'/visits/{test_visit_id}/evidences',
             data=data_files,
