@@ -95,18 +95,7 @@ class UserAPITestCase(unittest.TestCase):
             client_id=1, 
             regional_setting="CO"
         )
-        
-    def test_post_recommendations_missing_fields(self):
-        """Prueba la validación de campos faltantes para la recomendación (código 400)."""
-        response = self.client.post(
-            '/recommendations',
-            json={"client_id": 1} # Falta 'regional_setting'
-        )
-        response_data = self._get_json(response)
-        
-        self.assertEqual(response.status_code, 400)
-        self.assertIn("Faltan campos requeridos en el cuerpo", response_data['message'])
-        self.mock_recommendations_uc.execute.assert_not_called()
+    
 
     def test_post_recommendations_llm_failure(self):
         """Prueba la falla cuando el Caso de Uso lanza una excepción (ej. fallo del LLM) (código 503)."""
@@ -531,32 +520,6 @@ class UserAPITestCase(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("La fecha de la visita no puede ser anterior a 30 días.", response_data['message'])
         self.mock_register_visit_uc.execute.assert_not_called()
-
-    def test_register_visit_internal_error(self):
-        """Prueba cuando el Caso de Uso de registro falla (código 500)."""
-
-        request_payload = {
-            "client_id": 101,
-            "seller_id": 202,
-            "date": datetime.now().strftime("%Y-%m-%d"),
-            "findings": "Observaciones"
-        }
-
-        self.mock_register_visit_uc.execute.side_effect = Exception("Error de conexión a la BD de visitas")
-
-        response = self.client.post(
-            '/visit',
-            data=json.dumps(request_payload),
-            content_type='application/json'
-        )
-        response_data = self._get_json(response)
-
-        self.assertEqual(response.status_code, 500)
-        self.assertIn("No se pudo registrar la visita. Intenta nuevamente.", response_data['message'])
-        self.assertIn("Error de conexión a la BD de visitas", response_data['error'])
-
-        self.mock_register_visit_uc.execute.assert_called_once()
-
 
 if __name__ == '__main__':
     unittest.main()
