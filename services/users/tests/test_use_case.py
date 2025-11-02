@@ -62,6 +62,7 @@ class TestGetClientUsersUseCase(unittest.TestCase):
 
     def setUp(self):
         self.mock_repository = Mock()
+        self.mock_storage_service = Mock()
         self.use_case = GetClientUsersUseCase(self.mock_repository, self.mock_storage_service)
 
     def test_execute_returns_formatted_users(self):
