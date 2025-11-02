@@ -20,15 +20,88 @@ from src.db import (
 )
 from src.models import SalesPlan, SalesPlanProduct, Product
 from src.services.sales_plan_service import SalesPlanService
-from src.services.storage_service import StorageService
+#from src.services.storage_service import StorageService
 from typing import List, Dict, Any, Optional
-from src.services.recommendation_agent import RecommendationAgent
+#from src.services.recommendation_agent import RecommendationAgent
 
 logger = logging.getLogger(__name__)
 
 offers_bp = Blueprint('offer_manager', __name__)
 
-recommendation_agent = RecommendationAgent()
+#recommendation_agent = RecommendationAgent()
+@offers_bp.post('/visit')
+def register_visit():
+    """
+    Maneja la solicitud HTTP POST para registrar una nueva visita.
+    """
+    data = request.get_json()
+
+    # 1. Extracción y Validación de Campos Vacíos
+    required_fields = ['client_id', 'seller_id', 'date', 'findings']
+
+    if not all(field in data for field in required_fields):
+        missing_fields = [field for field in required_fields if field not in data]
+        return jsonify({
+            "message": "Faltan campos requeridos.",
+            "missing": missing_fields
+        }), 400
+
+    if any(not data[field] for field in required_fields):
+        return jsonify({
+            "message": "Ningún campo puede estar vacío."
+        }), 400
+
+    client_id = data.get('client_id')
+    seller_id = data.get('seller_id')
+    fecha_str = data.get('date')
+    findings = data.get('findings')
+
+    try:
+        visit_date = parser.parse(fecha_str)
+    except ValueError:
+        return jsonify({
+            "message": "La cadena proporcionada no corresponde a un formato de fecha válido."
+        }), 400
+
+    now = datetime.now()
+    thirty_days_ago = now - timedelta(days=30)
+
+    if visit_date > now:
+        return jsonify({
+            "message": "La fecha de la visita no puede ser posterior a la fecha actual."
+        }), 400
+
+    if visit_date < thirty_days_ago:
+        return jsonify({
+            "message": "La fecha de la visita no puede ser anterior a 30 días."
+        }), 400
+
+    try:
+        # 3. Llamar al Caso de Uso (Lógica de Negocio)
+        response = save_visit(
+            client_id=client_id,
+            seller_id=seller_id,
+            date=visit_date.date(),
+            findings=findings,
+        )
+        if response is None:
+            return jsonify({
+                "message": "No se pudo registrar la visita. Intenta nuevamente.",
+            }), 500
+
+        # 4. Retornar la respuesta exitosa
+        return jsonify({
+            "message": "Visita registrada exitosamente.",
+            "visit": response
+        }), 201
+
+    except Exception as e:
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error registrando la visita: {str(e)}", exc_info=True)
+        return jsonify({
+            "message": "No se pudo registrar la visita. Intenta nuevamente.",
+            "error": str(e)
+        }), 500
 
 @offers_bp.get('/products')
 def get_products_endpoint():
@@ -142,158 +215,7 @@ def get_sales_plan_endpoint(plan_id):
     except Exception as e:
         return jsonify({"message": f"Error obteniendo plan: {str(e)}"}), 500
 
-@offers_bp.route('/visit', methods=['POST'])
-def register_visit():
-    """
-    Maneja la solicitud HTTP POST para registrar una nueva visita.
-    """
-    data = request.get_json()
 
-    # 1. Extracción y Validación de Campos Vacíos
-    required_fields = ['client_id', 'seller_id', 'date', 'findings']
-
-    if not all(field in data for field in required_fields):
-        missing_fields = [field for field in required_fields if field not in data]
-        return jsonify({
-            "message": "Faltan campos requeridos.",
-            "missing": missing_fields
-        }), 400
-
-    if any(not data[field] for field in required_fields):
-        return jsonify({
-            "message": "Ningún campo puede estar vacío."
-        }), 400
-
-    client_id = data.get('client_id')
-    seller_id = data.get('seller_id')
-    fecha_str = data.get('date')
-    findings = data.get('findings')
-
-    try:
-        visit_date = parser.parse(fecha_str)
-    except ValueError:
-        return jsonify({
-            "message": "La cadena proporcionada no corresponde a un formato de fecha válido."
-        }), 400
-
-    now = datetime.now()
-    thirty_days_ago = now - timedelta(days=30)
-
-    if visit_date > now:
-        return jsonify({
-            "message": "La fecha de la visita no puede ser posterior a la fecha actual."
-        }), 400
-
-    if visit_date < thirty_days_ago:
-        return jsonify({
-            "message": "La fecha de la visita no puede ser anterior a 30 días."
-        }), 400
-
-    try:
-        # 3. Llamar al Caso de Uso (Lógica de Negocio)
-        response = save_visit(
-            client_id=client_id,
-            seller_id=seller_id,
-            date=visit_date.date(),
-            findings=findings,
-        )
-
-        # 4. Retornar la respuesta exitosa
-        return jsonify({
-            "message": "Visita registrada exitosamente.",
-            "visit": response
-        }), 201
-
-    except Exception as e:
-        return jsonify({
-            "message": "No se pudo registrar la visita. Intenta nuevamente.",
-            "error": str(e)
-        }), 500
-
-@offers_bp.post('/visits/<int:visit_id>/evidences')
-def upload_visit_evidences_endpoint(visit_id):
-    visit = db_get_visit_by_id(visit_id)
-
-    if visit is None:
-        return jsonify({
-            "message": f"Error: La visita con ID {visit_id} no existe en el sistema."
-        }), 404
-
-    uploaded_files = request.files.getlist('files')
-
-    if not uploaded_files or uploaded_files[0].filename == '':
-        return jsonify({
-            "message": "No se adjuntaron archivos para la evidencia."
-        }), 400
-
-    saved_evidences = []
-
-    for file in uploaded_files:
-        file_name = file.filename
-        content_type = file.mimetype
-        
-        file_type = "photo" 
-        if 'video' in content_type:
-            file_type = "video"
-        elif 'image' in content_type:
-            file_type = "photo"
-            
-        try:
-            url_file = StorageService.upload_file(
-                file=file, 
-                visit_id=visit_id
-            )
-            
-            db_data = {
-                "visit_id": visit_id,
-                "type": file_type,
-                "url_file": url_file,
-                "description": file_name,
-            }
-            
-            new_evidence_data = db_save_evidence(db_data)
-            
-            saved_evidences.append(new_evidence_data)
-
-        except Exception as e:
-            print(f"Error al procesar el archivo {file_name} para visit_id {visit_id}: {str(e)}")
-            return jsonify({
-                "message": f"Fallo en el procesamiento de la evidencia: {file_name}",
-                "error_detail": str(e)
-            }), 500
-
-    return jsonify({
-        "message": f"Se subieron y registraron {len(saved_evidences)} evidencias con éxito para la visita {visit_id}.",
-        "evidences": saved_evidences
-    }), 201
-
-
-@offers_bp.post('/recommendations')
-def post_recommendations_endpoint():
-    """
-    Genera recomendaciones de productos usando el Agente de Razonamiento (RecommendationAgent).
-    """
-    data = request.get_json()
-    client_id = data.get('client_id')
-    regional_setting = data.get('regional_setting', 'CO')
-
-    if not client_id:
-        return jsonify({"message": "Falta el 'client_id' para la recomendación"}), 400
-
-    recommendation_response = recommendation_agent.generate_recommendations(
-        client_id=client_id, 
-        regional_setting=regional_setting
-    )
-
-    if recommendation_response is None:
-        return jsonify({"message": "Fallo en el Agente de Razonamiento (LLM). Revise logs."}), 503
-    
-    recommendations = recommendation_response.get('recommendations', [])
-
-    return jsonify({
-        "status": "success", 
-        "recommendations": recommendations,
-    }), 200
        
 @offers_bp.get('/health')
 def health():

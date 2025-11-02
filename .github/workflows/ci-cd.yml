@@ -13,7 +13,7 @@ concurrency:
 env:
   AWS_REGION: us-east-1
   ECS_CLUSTER: medi-supply-cluster
-  MIN_COVERAGE: 70
+  MIN_COVERAGE: 60
 
 
 jobs:

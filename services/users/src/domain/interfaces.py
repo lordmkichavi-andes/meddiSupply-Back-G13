@@ -21,3 +21,8 @@ class UserRepository(ABC):
     def db_get_client_data(self, client_id: int) -> Optional[Dict[str, Any]]:
         """Obtiene el perfil enriquecido para el motor de recomendaciones."""
         pass
+
+    @abstractmethod
+    def save_visit(self, client_id: int, seller_id: int, date: str, findings: str):
+        """Registra visitas"""
+        pass

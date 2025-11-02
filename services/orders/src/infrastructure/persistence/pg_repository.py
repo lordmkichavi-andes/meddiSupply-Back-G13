@@ -74,7 +74,7 @@ class PgOrderRepository(OrderRepository):
             
             sql_query = """
                 SELECT 
-                    order_id, seller_id, client_id, creation_date, 
+                    order_id, client_id, creation_date, 
                     last_updated_date, estimated_delivery_date, status_id, total_value 
                 FROM orders.Orders
                 WHERE client_id = %s
@@ -85,13 +85,13 @@ class PgOrderRepository(OrderRepository):
             for row in cursor.fetchall():
                 order = Order(
                     order_id=row[0],
-                    seller_id=row[1],
-                    client_id=row[2],
-                    creation_date=row[3],
-                    last_updated_date=row[4],
-                    estimated_delivery_date=row[5],
-                    status_id=row[6],
-                    total_value=row[7]
+                    client_id=row[1],
+                    creation_date=row[2],
+                    last_updated_date=row[3],
+                    estimated_delivery_date=row[4],
+                    status_id=row[5],
+                    order_value=row[6],
+                    orders = []
                 )
                 orders.append(order)
                 
