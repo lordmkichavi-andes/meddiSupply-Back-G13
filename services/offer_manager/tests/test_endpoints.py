@@ -2,6 +2,7 @@ import json
 import pytest
 from unittest.mock import patch, MagicMock
 from io import BytesIO
+from datetime import datetime, timedelta
 
 @pytest.fixture
 def client():
@@ -56,6 +57,80 @@ class TestProductsEndpoint:
         assert isinstance(data, list)
         assert len(data) == 0
 
+    @patch('src.blueprints.offers.get_products')
+    def test_get_products_exception(self, mock_get_products, client):
+        """Cubre el bloque catch del endpoint /products (Línea 41 en offers.py)."""
+
+        MOCK_ERROR_MESSAGE = "Fallo de conexión de base de datos simulado"
+        mock_get_products.side_effect = Exception(MOCK_ERROR_MESSAGE)
+        
+        resp = client.get('/offers/products')
+
+        assert resp.status_code == 500
+        data = resp.get_json()
+        assert "Error obteniendo productos" in data['message']
+        assert MOCK_ERROR_MESSAGE in data['message']
+
+
+class TestVisitRegistration:
+    def get_valid_data(self):
+        return {
+            'client_id': 1,
+            'seller_id': 10,
+            'date': datetime.now().strftime('%Y-%m-%d'), 
+            'findings': 'Todo en orden con la mercancía y el cliente.'
+        }
+
+    @patch('src.blueprints.offers.save_visit')
+    def test_register_visit_success(self, mock_save_visit, client):
+        mock_save_visit.return_value = {'visit_id': 50}
+        resp = client.post('/offers/visit', json=self.get_valid_data())
+        assert resp.status_code == 201
+        assert resp.get_json()['visit']['visit_id'] == 50
+        mock_save_visit.assert_called_once()
+    
+    def test_register_visit_missing_fields(self, client):
+        data = self.get_valid_data()
+        del data['findings'] 
+        resp = client.post('/offers/visit', json=data)
+        assert resp.status_code == 400
+        assert "Faltan campos requeridos" in resp.get_json()['message']
+        assert "findings" in resp.get_json()['missing']
+
+    def test_register_visit_empty_field_value(self, client):
+        data = self.get_valid_data()
+        data['findings'] = "" # Campo vacío
+        resp = client.post('/offers/visit', json=data)
+        assert resp.status_code == 400
+        assert "Ningún campo puede estar vacío" in resp.get_json()['message']
+
+    def test_register_visit_invalid_date_format(self, client):
+        data = self.get_valid_data()
+        data['date'] = '2025/13/45' 
+        resp = client.post('/offers/visit', json=data)
+        assert resp.status_code == 400
+        assert "no corresponde a un formato de fecha válido" in resp.get_json()['message']
+
+    def test_register_visit_future_date(self, client):
+        data = self.get_valid_data()
+        data['date'] = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
+        resp = client.post('/offers/visit', json=data)
+        assert resp.status_code == 400
+        assert "posterior a la fecha actual" in resp.get_json()['message']
+
+    def test_register_visit_old_date(self, client):
+        data = self.get_valid_data()
+        data['date'] = (datetime.now() - timedelta(days=31)).strftime('%Y-%m-%d')
+        resp = client.post('/offers/visit', json=data)
+        assert resp.status_code == 400
+        assert "anterior a 30 días" in resp.get_json()['message']
+
+    @patch('src.blueprints.offers.save_visit')
+    def test_register_visit_db_exception(self, mock_save_visit, client):
+        mock_save_visit.side_effect = Exception("Fallo de conexión a DB")
+        resp = client.post('/offers/visit', json=self.get_valid_data())
+        assert resp.status_code == 500
+        assert "No se pudo registrar la visita" in resp.get_json()['message']
 
 class TestSalesPlansEndpoint:
     """Tests para los endpoints /plans"""
@@ -271,3 +346,35 @@ class TestVisitEvidencesEndpoint:
         # Asertos
         assert resp.status_code == 500
         assert 'Fallo en el procesamiento de la evidencia' in resp.get_json()['message']
+
+class TestRecommendationsEndpoint:
+    """Tests para el endpoint POST /offers/recommendations"""
+    
+    def get_valid_data(self):
+        return {'client_id': 123, 'regional_setting': 'CO'}
+
+    def test_post_recommendations_missing_client_id(self, client):
+        resp = client.post('/offers/recommendations', json={'regional_setting': 'CO'})
+        assert resp.status_code == 400
+        assert "Falta el 'client_id'" in resp.get_json()['message']
+
+    @patch('src.blueprints.offers.recommendation_agent')
+    def test_post_recommendations_agent_failure(self, mock_agent, client):
+        mock_agent.generate_recommendations.return_value = None
+        resp = client.post('/offers/recommendations', json=self.get_valid_data())
+        assert resp.status_code == 503
+        assert "Fallo en el Agente de Razonamiento (LLM)" in resp.get_json()['message']
+
+    @patch('src.blueprints.offers.recommendation_agent')
+    def test_post_recommendations_success(self, mock_agent, client):
+        mock_recommendations = [
+            {"product_sku": "SKU-A", "product_name": "A", "score": 0.9, "reasoning": "Test"}
+        ]
+        mock_agent.generate_recommendations.return_value = {
+            "recommendations": mock_recommendations
+        }
+        resp = client.post('/offers/recommendations', json=self.get_valid_data())
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data['status'] == 'success'
+        assert data['recommendations'][0]['product_sku'] == 'SKU-A'

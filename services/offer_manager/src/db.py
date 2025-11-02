@@ -6,6 +6,7 @@ from psycopg2.extras import RealDictCursor
 from typing import Any, Optional, List, Dict
 import logging
 from src.clients.products_client import products_client
+from src.clients.orders_client import orders_client
 
 logger = logging.getLogger(__name__)
 
@@ -306,3 +307,64 @@ def db_get_visit_by_id(visit_id: int) -> Optional[Dict[str, Any]]:
     result = execute_query(query, (visit_id,), fetch_one=True)
     
     return result
+
+def get_client_history(client_id: int) -> List[Dict[str, Any]]:
+    """
+    Función helper para obtener el historial de compras usando el cliente.
+    """
+    try:
+        return orders_client.get_client_purchase_history(client_id)
+    except Exception as e:
+        logger.error(f"Fallo grave al usar el cliente de órdenes: {e}")
+        return []
+
+def get_client_data(client_id: int) -> List[Dict[str, Any]]:
+    """
+    Función helper para obtener la data del cliente.
+    """
+    try:
+        return orders_client.get_client_detail(client_id)
+    except Exception as e:
+        logger.error(f"Fallo grave al usar el cliente: {e}")
+        return []
+
+def db_get_recent_evidences_by_client(client_id: int) -> List[Dict[str, str]]:
+    """
+    Obtiene las URLs y tipos de archivos de evidencia visual (media) asociados a las 
+    visitas recientes de un cliente.
+    
+    Retorna una lista de diccionarios con las claves 'url' y 'type'.
+    """
+    
+    # Consulta que une Clientes -> Visitas -> Evidencias
+    # Limita la búsqueda a las últimas 10 evidencias como un filtro de "reciente".
+    query = """
+    SELECT
+        ve.url_file AS url,
+        ve.type
+    FROM
+        users.visual_evidences ve
+    JOIN
+        users.visits v ON ve.visit_id = v.visit_id
+    WHERE
+        v.client_id = %s
+    ORDER BY
+        v.date DESC, ve.evidence_id DESC 
+    LIMIT 10;
+    """
+    
+    # Usamos execute_query con fetch_all=True
+    result = execute_query(query, (client_id,), fetch_all=True)
+    
+    if not result:
+        return []
+
+    # Mapeamos los resultados para asegurar que las claves coincidan con el mock/cliente esperado
+    mapped_result = []
+    for row in result:
+        mapped_result.append({
+            "url": row['url'],
+            "type": row['type']
+        })
+
+    return mapped_result
