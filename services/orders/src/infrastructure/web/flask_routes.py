@@ -23,27 +23,21 @@ def create_api_blueprint(
 
     @api_bp.route('/track/<int:client_id>', methods=['GET'])
     def track_orders(client_id):
-        try:
-            """
-            Maneja la solicitud HTTP, llama al Caso de Uso y retorna la respuesta.
-            """
-            # 1. Llamar al Caso de Uso (Lógica de Negocio)
-            orders = track_case.execute(client_id)
+        """
+        Maneja la solicitud HTTP, llama al Caso de Uso y retorna la respuesta.
+        """
+        # 1. Llamar al Caso de Uso (Lógica de Negocio)
+        orders = track_case.execute(client_id)
 
-            # 2. Manejo de mensajes específicos (Requisito del Frontend)
-            if not orders:
-                return jsonify({
-                    "message": "¡Ups! Aún no tienes pedidos registrados.",
-                    "orders": []
-                }), 404
-
-            # 3. Retornar la respuesta exitosa
-            return jsonify(orders), 200
-        except Exception:
-            # Requisito: Si el sistema no puede recuperar la información
+        # 2. Manejo de mensajes específicos (Requisito del Frontend)
+        if not orders:
             return jsonify({
-                "message": "¡Ups! No pudimos obtener los pedidos. Intenta nuevamente."
-            }), 500
+                "message": "¡Ups! Aún no tienes pedidos registrados.",
+                "orders": []
+            }), 404
+
+        # 3. Retornar la respuesta exitosa
+        return jsonify(orders), 200
 
     @api_bp.route('/', methods=['POST'])
     def create_order():

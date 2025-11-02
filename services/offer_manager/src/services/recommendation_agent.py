@@ -25,7 +25,7 @@ class RecommendationAgent:
             "GEMINI_API_URL", 
             "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent"
         )
-        self.API_KEY = os.getenv('GEMINI_API_KEY', '') 
+        self.API_KEY = os.getenv('GEMINI_API_KEY', 'AIzaSyDBM4aXt4948DT9Z_JkKmLKOvgRb19IZGA') 
         
     def _get_client_intelligence_tags(self, client_id: int, media: List[Dict[str, str]]) -> List[str]:
         """

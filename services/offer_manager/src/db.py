@@ -260,7 +260,7 @@ def save_visit(client_id: int, seller_id: int, date: str, findings: str):
     # Asumiendo que existe una clase 'Visit' para mapear el registro.
     # Si no tienes una clase, simplemente devuelve el diccionario con el ID:
     return {
-        "visit_id": new_visit_id,
+        "visit_id": new_visit_id.get('visit_id'),
         "client_id": client_id,
         "seller_id": seller_id,
         "date": date,

@@ -23,9 +23,7 @@ services:
       - ./db/init:/docker-entrypoint-initdb.d 
 
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: 120569610818.dkr.ecr.us-east-1.amazonaws.com/cdk-exp-container-assets-120569610818-us-east-1:699775ffb48570c925437c99410c5f5637930979-offer_manager
     container_name: offer_manager
     restart: always
     depends_on:

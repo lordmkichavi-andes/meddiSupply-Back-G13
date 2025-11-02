@@ -3,9 +3,14 @@ from datetime import datetime, timedelta
 from dateutil import parser
 
 from src.application.use_cases import GetClientUsersUseCase
+from src.application.register_visit_usecase import RegisterVisitUseCase
+from datetime import datetime, timedelta, timezone
 
 
-def create_user_api_blueprint(use_case: GetClientUsersUseCase):
+def create_user_api_blueprint(
+        use_case: GetClientUsersUseCase,
+        register_visit_use_case: RegisterVisitUseCase,
+):
     """
     Función de fábrica para inyectar el Caso de Uso en el Blueprint.
     Crea y registra un nuevo Blueprint en cada llamada para evitar conflictos en tests.
@@ -135,4 +140,93 @@ def create_user_api_blueprint(use_case: GetClientUsersUseCase):
                 "error": str(e)
             }), 500
 
+
+    @user_api_bp.route('/visit', methods=['POST'])
+    def register_visit():
+        """
+        Maneja la solicitud HTTP POST para registrar una nueva visita,
+        validando los datos de entrada, y llama al Caso de Uso.
+        """
+        data = request.get_json()
+
+        # 1. Extracción y Validación de Campos Vacíos
+        required_fields = ['client_id', 'seller_id', 'date', 'findings']
+
+        # Verifica que todos los campos requeridos estén en el cuerpo de la petición
+        if not all(field in data for field in required_fields):
+            missing_fields = [field for field in required_fields if field not in data]
+            return jsonify({
+                "message": "Faltan campos requeridos.",
+                "missing": missing_fields
+            }), 400
+
+        # Verifica que ningún campo requerido esté vacío (o None)
+        if any(not data[field] for field in required_fields):
+            return jsonify({
+                "message": "Ningún campo puede estar vacío."
+            }), 400
+
+        client_id = data.get('client_id')
+        seller_id = data.get('seller_id')
+        fecha_str = data.get('date')
+        findings = data.get('findings')
+
+        try:
+            # Intenta convertir la cadena de fecha (fecha_str) a un objeto datetime
+            visit_date = parser.parse(fecha_str)
+            
+            # 🛑 CORRECCIÓN: Normalizar visit_date a UTC para asegurar que es aware
+            if visit_date.tzinfo is None or visit_date.tzinfo.utcoffset(visit_date) is None:
+                # Si el input es naive, asumimos que es UTC y lo hacemos aware
+                visit_date = visit_date.replace(tzinfo=timezone.utc)
+            else:
+                # Si ya es aware, lo convertimos a UTC para estandarizar
+                visit_date = visit_date.astimezone(timezone.utc)
+                
+        except ValueError:
+            # Atrapa el error si la cadena no es una fecha válida en ningún formato reconocido
+            return jsonify({
+                "message": "La cadena proporcionada no corresponde a un formato de fecha válido."
+            }), 400
+
+        # 🛑 CORRECCIÓN: Obtener la fecha actual en UTC (aware)
+        now = datetime.now(timezone.utc)
+        thirty_days_ago = now - timedelta(days=30)
+
+        # 🛑 CORRECCIÓN: La comparación ahora es segura ya que ambas son aware en UTC
+        # La fecha no debe ser mayor a la fecha actual
+        if visit_date > now: # Línea 188 (aproximada)
+            return jsonify({
+                "message": "La fecha de la visita no puede ser posterior a la fecha actual."
+            }), 400
+
+        # La fecha debe ser en los últimos 30 días
+        if visit_date < thirty_days_ago:
+            return jsonify({
+                "message": "La fecha de la visita no puede ser anterior a 30 días."
+            }), 400
+
+        try:
+            # 3. Llamar al Caso de Uso (Lógica de Negocio)
+            # Se asume que el Caso de Uso espera los datos de la visita para registrarlos.
+            response = register_visit_use_case.execute(
+                client_id=client_id,
+                seller_id=seller_id,
+                # Se pasa la fecha normalizada a date o datetime, según requiera tu CU
+                date=visit_date.date(), 
+                findings=findings,
+            )
+
+            # 4. Retornar la respuesta exitosa
+            return jsonify({
+                "message": "Visita registrada exitosamente.",
+                "visit": response["visit"]
+            }), 201
+
+        except Exception as e:
+            # Si el sistema no puede registrar la información (ej. error de BD)
+            return jsonify({
+                "message": "No se pudo registrar la visita. Intenta nuevamente.",
+                "error": str(e)
+            }), 500   
     return user_api_bp
