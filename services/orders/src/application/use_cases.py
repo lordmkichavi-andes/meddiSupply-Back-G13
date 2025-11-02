@@ -63,3 +63,38 @@ class CreateOrderUseCase:
         Ejecuta la lógica para insertar una nueva orden.
         """
         return self.repository.insert_order(order, order_items)
+
+class GetAllOrdersUseCase:
+    """
+    Caso de Uso: Obtener todas las órdenes procesadas con sus productos detallados (para reportes/web).
+    """
+    def __init__(self, repository: OrderRepository):
+        self.repository = repository
+
+    def execute(self) -> List[Dict[str, Any]]:
+        """
+        Llama al repositorio para obtener la lista completa y agrupada de órdenes.
+        """
+        return self.repository.get_all_orders_with_details()
+
+class GetClientPurchaseHistoryUseCase:
+    """
+    Caso de Uso: Obtener el historial reciente y único de productos 
+    comprados por un cliente (necesario para el Orquestador/Recomendaciones).
+    """
+    def __init__(self, repository: OrderRepository):
+        self.repository = repository
+
+    def execute(self, client_id: int, limit: int = 10) -> List[Dict[str, Any]]:
+        """
+        Delega la lógica de consulta al Repositorio para obtener
+        los últimos 'limit' productos comprados por el cliente.
+        
+        Args:
+            client_id (int): ID del cliente.
+            limit (int): Número máximo de productos a retornar.
+            
+        Returns:
+            List[Dict[str, Any]]: Lista de diccionarios con el detalle del producto (sku, name).
+        """
+        return self.repository.get_recent_purchase_history(client_id, limit)
