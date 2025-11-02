@@ -29,6 +29,79 @@ logger = logging.getLogger(__name__)
 offers_bp = Blueprint('offer_manager', __name__)
 
 #recommendation_agent = RecommendationAgent()
+@offers_bp.post('/visit')
+def register_visit():
+    """
+    Maneja la solicitud HTTP POST para registrar una nueva visita.
+    """
+    data = request.get_json()
+
+    # 1. Extracción y Validación de Campos Vacíos
+    required_fields = ['client_id', 'seller_id', 'date', 'findings']
+
+    if not all(field in data for field in required_fields):
+        missing_fields = [field for field in required_fields if field not in data]
+        return jsonify({
+            "message": "Faltan campos requeridos.",
+            "missing": missing_fields
+        }), 400
+
+    if any(not data[field] for field in required_fields):
+        return jsonify({
+            "message": "Ningún campo puede estar vacío."
+        }), 400
+
+    client_id = data.get('client_id')
+    seller_id = data.get('seller_id')
+    fecha_str = data.get('date')
+    findings = data.get('findings')
+
+    try:
+        visit_date = parser.parse(fecha_str)
+    except ValueError:
+        return jsonify({
+            "message": "La cadena proporcionada no corresponde a un formato de fecha válido."
+        }), 400
+
+    now = datetime.now()
+    thirty_days_ago = now - timedelta(days=30)
+
+    if visit_date > now:
+        return jsonify({
+            "message": "La fecha de la visita no puede ser posterior a la fecha actual."
+        }), 400
+
+    if visit_date < thirty_days_ago:
+        return jsonify({
+            "message": "La fecha de la visita no puede ser anterior a 30 días."
+        }), 400
+
+    try:
+        # 3. Llamar al Caso de Uso (Lógica de Negocio)
+        response = save_visit(
+            client_id=client_id,
+            seller_id=seller_id,
+            date=visit_date.date(),
+            findings=findings,
+        )
+        if response is None:
+            return jsonify({
+                "message": "No se pudo registrar la visita. Intenta nuevamente.",
+            }), 500
+
+        # 4. Retornar la respuesta exitosa
+        return jsonify({
+            "message": "Visita registrada exitosamente.",
+            "visit": response
+        }), 201
+
+    except Exception as e:
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error registrando la visita: {str(e)}", exc_info=True)
+        return jsonify({
+            "message": "No se pudo registrar la visita. Intenta nuevamente.",
+            "error": str(e)
+        }), 500
 
 @offers_bp.get('/products')
 def get_products_endpoint():
@@ -142,75 +215,7 @@ def get_sales_plan_endpoint(plan_id):
     except Exception as e:
         return jsonify({"message": f"Error obteniendo plan: {str(e)}"}), 500
 
-@offers_bp.post('/visit')
-def register_visit():
-    """
-    Maneja la solicitud HTTP POST para registrar una nueva visita.
-    """
-    data = request.get_json()
 
-    # 1. Extracción y Validación de Campos Vacíos
-    required_fields = ['client_id', 'seller_id', 'date', 'findings']
-
-    if not all(field in data for field in required_fields):
-        missing_fields = [field for field in required_fields if field not in data]
-        return jsonify({
-            "message": "Faltan campos requeridos.",
-            "missing": missing_fields
-        }), 400
-
-    if any(not data[field] for field in required_fields):
-        return jsonify({
-            "message": "Ningún campo puede estar vacío."
-        }), 400
-
-    client_id = data.get('client_id')
-    seller_id = data.get('seller_id')
-    fecha_str = data.get('date')
-    findings = data.get('findings')
-
-    try:
-        visit_date = parser.parse(fecha_str)
-    except ValueError:
-        return jsonify({
-            "message": "La cadena proporcionada no corresponde a un formato de fecha válido."
-        }), 400
-
-    now = datetime.now()
-    thirty_days_ago = now - timedelta(days=30)
-
-    if visit_date > now:
-        return jsonify({
-            "message": "La fecha de la visita no puede ser posterior a la fecha actual."
-        }), 400
-
-    if visit_date < thirty_days_ago:
-        return jsonify({
-            "message": "La fecha de la visita no puede ser anterior a 30 días."
-        }), 400
-
-    try:
-        # 3. Llamar al Caso de Uso (Lógica de Negocio)
-        response = save_visit(
-            client_id=client_id,
-            seller_id=seller_id,
-            date=visit_date.date(),
-            findings=findings,
-        )
-
-        # 4. Retornar la respuesta exitosa
-        return jsonify({
-            "message": "Visita registrada exitosamente.",
-            "visit": response
-        }), 201
-
-    except Exception as e:
-        logger = logging.getLogger(__name__)
-        logger.error(f"Error registrando la visita: {str(e)}", exc_info=True)
-        return jsonify({
-            "message": "No se pudo registrar la visita. Intenta nuevamente.",
-            "error": str(e)
-        }), 500
        
 @offers_bp.get('/health')
 def health():
