@@ -271,3 +271,35 @@ class TestVisitEvidencesEndpoint:
         # Asertos
         assert resp.status_code == 500
         assert 'Fallo en el procesamiento de la evidencia' in resp.get_json()['message']
+
+class TestRecommendationsEndpoint:
+    """Tests para el endpoint POST /offers/recommendations"""
+    
+    def get_valid_data(self):
+        return {'client_id': 123, 'regional_setting': 'CO'}
+
+    def test_post_recommendations_missing_client_id(self, client):
+        resp = client.post('/offers/recommendations', json={'regional_setting': 'CO'})
+        assert resp.status_code == 400
+        assert "Falta el 'client_id'" in resp.get_json()['message']
+
+    @patch('src.blueprints.offers.recommendation_agent')
+    def test_post_recommendations_agent_failure(self, mock_agent, client):
+        mock_agent.generate_recommendations.return_value = None
+        resp = client.post('/offers/recommendations', json=self.get_valid_data())
+        assert resp.status_code == 503
+        assert "Fallo en el Agente de Razonamiento (LLM)" in resp.get_json()['message']
+
+    @patch('src.blueprints.offers.recommendation_agent')
+    def test_post_recommendations_success(self, mock_agent, client):
+        mock_recommendations = [
+            {"product_sku": "SKU-A", "product_name": "A", "score": 0.9, "reasoning": "Test"}
+        ]
+        mock_agent.generate_recommendations.return_value = {
+            "recommendations": mock_recommendations
+        }
+        resp = client.post('/offers/recommendations', json=self.get_valid_data())
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data['status'] == 'success'
+        assert data['recommendations'][0]['product_sku'] == 'SKU-A'
