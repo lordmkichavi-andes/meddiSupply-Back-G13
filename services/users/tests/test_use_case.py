@@ -168,11 +168,6 @@ class TestGetClientUsersUseCase(unittest.TestCase):
         self.mock_repository.get_users_by_seller.assert_called_once_with(test_seller_id)
         self.assertIn("Database query timed out.", str(cm.exception))
 
-class TestGetClientUsersUseCase(unittest.TestCase):
-    # ... (Todos los tests anteriores, incluyendo setUp modificado) ...
-
-    # --- NUEVOS TESTS PARA upload_visit_evidences ---
-
     def test_upload_evidences_success(self):
         """Verifica el flujo completo de subida y registro de múltiples archivos."""
         test_visit_id = 100
