@@ -56,6 +56,20 @@ class TestProductsEndpoint:
         assert isinstance(data, list)
         assert len(data) == 0
 
+    @patch('src.blueprints.offers.get_products')
+    def test_get_products_exception(self, mock_get_products, client):
+        """Cubre el bloque catch del endpoint /products (Línea 41 en offers.py)."""
+
+        MOCK_ERROR_MESSAGE = "Fallo de conexión de base de datos simulado"
+        mock_get_products.side_effect = Exception(MOCK_ERROR_MESSAGE)
+        
+        resp = client.get('/offers/products')
+
+        assert resp.status_code == 500
+        data = resp.get_json()
+        assert "Error obteniendo productos" in data['message']
+        assert MOCK_ERROR_MESSAGE in data['message']
+
 
 class TestSalesPlansEndpoint:
     """Tests para los endpoints /plans"""
