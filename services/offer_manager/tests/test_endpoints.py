@@ -71,6 +71,66 @@ class TestProductsEndpoint:
         assert MOCK_ERROR_MESSAGE in data['message']
 
 
+class TestVisitRegistration:
+    def get_valid_data(self):
+        return {
+            'client_id': 1,
+            'seller_id': 10,
+            'date': datetime.now().strftime('%Y-%m-%d'), 
+            'findings': 'Todo en orden con la mercancía y el cliente.'
+        }
+
+    @patch('src.blueprints.offers.save_visit')
+    def test_register_visit_success(self, mock_save_visit, client):
+        mock_save_visit.return_value = {'visit_id': 50}
+        resp = client.post('/offers/visit', json=self.get_valid_data())
+        assert resp.status_code == 201
+        assert resp.get_json()['visit']['visit_id'] == 50
+        mock_save_visit.assert_called_once()
+    
+    def test_register_visit_missing_fields(self, client):
+        data = self.get_valid_data()
+        del data['findings'] 
+        resp = client.post('/offers/visit', json=data)
+        assert resp.status_code == 400
+        assert "Faltan campos requeridos" in resp.get_json()['message']
+        assert "findings" in resp.get_json()['missing']
+
+    def test_register_visit_empty_field_value(self, client):
+        data = self.get_valid_data()
+        data['findings'] = "" # Campo vacío
+        resp = client.post('/offers/visit', json=data)
+        assert resp.status_code == 400
+        assert "Ningún campo puede estar vacío" in resp.get_json()['message']
+
+    def test_register_visit_invalid_date_format(self, client):
+        data = self.get_valid_data()
+        data['date'] = '2025/13/45' 
+        resp = client.post('/offers/visit', json=data)
+        assert resp.status_code == 400
+        assert "no corresponde a un formato de fecha válido" in resp.get_json()['message']
+
+    def test_register_visit_future_date(self, client):
+        data = self.get_valid_data()
+        data['date'] = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
+        resp = client.post('/offers/visit', json=data)
+        assert resp.status_code == 400
+        assert "posterior a la fecha actual" in resp.get_json()['message']
+
+    def test_register_visit_old_date(self, client):
+        data = self.get_valid_data()
+        data['date'] = (datetime.now() - timedelta(days=31)).strftime('%Y-%m-%d')
+        resp = client.post('/offers/visit', json=data)
+        assert resp.status_code == 400
+        assert "anterior a 30 días" in resp.get_json()['message']
+
+    @patch('src.blueprints.offers.save_visit')
+    def test_register_visit_db_exception(self, mock_save_visit, client):
+        mock_save_visit.side_effect = Exception("Fallo de conexión a DB")
+        resp = client.post('/offers/visit', json=self.get_valid_data())
+        assert resp.status_code == 500
+        assert "No se pudo registrar la visita" in resp.get_json()['message']
+
 class TestSalesPlansEndpoint:
     """Tests para los endpoints /plans"""
     
