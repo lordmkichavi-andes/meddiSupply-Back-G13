@@ -433,3 +433,54 @@ class PgUserRepository(UserRepository):
         finally:
             if conn:
                 release_connection(conn)
+
+    def get_products(self) -> List[Dict[str, Any]]:
+        """
+        Obtiene el catálogo de productos activos directamente desde la base de datos.
+        
+        Retorna una lista de diccionarios con el detalle del producto.
+        """
+        conn = None
+        products = []
+        try:
+            conn = get_connection()
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+
+            query = """
+            SELECT
+                p.product_id,
+                p.sku,
+                p.value,
+                p.name,
+                p.image_url,
+                c.name AS category_name,
+                -- 🛑 Si no hay tabla de stock o es simple, usa una cantidad fija (ej. 1) o calcula el stock real.
+                -- Si hay una tabla products.ProductStock, ajústalo.
+                COALESCE(SUM(ps.quantity), 0) AS total_quantity 
+            FROM
+                products.Products p
+            LEFT JOIN
+                products.Categories c ON p.category_id = c.category_id
+            LEFT JOIN
+                products.ProductStock ps ON p.product_id = ps.product_id -- Asumiendo tabla de stock
+            WHERE
+                p.is_active = TRUE -- Filtro sugerido para productos "activos"
+            GROUP BY
+                p.product_id, p.sku, p.value, p.name, p.image_url, c.name
+            ORDER BY
+                p.sku;
+            """
+            
+            cursor.execute(query)
+            results = cursor.fetchall()
+            products = [dict(row) for row in results]
+            
+            return products
+
+        except psycopg2.Error as e:
+            return []
+        except Exception as e:
+            return []
+        finally:
+            if conn:
+                release_connection(conn)

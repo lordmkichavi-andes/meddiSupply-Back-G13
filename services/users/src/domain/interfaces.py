@@ -33,6 +33,11 @@ class UserRepository(ABC):
         """
         pass
 
+    @abstractmethod
+    def get_products(self) -> List[Dict[str, Any]]:
+        """Obtiene el catálogo de productos activos."""
+        pass
+
 @runtime_checkable
 class StorageServiceInterface(Protocol):
     """
