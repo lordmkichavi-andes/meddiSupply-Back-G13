@@ -12,7 +12,7 @@ class OrdersClient:
     
     def __init__(self):
         self.base_url = os.getenv('ORDERS_SERVICE_URL', 'http://MediSu-MediS-5XPY2MhrDivI-109634141.us-east-1.elb.amazonaws.com/')
-        self.timeout = int(os.getenv('ORDERS_SERVICE_TIMEOUT', '3'))
+        self.timeout = int(os.getenv('ORDERS_SERVICE_TIMEOUT', '10'))
     
     def _get(self, endpoint: str) -> Optional[Dict[str, Any]]:
         """Realiza una petición GET al servicio de orders."""
