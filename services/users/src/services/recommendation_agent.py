@@ -5,20 +5,45 @@ import requests
 import random
 import logging
 from typing import List, Dict, Any, Optional
-from src.db import (
-    get_products,
-    get_client_history,
-    get_client_data,
-    db_get_recent_evidences_by_client,
-)
+from src.clients.products_client import products_client
+from src.clients.orders_client import orders_client
+from src.domain.interfaces import UserRepository
 
+def get_products() -> List[Dict[str, Any]]:
+    """Obtiene todos los productos activos para el selector a través del microservicio de products."""
+    try:
+        return products_client.get_all_active_products()
+    except Exception as e:
+        logger.error(f"Error obteniendo productos del microservicio: {e}")
+        return []
+
+def get_client_data(client_id: int) -> List[Dict[str, Any]]:
+    """
+    Función helper para obtener la data del cliente.
+    """
+    try:
+        return orders_client.get_client_detail(client_id)
+    except Exception as e:
+        logger.error(f"Fallo grave al usar el cliente: {e}")
+        return []
+
+def get_client_history(client_id: int) -> List[Dict[str, Any]]:
+    """
+    Función helper para obtener el historial de compras usando el cliente.
+    """
+    try:
+        return orders_client.get_client_purchase_history(client_id)
+    except Exception as e:
+        logger.error(f"Fallo grave al usar el cliente de órdenes: {e}")
+        return []
+        
 class RecommendationAgent:
     """
     Encapsula toda la lógica de obtención de inteligencia y la invocación 
     al LLM de Gemini.
     """
     
-    def __init__(self):
+    def __init__(self, user_repository: UserRepository):
         self.MAX_RETRIES = 5
         self.BASE_DELAY = 1.0
         self.GEMINI_API_URL = os.getenv(
@@ -26,6 +51,7 @@ class RecommendationAgent:
             "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent"
         )
         self.API_KEY = os.getenv('GEMINI_API_KEY', 'AIzaSyDBM4aXt4948DT9Z_JkKmLKOvgRb19IZGA') 
+        self.user_repository = user_repository
         
     def _get_client_intelligence_tags(self, client_id: int, media: List[Dict[str, str]]) -> List[str]:
         """
@@ -175,7 +201,7 @@ class RecommendationAgent:
         
         catalog = get_products()
         client_profile = get_client_data(client_id)
-        media_data = db_get_recent_evidences_by_client(client_id)
+        media_data = self.user_repository.get_recent_evidences_by_client(client_id) 
         client_purchase_history = get_client_history(client_id)
 
         if client_profile is None or not catalog:
