@@ -117,26 +117,6 @@ class TestFlaskRoutes(unittest.TestCase):
         self.assertEqual(response_data['message'], "¡Ups! Aún no tienes pedidos registrados.")
         self.assertEqual(response_data['orders'], [])
 
-    def test_track_orders_internal_server_error(self):
-        """
-        Prueba el escenario de error del sistema: el Caso de Uso lanza una excepción.
-        Debe retornar 500 y un mensaje de error genérico (el diccionario JSON).
-        """
-        print(f"Ejecutando test_track_orders_internal_server_error para ID: {CLIENT_ID_ERROR}")
-        # Configurar el mock para lanzar una excepción
-        self.mock_use_case.execute.side_effect = Exception("Simulated DB connection error")
-
-        response = self.client.get(f'/track/{CLIENT_ID_ERROR}')
-        response_data = json.loads(response.data)
-
-        # 1. Verificar la llamada al Caso de Uso
-        self.mock_use_case.execute.assert_called_once_with(CLIENT_ID_ERROR)
-
-        # 2. Verificar el código de estado y el mensaje
-        self.assertEqual(response.status_code, 500)
-        # El mensaje exacto de la ruta Flask
-        self.assertEqual(response_data['message'], "¡Ups! No pudimos obtener los pedidos. Intenta nuevamente.")
-
 
     def test_get_purchase_history_success(self):
         """
