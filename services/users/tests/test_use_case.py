@@ -299,5 +299,53 @@ class TestGetClientUsersUseCase(unittest.TestCase):
         # ASSERT
         self.mock_repository.db_get_client_data.assert_called_once_with(test_client_id)
         self.assertIsNone(result)
+
+    def test_get_visit_by_id_found(self):
+        """Verifica que el método llama al repositorio y retorna la visita."""
+        test_visit_id = 150
+        # MOCK_VISIT_DATA ya está definido al inicio del archivo
+        mock_visit = MOCK_VISIT_DATA 
+
+        # Configurar el mock para que devuelva la data de la visita
+        self.mock_repository.get_by_id.return_value = mock_visit
+
+        # ACT
+        result = self.use_case.get_visit_by_id(test_visit_id)
+
+        # ASSERT
+        # 1. Verificar que se llamó al repositorio con el ID correcto
+        self.mock_repository.get_by_id.assert_called_once_with(test_visit_id)
+
+        # 2. Verificar que se retorna la data simulada
+        self.assertEqual(result, mock_visit)
+
+
+    def test_get_visit_by_id_not_found(self):
+        """Verifica que retorna None si el repositorio no encuentra la visita."""
+        test_visit_id = 999
+
+        # Configurar el mock para que devuelva None
+        self.mock_repository.get_by_id.return_value = None
+
+        # ACT
+        result = self.use_case.get_visit_by_id(test_visit_id)
+
+        # ASSERT
+        self.mock_repository.get_by_id.assert_called_once_with(test_visit_id)
+        self.assertIsNone(result)
+
+    def test_get_visit_by_id_propagates_exception(self):
+        """Verifica que si el repositorio falla, la excepción se propaga."""
+        test_visit_id = 500
+        # Configurar el mock para que lance una excepción
+        self.mock_repository.get_by_id.side_effect = ConnectionError("DB connection failed")
+
+        # ACT & ASSERT
+        with self.assertRaises(ConnectionError) as cm:
+            self.use_case.get_visit_by_id(test_visit_id)
+
+        self.mock_repository.get_by_id.assert_called_once_with(test_visit_id)
+        self.assertIn("DB connection failed", str(cm.exception))
+        
 if __name__ == '__main__':
     unittest.main()
