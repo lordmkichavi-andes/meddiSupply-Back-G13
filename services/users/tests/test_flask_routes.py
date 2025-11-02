@@ -145,34 +145,124 @@ class UserAPITestCase(unittest.TestCase):
         # 3. Asertar que el Caso de Uso fue llamado
         self.mock_get_users_uc.execute_by_seller.assert_called_once()
 
-    def test_get_user_by_id_server_error(self):
-        """
-        Verifica que la ruta /detail/<id> maneja y retorna correctamente
-        un error 500 cuando el Caso de Uso lanza una excepción (ej. fallo de DB).
-        """
-        test_client_id = 999
+    def test_upload_evidences_success(self):
+        """Prueba la carga exitosa de archivos (código 201)."""
+        test_visit_id = 101
         
-        # 1. Configurar el mock del Caso de Uso para que lance una excepción
-        # Utilizamos el nombre correcto: self.mock_get_users_uc
-        self.mock_get_users_uc.get_user_by_id.side_effect = Exception("DB Connection Lost")
+        # 1. Simular la respuesta del Caso de Uso
+        mock_evidences = [
+            {'id': 1, 'url': 's3/f1.jpg', 'type': 'photo'},
+            {'id': 2, 'url': 's3/f2.mp4', 'type': 'video'}
+        ]
+        self.mock_get_users_uc.upload_visit_evidences.return_value = mock_evidences
+        
+        # 2. Simular archivos de subida usando io.BytesIO
+        data_files = {
+            'files': [
+                (io.BytesIO(b"file content A"), 'photo_a.jpg'),
+                (io.BytesIO(b"file content B"), 'video_b.mp4')
+            ]
+        }
+        
+        # 3. Ejecutar la petición (es crucial usar 'multipart/form-data')
+        with self.app.test_client() as client:
+            response = client.post(
+                f'/clients/visits/{test_visit_id}/evidences',
+                data=data_files,
+                content_type='multipart/form-data'
+            )
 
-        # 2. Realizar la solicitud HTTP
-        # NOTA: La URL en tu código es /clients. Si la ruta es /detail/<int:client_id>,
-        # la URL de prueba debe ser '/detail/999'. Asumiendo que la ruta es '/detail/<int:client_id>'
-        # O debes usar la URL correcta según tu Blueprint. Si es parte del Blueprint de clients,
-        # la URL podría ser: /clients/detail/999.
-        # Basado en tu URL de la prueba original, asumiré '/clients/detail/999'.
-        response = self.client.get(f'/clients/detail/{test_client_id}') # 👈 Posible URL corregida
+        response_data = json.loads(response.data)
+
+        # 4. Asertar el éxito (201 Created)
+        self.assertEqual(response.status_code, 201)
+        self.assertIn(f"Se subieron 2 evidencias con éxito para la visita {test_visit_id}.", response_data['message'])
+        self.assertEqual(len(response_data['evidences']), 2)
+
+        # 5. Asertar la llamada al Caso de Uso
+        # No podemos verificar la lista exacta de FileStorage, solo que fue llamado
+        self.mock_get_users_uc.upload_visit_evidences.assert_called_once()
+        self.assertEqual(self.mock_get_users_uc.upload_visit_evidences.call_args[1]['visit_id'], test_visit_id)
+
+
+    def test_upload_evidences_no_files(self):
+        """Prueba cuando no se adjuntan archivos (código 400)."""
+        test_visit_id = 102
         
-        # 3. Verificar el estado y el contenido
+        # 1. Ejecutar la petición con el campo 'files' vacío o no válido
+        data_files = {'files': (io.BytesIO(b''), '')} # Simula un campo vacío
+        
+        with self.app.test_client() as client:
+            response = client.post(
+                f'/clients/visits/{test_visit_id}/evidences',
+                data=data_files,
+                content_type='multipart/form-data'
+            )
+
+        response_data = json.loads(response.data)
+
+        # 2. Asertar el error 400
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("No se adjuntaron archivos para la evidencia.", response_data['message'])
+
+        # 3. Asertar que el Caso de Uso NO fue llamado
+        self.mock_get_users_uc.upload_visit_evidences.assert_not_called()
+
+
+    def test_upload_evidences_visit_not_found(self):
+        """Prueba cuando el Caso de Uso lanza ValueError (Visita no existe) (código 404)."""
+        test_visit_id = 999
+        
+        # 1. Simular la excepción ValueError (manejo del 404)
+        error_msg = f"La visita con ID {test_visit_id} no existe en el sistema."
+        self.mock_get_users_uc.upload_visit_evidences.side_effect = ValueError(error_msg)
+        
+        data_files = {'files': [(io.BytesIO(b"dummy"), 'dummy.jpg')]}
+
+        # 2. Ejecutar la petición
+        with self.app.test_client() as client:
+            response = client.post(
+                f'/clients/visits/{test_visit_id}/evidences',
+                data=data_files,
+                content_type='multipart/form-data'
+            )
+
+        response_data = json.loads(response.data)
+
+        # 3. Asertar el error 404
         self.assertEqual(response.status_code, 404)
+        self.assertEqual(response_data['message'], error_msg)
         
-        data = response.get_json()
-        self.assertIn("Error al obtener la información del usuario. Intenta nuevamente.", data['message'])
-        self.assertIn("DB Connection Lost", data['error'])
-        
-        # 4. Verificar que el Caso de Uso fue llamado
-        self.mock_get_users_uc.get_user_by_id.assert_called_once_with(client_id=test_client_id)
+        # 4. Asertar la llamada al Caso de Uso
+        self.mock_get_users_uc.upload_visit_evidences.assert_called_once()
 
+
+    def test_upload_evidences_internal_server_error(self):
+        """Prueba cuando el Caso de Uso lanza una excepción genérica (código 500)."""
+        test_visit_id = 103
+        
+        # 1. Simular una excepción genérica (ej. fallo de S3 o DB)
+        simulated_exception = "Fallo en el almacenamiento del archivo"
+        self.mock_get_users_uc.upload_visit_evidences.side_effect = Exception(simulated_exception)
+        
+        data_files = {'files': [(io.BytesIO(b"dummy"), 'dummy.jpg')]}
+
+        # 2. Ejecutar la petición
+        with self.app.test_client() as client:
+            response = client.post(
+                f'/clients/visits/{test_visit_id}/evidences',
+                data=data_files,
+                content_type='multipart/form-data'
+            )
+
+        response_data = json.loads(response.data)
+
+        # 3. Asertar el error 500
+        self.assertEqual(response.status_code, 500)
+        self.assertIn("No se pudieron subir las evidencias. Intenta nuevamente.", response_data['message'])
+        self.assertIn(simulated_exception, response_data['error'])
+        
+        # 4. Asertar la llamada al Caso de Uso
+        self.mock_get_users_uc.upload_visit_evidences.assert_called_once()
 if __name__ == '__main__':
     unittest.main()
