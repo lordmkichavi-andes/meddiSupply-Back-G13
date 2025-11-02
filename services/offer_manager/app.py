@@ -1,24 +1,8 @@
 from flask import Flask, jsonify
 from flask_cors import CORS
-import os
-
-def check_environment_variables():
-    """Verifica si las variables críticas de entorno están presentes."""
-    required_vars = ["GEMINI_API_KEY", "DB_HOST"]
-
-    missing = []
-    for var in required_vars:
-        if not os.getenv(var):
-            missing.append(var)
-    
-    if missing:
-        raise EnvironmentError(
-            f"Fallo crítico: El contenedor no puede iniciar. Variables de entorno faltantes: {', '.join(missing)}"
-        )
 
 def create_app() -> Flask:
     app = Flask(__name__)
-    check_environment_variables()
     # Configurar CORS
     CORS(app, resources={
         r"/*": {
