@@ -26,16 +26,6 @@ def get_client_data(client_id: int) -> List[Dict[str, Any]]:
     except Exception as e:
         logger.error(f"Fallo grave al usar el cliente: {e}")
         return []
-
-def get_client_history(client_id: int) -> List[Dict[str, Any]]:
-    """
-    Función helper para obtener el historial de compras usando el cliente.
-    """
-    try:
-        return orders_client.get_client_purchase_history(client_id)
-    except Exception as e:
-        logger.error(f"Fallo grave al usar el cliente de órdenes: {e}")
-        return []
         
 class RecommendationAgent:
     """
@@ -202,7 +192,7 @@ class RecommendationAgent:
         catalog = get_products()
         client_profile = get_client_data(client_id)
         media_data = self.user_repository.get_recent_evidences_by_client(client_id) 
-        client_purchase_history = get_client_history(client_id)
+        client_purchase_history = self.user_repository.get_recent_purchase_history(client_id)
 
         if client_profile is None or not catalog:
              return None

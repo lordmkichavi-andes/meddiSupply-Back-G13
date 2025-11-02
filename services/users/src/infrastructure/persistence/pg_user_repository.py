@@ -392,3 +392,44 @@ class PgUserRepository(UserRepository):
         finally:
             if conn:
                 release_connection(conn)
+
+    def get_recent_purchase_history(self, client_id: int, limit: int = 10) -> List[Dict[str, Any]]:
+        """
+        Recupera el historial reciente (SKU y nombre) de productos comprados por un cliente.
+        """
+        conn = None
+        history = []
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+            
+            query = """
+                SELECT DISTINCT ON (p.product_id)
+                    p.sku, 
+                    p.name
+                FROM orders.Orders o
+                JOIN orders.OrderLines ol ON o.order_id = ol.order_id
+                JOIN products.Products p ON ol.product_id = p.product_id
+                WHERE o.client_id = %s
+                ORDER BY p.product_id, o.creation_date DESC 
+                LIMIT %s;
+            """
+            
+            cursor.execute(query, (client_id, limit))
+            
+            for row in cursor.fetchall():
+                history.append({
+                    "sku": row[0],
+                    "name": row[1]
+                })
+
+            return history
+
+        except psycopg2.Error as e:
+            print(f"ERROR de base de datos al recuperar el historial de compras: {e}")
+            if conn:
+                conn.rollback()
+            raise Exception("Database error retrieving purchase history.")
+        finally:
+            if conn:
+                release_connection(conn)
