@@ -38,6 +38,11 @@ class UserRepository(ABC):
         """Obtiene el catálogo de productos activos."""
         pass
 
+    @abstractmethod
+    def save_evidence(self, visit_id: int, url: str, type: str) -> Dict[str, Any]:
+        """Guarda una nueva evidencia visual para una visita específica."""
+        pass
+
 @runtime_checkable
 class StorageServiceInterface(Protocol):
     """

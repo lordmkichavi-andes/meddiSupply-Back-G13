@@ -120,7 +120,11 @@ class GetClientUsersUseCase:
                     "description": file_name,
                 }
                 
-                new_evidence_data = self.repository.save_evidence(db_data)
+                new_evidence_data = self.repository.save_evidence(
+                    visit_id=db_data['visit_id'],
+                    url=db_data['url_file'],
+                    type=db_data['type']
+                )
                 saved_evidences.append(new_evidence_data)
 
             except Exception as e:

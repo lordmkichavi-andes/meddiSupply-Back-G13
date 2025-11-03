@@ -491,3 +491,44 @@ class PgUserRepository(UserRepository):
         finally:
             if conn:
                 release_connection(conn)
+
+    def save_evidence(self, visit_id: int, url: str, type: str) -> Dict[str, Any]:
+        """
+        Guarda la información de un archivo de evidencia (URL y tipo) 
+        asociada a una visita en la tabla users.visual_evidences.
+        """
+        conn = None
+        new_evidence_id = None
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+
+            # Consulta SQL para insertar la nueva evidencia
+            query = """
+                INSERT INTO users.visual_evidences (visit_id, url_file, type)
+                VALUES (%s, %s, %s)
+                RETURNING evidence_id;
+            """
+            values = (visit_id, url, type.upper()) # Aseguramos que el tipo esté en mayúsculas (si es necesario)
+
+            cursor.execute(query, values)
+            
+            # Obtenemos el ID de la evidencia recién insertada
+            new_evidence_id = cursor.fetchone()[0]
+            conn.commit()
+
+            return {
+                "evidence_id": new_evidence_id,
+                "visit_id": visit_id,
+                "url": url,
+                "type": type
+            }
+
+        except psycopg2.Error as e:
+            if conn:
+                conn.rollback()
+            logger.error(f"Error de base de datos al guardar evidencia para visita {visit_id}: {e}")
+            raise Exception("Database error during evidence saving.")
+        finally:
+            if conn:
+                release_connection(conn)
