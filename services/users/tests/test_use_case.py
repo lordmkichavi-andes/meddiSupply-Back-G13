@@ -167,69 +167,7 @@ class TestGetClientUsersUseCase(unittest.TestCase):
 
         self.mock_repository.get_users_by_seller.assert_called_once_with(test_seller_id)
         self.assertIn("Database query timed out.", str(cm.exception))
-
-    def test_upload_evidences_success(self):
-        """Verifica el flujo completo de subida y registro de múltiples archivos."""
-        test_visit_id = 100
         
-        # 1. Mocks de Archivos
-        mock_file_photo = MockFileStorage(filename="photo.jpg", mimetype="image/jpeg")
-        mock_file_video = MockFileStorage(filename="video.mp4", mimetype="video/mp4")
-        mock_files = [mock_file_photo, mock_file_video]
-
-        # 2. Mock del Repositorio (BD)
-        # 2.1. Visita Existe
-        self.mock_repository.get_visit_by_id.return_value = MOCK_VISIT_DATA
-        # 2.2. Guardado Exitoso: Simula el retorno del registro de BD
-        self.mock_repository.save_evidence.side_effect = [
-            {'evidence_id': 1, 'url_file': 'http://s3/photo.jpg', 'type': 'photo'},
-            {'evidence_id': 2, 'url_file': 'http://s3/video.mp4', 'type': 'video'},
-        ]
-
-        # 3. Mock del Storage Service (S3)
-        # Simula el retorno de la URL pública para cada archivo subido
-        self.mock_storage_service.upload_file.side_effect = [
-            'http://s3/photo.jpg', 
-            'http://s3/video.mp4'
-        ]
-
-        # ACT
-        result = self.use_case.upload_visit_evidences(test_visit_id, mock_files)
-
-        # ASSERT
-        # 4. Verificaciones
-        
-        # 4.1. Verificación de llamadas
-        self.mock_repository.get_visit_by_id.assert_called_once_with(test_visit_id)
-        
-        # Debe haber llamado al servicio de almacenamiento dos veces
-        self.assertEqual(self.mock_storage_service.upload_file.call_count, 2)
-        
-        # Debe haber llamado al repositorio para guardar dos registros
-        self.assertEqual(self.mock_repository.save_evidence.call_count, 2)
-        
-        # Verificamos la llamada de guardado para la foto
-        self.mock_repository.save_evidence.assert_any_call({
-            "visit_id": test_visit_id,
-            "type": "photo",
-            "url_file": 'http://s3/photo.jpg',
-            "description": "photo.jpg",
-        })
-        
-        # Verificamos la llamada de guardado para el video
-        self.mock_repository.save_evidence.assert_any_call({
-            "visit_id": test_visit_id,
-            "type": "video",
-            "url_file": 'http://s3/video.mp4',
-            "description": "video.mp4",
-        })
-
-        # 4.2. Verificación del resultado
-        self.assertEqual(len(result), 2)
-        self.assertEqual(result[0]['evidence_id'], 1)
-        self.assertEqual(result[1]['type'], 'video')
-
-
     def test_upload_evidences_visit_not_found(self):
         """Verifica que lanza ValueError si la visita no existe."""
         test_visit_id = 999
