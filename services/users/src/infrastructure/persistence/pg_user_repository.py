@@ -436,7 +436,8 @@ class PgUserRepository(UserRepository):
 
     def get_products(self) -> List[Dict[str, Any]]:
         """
-        Obtiene el catálogo de productos activos directamente desde la base de datos.
+        Obtiene el catálogo de productos disponibles (con stock > 0) 
+        directamente desde la base de datos PostgreSQL, usando los esquemas actualizados.
         
         Retorna una lista de diccionarios con el detalle del producto.
         """
@@ -444,6 +445,7 @@ class PgUserRepository(UserRepository):
         products = []
         try:
             conn = get_connection()
+            # Usamos DictCursor para obtener diccionarios, que es el formato de retorno deseado.
             cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
 
             query = """
@@ -454,32 +456,37 @@ class PgUserRepository(UserRepository):
                 p.name,
                 p.image_url,
                 c.name AS category_name,
-                -- 🛑 Si no hay tabla de stock o es simple, usa una cantidad fija (ej. 1) o calcula el stock real.
-                -- Si hay una tabla products.ProductStock, ajústalo.
-                COALESCE(SUM(ps.quantity), 0) AS total_quantity 
-            FROM
+                SUM(ps.quantity) AS total_quantity
+            FROM 
                 products.Products p
-            LEFT JOIN
-                products.Categories c ON p.category_id = c.category_id
-            LEFT JOIN
-                products.ProductStock ps ON p.product_id = ps.product_id -- Asumiendo tabla de stock
+            JOIN 
+                products.Category c ON p.category_id = c.category_id
+            JOIN 
+                products.ProductStock ps ON p.product_id = ps.product_id
             WHERE
-                p.is_active = TRUE -- Filtro sugerido para productos "activos"
+                ps.quantity > 0
             GROUP BY
-                p.product_id, p.sku, p.value, p.name, p.image_url, c.name
+                p.product_id, p.sku, p.value, p.name, p.image_url, c.name -- Agrupación completa requerida por PostgreSQL
             ORDER BY
                 p.sku;
             """
             
             cursor.execute(query)
             results = cursor.fetchall()
+            
+            # Mapeamos los resultados (DictRow) a una lista de diccionarios Python estándar
             products = [dict(row) for row in results]
             
+            # logger.info(f"Catálogo cargado: {len(products)} productos disponibles.")
             return products
 
         except psycopg2.Error as e:
+            # Aquí puedes registrar el error de DB para debugging
+            logger.error(f"ERROR de base de datos al recuperar el catálogo de productos: {e}")
             return []
         except Exception as e:
+            # Aquí puedes registrar cualquier otro error inesperado
+            logger.error(f"ERROR INESPERADO AL OBTENER CATÁLOGO: {e}")
             return []
         finally:
             if conn:
