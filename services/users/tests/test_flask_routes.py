@@ -258,6 +258,12 @@ class UserAPITestCase(unittest.TestCase):
         self.mock_get_users_uc.upload_visit_evidences.return_value = mock_evidences
         
         # ... (Resto de la preparación y llamada) ...
+        data_files = {
+            'files': [
+                (io.BytesIO(b"file content A"), 'photo_a.jpg'),
+                (io.BytesIO(b"file content B"), 'video_b.mp4')
+            ]
+        }
         
         response = self.client.post( 
             f'/visits/{test_visit_id}/evidences',
