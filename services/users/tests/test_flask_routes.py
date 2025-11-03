@@ -249,22 +249,26 @@ class UserAPITestCase(unittest.TestCase):
         """Prueba la carga exitosa de archivos (código 201)."""
         test_visit_id = 101
         
+        # 1. Datos que el Caso de Uso (UC) devolverá
         mock_evidences = [
             {'id': 1, 'url': 's3/f1.jpg', 'type': 'photo'},
             {'id': 2, 'url': 's3/f2.mp4', 'type': 'video'}
         ]
             
-        # Asegura que el mock del Caso de Uso devuelva la data correcta
+        # 2. Mockear la respuesta del Caso de Uso (UC)
+        # self.mock_get_users_uc es el mock del objeto que contiene upload_visit_evidences
         self.mock_get_users_uc.upload_visit_evidences.return_value = mock_evidences
         
-        # ... (Resto de la preparación y llamada) ...
+        # 3. Definición de los archivos a enviar (Corregido el NameError)
         data_files = {
             'files': [
+                # Tuple: (Contenido binario, Nombre del archivo)
                 (io.BytesIO(b"file content A"), 'photo_a.jpg'),
                 (io.BytesIO(b"file content B"), 'video_b.mp4')
             ]
         }
         
+        # 4. Llamada al endpoint HTTP
         response = self.client.post( 
             f'/visits/{test_visit_id}/evidences',
             data=data_files,
@@ -273,17 +277,27 @@ class UserAPITestCase(unittest.TestCase):
 
         response_data = self._get_json(response)
 
-        # 🛑 Las aserciones sobre la respuesta HTTP están correctas 🛑
+        # 5. Aserciones de la respuesta HTTP (Ruta Flask)
         self.assertEqual(response.status_code, 201)
         self.assertIn(f"Se subieron 2 evidencias con éxito para la visita {test_visit_id}.", response_data['message'])
         self.assertEqual(len(response_data['evidences']), 2)
         
-        # 🛑 Aserción correcta sobre la llamada al Caso de Uso 🛑
-        self.mock_get_users_uc.upload_visit_evidences.assert_called_once()
-        self.assertEqual(self.mock_get_users_uc.upload_visit_evidences.call_args[1]['visit_id'], test_visit_id) 
+        # 6. Aserciones de la llamada al Caso de Uso
         
-        # El error que ves NO DEBERÍA ESTAR aquí. ¡Revisa tu entorno de test!
-
+        # 6.1 Verifica que el UC fue llamado
+        self.mock_get_users_uc.upload_visit_evidences.assert_called_once()
+        
+        # 6.2 Verifica el ID de la visita. Usamos [1] para kwargs (argumentos nombrados)
+        self.assertEqual(self.mock_get_users_uc.upload_visit_evidences.call_args[1]['visit_id'], test_visit_id)
+        
+        # 6.3 Verifica el argumento 'uploaded_files_info' (Debe ser una lista de 2 elementos)
+        uploaded_files_info = self.mock_get_users_uc.upload_visit_evidences.call_args[0][1] # Argumento posicional 1
+        self.assertIsInstance(uploaded_files_info, list)
+        self.assertEqual(len(uploaded_files_info), 2)
+        # Opcional: Verifica la estructura de los archivos que recibe el Caso de Uso
+        self.assertIn('filename', uploaded_files_info[0]) 
+        self.assertIn('mimetype', uploaded_files_info[0])
+        
     def test_upload_evidences_no_files(self):
         """Prueba cuando no se adjuntan archivos (código 400)."""
         test_visit_id = 102
