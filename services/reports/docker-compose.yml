@@ -1,23 +1,6 @@
 version: '3.8'
 
 services:
-  # 🗄️ Servicio de Base de Datos PostgreSQL
-  db:
-    image: postgres:14-alpine
-    container_name: postgres_rdwrr
-    restart: always
-    environment:
-      POSTGRES_DB: medisupplydb
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: 1q2w3e4r
-    ports:
-      - "5432:5432"  # Puerto externo 5434 → interno 5432
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
   reports-service:
     build:
       context: .
@@ -25,15 +8,15 @@ services:
     container_name: reports
     platform: linux/amd64
     ports:
-      - "8080:8080"
-    depends_on:
-      db:
-        condition: service_healthy
+      - "8085:8085"
     environment:
-        DB_HOST: db
-        DB_PORT: 5432
+        DB_HOST: host.docker.internal
+        DB_PORT: 5433
         DB_NAME: medisupplydb
         DB_USER: postgres
-        DB_PASSWORD: 1q2w3e4r
+        DB_PASSWORD: postgres
+        DB_SSLMODE: disable
         RUN_DB_INIT_ON_STARTUP: true
-    command: ["gunicorn", "--bind", "0.0.0.0:8080", "app:app"]
+        PORT: 8085
+        OFFER_MANAGER_URL: http://host.docker.internal:8082
+    command: ["gunicorn", "--bind", "0.0.0.0:8085", "app:app"]

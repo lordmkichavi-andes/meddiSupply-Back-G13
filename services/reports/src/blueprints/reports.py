@@ -5,7 +5,8 @@ from ..db import (
     get_vendors, 
     get_periods, 
     get_sales_report_data, 
-    validate_sales_data_availability
+    validate_sales_data_availability,
+    get_sales_compliance
 )
 from ..models.vendor import Vendor
 from ..models.sales_report import SalesReport
@@ -136,6 +137,68 @@ def validate_sales_data():
             'success': False,
             'has_data': False,
             'message': 'Error validando datos'
+        }), 500
+
+
+@reports_bp.post('/sales-compliance')
+def get_sales_compliance_endpoint():
+    """Genera el reporte de cumplimiento de metas (HU043)."""
+    try:
+        data = request.get_json()
+        vendor_id = data.get('vendor_id')
+        plan_id = data.get('plan_id')
+        region = data.get('region')
+        quarter = data.get('quarter')
+        year = data.get('year')
+        
+        # Validar que se proporcione vendor_id
+        if not vendor_id:
+            return jsonify({
+                'success': False,
+                'message': 'Campo obligatorio: vendor_id',
+                'error_type': 'validation_error'
+            }), 400
+        
+        # Validar que se proporcione plan_id o (region, quarter, year)
+        if not plan_id and not (region and quarter and year):
+            return jsonify({
+                'success': False,
+                'message': 'Debe proporcionar plan_id o (region, quarter, year)',
+                'error_type': 'validation_error'
+            }), 400
+        
+        # Llamar a la función de cumplimiento
+        result = get_sales_compliance(
+            vendor_id=int(vendor_id),
+            plan_id=int(plan_id) if plan_id else None,
+            region=region,
+            quarter=quarter,
+            year=int(year) if year else None
+        )
+        
+        if not result:
+            return jsonify({
+                'success': False,
+                'message': '¡Ups! No se encontró el plan de venta especificado',
+                'error_type': 'not_found'
+            }), 404
+        
+        return jsonify({
+            'success': True,
+            'data': result
+        })
+        
+    except ValueError as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error en formato de datos: {str(e)}',
+            'error_type': 'validation_error'
+        }), 400
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'¡Ups! Hubo un error al generar el reporte de cumplimiento: {str(e)}',
+            'error_type': 'server_error'
         }), 500
 
 

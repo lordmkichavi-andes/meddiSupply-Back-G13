@@ -3,3 +3,5 @@ Flask-CORS
 psycopg2-binary
 gunicorn
 PyJWT
+requests
+python-dateutil
