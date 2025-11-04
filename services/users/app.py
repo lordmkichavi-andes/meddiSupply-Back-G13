@@ -18,6 +18,7 @@ from src.services.storage_service import StorageService
 from src.services.recommendation_agent import RecommendationAgent 
 from src.application.generate_recommendations_usecase import GenerateRecommendationsUseCase
 from user_upload import validate_users_data, insert_users
+from login_service import authenticate_user
 
 load_dotenv()
 
@@ -156,7 +157,8 @@ def create_app():
                 "GET /users/clients - Obtener usuarios CLIENT de la BD",
                 "POST /users/visit - Registra la visita del vendedor",
                 "POST /users/upload/validate - Validar usuarios CSV (HU107)",
-                "POST /users/upload/insert - Insertar usuarios CSV (HU107)"
+                "POST /users/upload/insert - Insertar usuarios CSV (HU107)",
+                "POST /users/login - Iniciar sesión (HU37)"
             ],
             "microservicio": "usuarios",
             "cluster": "microservices-cluster"
@@ -525,6 +527,70 @@ def create_app():
                 cursor.close()
             if conn:
                 release_connection(conn)
+
+    # ==========================
+    # HU37 - INICIAR SESIÓN
+    # ==========================
+    
+    @app.route('/users/login', methods=['POST'])
+    def login_endpoint():
+        """
+        Endpoint para iniciar sesión (HU37).
+        Autentica un usuario con correo y contraseña.
+        """
+        print("=== INICIO LOGIN ===")
+        
+        try:
+            # 1. Obtener datos del request
+            data = request.get_json()
+            
+            if not data:
+                return jsonify({
+                    "success": False,
+                    "message": "Campo obligatorio",
+                    "error": "No se recibieron datos"
+                }), 400
+            
+            email = data.get('correo') or data.get('email')
+            password = data.get('contraseña') or data.get('password')
+            identification = data.get('identification') or data.get('identificacion')
+            
+            # 2. Autenticar usuario
+            is_authenticated, user_data, error_message = authenticate_user(email, password, identification)
+            
+            if not is_authenticated:
+                return jsonify({
+                    "success": False,
+                    "message": error_message
+                }), 401
+            
+            # 3. Login exitoso - Retornar datos del usuario y tokens
+            response_data = {
+                "success": True,
+                "message": "Login exitoso",
+                "user": {
+                    "user_id": user_data['user_id'],
+                    "name": user_data['name'],
+                    "last_name": user_data['last_name'],
+                    "email": user_data['email'],
+                    "role": user_data['role'],
+                    "identification": user_data.get('identification'),
+                    "phone": user_data.get('phone')
+                },
+                "role": user_data['role'],
+                "tokens": user_data.get('tokens', {})  # Tokens de Cognito
+            }
+            return jsonify(response_data), 200
+            
+        except Exception as e:
+            print(f"ERROR en login: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            
+            return jsonify({
+                "success": False,
+                "message": "¡Ups! Hubo un problema, intenta nuevamente en unos minutos"
+            }), 500
     
     return app
 
@@ -544,6 +610,7 @@ if __name__ == '__main__':
     print("   POST /users/visits/<id>/evidences - Subir evidencias")
     print("   POST /users/upload/validate - Validar usuarios CSV (HU107)")
     print("   POST /users/upload/insert - Insertar usuarios CSV (HU107)")
+    print("   POST /users/login - Iniciar sesión (HU37)")
     print(f"🌐 Servidor ejecutándose en: http://localhost:{port}")
     print("🔧 Versión: 2.1.4 - Proper ECS Deploy Test")
     app.run(host='0.0.0.0', port=port, debug=False)
