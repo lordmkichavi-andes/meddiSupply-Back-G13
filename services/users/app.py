@@ -2,19 +2,22 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
 import datetime
-import logging 
+import logging
+import json
+import psycopg2.extras
 
 from src.infrastructure.web.flask_user_routes import create_user_api_blueprint
 from src.application.use_cases import GetClientUsersUseCase
 from src.application.register_visit_usecase import RegisterVisitUseCase
 
 from src.infrastructure.persistence.pg_user_repository import PgUserRepository
-from src.infrastructure.persistence.db_connector import init_db_pool
+from src.infrastructure.persistence.db_connector import init_db_pool, get_connection, release_connection
 from src.infrastructure.persistence.db_initializer import initialize_database
 from config import Config
 from src.services.storage_service import StorageService 
 from src.services.recommendation_agent import RecommendationAgent 
 from src.application.generate_recommendations_usecase import GenerateRecommendationsUseCase
+from user_upload import validate_users_data, insert_users
 
 load_dotenv()
 
@@ -150,8 +153,10 @@ def create_app():
                 "POST /usuarios - Obtener usuarios",
                 "POST /productos - Obtener productos",
                 "GET /health - Health check para CI/CD",
-                "GET /users/clients - Obtener usuarios CLIENT de la BD"
-                "POST /users/visit - Registra la visita del vendedor"
+                "GET /users/clients - Obtener usuarios CLIENT de la BD",
+                "POST /users/visit - Registra la visita del vendedor",
+                "POST /users/upload/validate - Validar usuarios CSV (HU107)",
+                "POST /users/upload/insert - Insertar usuarios CSV (HU107)"
             ],
             "microservicio": "usuarios",
             "cluster": "microservices-cluster"
@@ -265,12 +270,269 @@ def create_app():
                 "error": str(e),
                 "timestamp": datetime.datetime.utcnow().isoformat() + "Z"
             }), 503
+
+    # ==========================
+    # HU107 - REGISTRO USUARIOS VÍA CSV
+    # ==========================
+    
+    @app.route('/users/upload/validate', methods=['POST'])
+    def validate_users_endpoint():
+        """
+        Endpoint para validar usuarios sin insertarlos en la base de datos (HU107).
+        Solo realiza la validación y retorna el resultado.
+        """
+        print("=== INICIO VALIDACIÓN DE USUARIOS ===")
+        
+        try:
+            # 1. Validar tamaño del archivo (máximo 5 MB)
+            content_length = request.content_length
+            if content_length and content_length > 5 * 1024 * 1024:  # 5 MB
+                return jsonify({
+                    "success": False,
+                    "message": "¡Ups! El archivo excede el tamaño permitido (máx. 5 MB).",
+                    "total_records": 0,
+                    "valid_records": 0,
+                    "invalid_records": 0,
+                    "errors": ["¡Ups! El archivo excede el tamaño permitido (máx. 5 MB)."],
+                    "warnings": []
+                }), 400
+            
+            # 2. Obtener y parsear datos del request
+            data_string = request.get_data(as_text=True)
+
+            if not data_string or data_string.strip() == '':
+                return jsonify({
+                    "success": False,
+                    "message": "No se recibieron datos para procesar",
+                    "total_records": 0,
+                    "valid_records": 0,
+                    "invalid_records": 0,
+                    "errors": ["No se recibieron datos para procesar"],
+                    "warnings": []
+                }), 400
+
+            print(f"Datos recibidos como string: {data_string[:200]}...")
+
+            # Limpiar el string
+            data_string = data_string.strip()
+
+            # Intentar parsear como JSON
+            try:
+                users_data = json.loads(data_string)
+            except json.JSONDecodeError as e:
+                return jsonify({
+                    "success": False,
+                    "message": "¡Ups! El formato del archivo no es válido",
+                    "total_records": 0,
+                    "valid_records": 0,
+                    "invalid_records": 0,
+                    "errors": ["¡Ups! El formato del archivo no es válido"],
+                    "warnings": []
+                }), 400
+
+            print(f"Usuarios parseados: {len(users_data)}")
+
+            # 3. Validar usuarios
+            is_valid, errors, warnings, validated_users = validate_users_data(users_data)
+
+            # Preparar respuesta
+            valid_records = len(validated_users)
+            invalid_records = len(users_data) - valid_records
+            
+            # Mensajes según HU107
+            if not is_valid:
+                if any("duplicados" in e.lower() for e in errors):
+                    message = "¡Ups! Existen usuarios duplicados, revisa el archivo"
+                else:
+                    message = "¡Ups! El archivo tiene errores de validación, revisa y sube nuevamente"
+            else:
+                message = f"Validación completada: {valid_records} usuarios válidos de {len(users_data)} totales"
+            
+            response_data = {
+                "success": is_valid,
+                "message": message,
+                "total_records": len(users_data),
+                "valid_records": valid_records,
+                "invalid_records": invalid_records,
+                "errors": errors,
+                "warnings": warnings,
+                "validated_users": validated_users if is_valid else []
+            }
+            
+            return jsonify(response_data), 200
+            
+        except Exception as e:
+            print(f"ERROR en validación: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            
+            return jsonify({
+                "success": False,
+                "message": "¡Ups! Hubo un problema, intenta nuevamente en unos minutos",
+                "total_records": len(users_data) if 'users_data' in locals() else 0,
+                "valid_records": 0,
+                "invalid_records": len(users_data) if 'users_data' in locals() else 0,
+                "errors": [f"Error interno: {str(e)}"],
+                "warnings": []
+            }), 500
+
+    @app.route('/users/upload/insert', methods=['POST'])
+    def insert_users_endpoint():
+        """
+        Endpoint para insertar usuarios validados en la base de datos (HU107).
+        Asume que los usuarios ya fueron validados previamente.
+        """
+        print("=== INICIO INSERCIÓN DE USUARIOS ===")
+        conn = None
+        cursor = None
+        
+        try:
+            # 1. Validar tamaño del archivo (máximo 5 MB)
+            content_length = request.content_length
+            if content_length and content_length > 5 * 1024 * 1024:  # 5 MB
+                return jsonify({
+                    "success": False,
+                    "message": "¡Ups! El archivo excede el tamaño permitido (máx. 5 MB).",
+                    "total_records": 0,
+                    "successful_records": 0,
+                    "failed_records": 0,
+                    "errors": ["¡Ups! El archivo excede el tamaño permitido (máx. 5 MB)."],
+                    "warnings": []
+                }), 400
+            
+            # 2. Obtener y parsear datos del request
+            data_string = request.get_data(as_text=True)
+
+            if not data_string or data_string.strip() == '':
+                return jsonify({
+                    "success": False,
+                    "message": "No se recibieron datos para procesar",
+                    "total_records": 0,
+                    "successful_records": 0,
+                    "failed_records": 0,
+                    "errors": ["No se recibieron datos para procesar"],
+                    "warnings": []
+                }), 400
+
+            print(f"Datos recibidos como string: {data_string[:200]}...")
+
+            # Limpiar el string
+            data_string = data_string.strip()
+
+            # Intentar parsear como JSON
+            try:
+                users_data = json.loads(data_string)
+            except json.JSONDecodeError as e:
+                return jsonify({
+                    "success": False,
+                    "message": "¡Ups! El formato del archivo no es válido",
+                    "total_records": 0,
+                    "successful_records": 0,
+                    "failed_records": 0,
+                    "errors": ["¡Ups! El formato del archivo no es válido"],
+                    "warnings": []
+                }), 400
+
+            print(f"Usuarios parseados para inserción: {len(users_data)}")
+
+            # 3. Validación rápida básica (estructura mínima)
+            if not isinstance(users_data, list) or not users_data:
+                return jsonify({
+                    "success": False,
+                    "message": "Los datos deben ser un array de usuarios no vacío",
+                    "total_records": 0,
+                    "successful_records": 0,
+                    "failed_records": 0,
+                    "errors": ["Los datos deben ser un array de usuarios no vacío"],
+                    "warnings": []
+                }), 400
+            
+            # 4. Determinar file_name y file_type desde headers o usar defaults
+            file_name = request.headers.get('X-File-Name')
+            file_type = request.headers.get('X-File-Type', 'csv')
+            
+            # Validar que file_type sea uno de los valores permitidos
+            allowed_file_types = ['csv', 'xlsx', 'xls']
+            if file_type.lower() not in allowed_file_types:
+                return jsonify({
+                    "success": False,
+                    "message": "¡Ups! El formato del archivo no es válido",
+                    "total_records": 0,
+                    "successful_records": 0,
+                    "failed_records": 0,
+                    "errors": ["¡Ups! El formato del archivo no es válido"],
+                    "warnings": []
+                }), 400
+            else:
+                file_type = file_type.lower()
+            
+            # Si no hay file_name, usar uno basado en timestamp
+            if not file_name:
+                timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+                file_name = f'users_upload_{timestamp}'
+            
+            # 5. Conectar a la base de datos e insertar
+            conn = get_connection()
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            print("Conexión a BD establecida")
+            
+            # Insertar usuarios
+            successful_records, failed_records, processed_errors, upload_id, insert_warnings = insert_users(
+                users_data, conn, cursor, data_string, file_name=file_name, file_type=file_type
+            )
+            
+            # Commit de la transacción
+            conn.commit()
+            print(f"Transacción completada. Exitosos: {successful_records}, Fallidos: {failed_records}")
+
+            # Determinar si fue exitoso
+            success = failed_records == 0
+            
+            if success:
+                message = "¡El archivo se ha cargado exitosamente!"
+            else:
+                message = "¡Ups! Hubo un problema, intenta nuevamente en unos minutos"
+            
+            return jsonify({
+                "success": success,
+                "message": message,
+                "total_records": len(users_data),
+                "successful_records": successful_records,
+                "failed_records": failed_records,
+                "errors": processed_errors,
+                "warnings": insert_warnings
+            }), 200 if success else 500
+            
+        except Exception as e:
+            print(f"ERROR en inserción: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            
+            if conn:
+                conn.rollback()
+            
+            return jsonify({
+                "success": False,
+                "message": "¡Ups! Hubo un problema, intenta nuevamente en unos minutos",
+                "total_records": len(users_data) if 'users_data' in locals() else 0,
+                "successful_records": 0,
+                "failed_records": len(users_data) if 'users_data' in locals() else 0,
+                "errors": [f"Error interno: {str(e)}"],
+                "warnings": []
+            }), 500
+        finally:
+            if cursor:
+                cursor.close()
+            if conn:
+                release_connection(conn)
     
     return app
 
 app = create_app()
 
 if __name__ == '__main__':
+    import os
+    port = int(os.environ.get('PORT', '8083'))
     print("🚀 Iniciando Usuarios Service - CI/CD Pipeline...")
     print("📡 Endpoints disponibles:")
     print("   GET  / - Información del backend")
@@ -279,7 +541,9 @@ if __name__ == '__main__':
     print("   POST /productos - Obtener productos")
     print("   GET  /health - Health check para CI/CD")
     print("   GET  /users/clients - Obtener usuarios CLIENT de BD")
-    print("   POST /users/visits/<id>/evidences - Subir evidencias") # Nuevo endpoint
-    print("🌐 Servidor ejecutándose en: http://localhost:8080")
+    print("   POST /users/visits/<id>/evidences - Subir evidencias")
+    print("   POST /users/upload/validate - Validar usuarios CSV (HU107)")
+    print("   POST /users/upload/insert - Insertar usuarios CSV (HU107)")
+    print(f"🌐 Servidor ejecutándose en: http://localhost:{port}")
     print("🔧 Versión: 2.1.4 - Proper ECS Deploy Test")
-    app.run(host='0.0.0.0', port=8080, debug=False)
+    app.run(host='0.0.0.0', port=port, debug=False)
