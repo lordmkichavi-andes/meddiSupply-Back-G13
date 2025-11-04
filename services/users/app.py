@@ -591,6 +591,66 @@ def create_app():
                 "success": False,
                 "message": "¡Ups! Hubo un problema, intenta nuevamente en unos minutos"
             }), 500
+
+    # ==========================
+    # HU38 - CERRAR SESIÓN
+    # ==========================
+    @app.route('/users/logout', methods=['POST'])
+    def logout_endpoint():
+        """
+        Cierre de sesión:
+        - Preferente: recibe access_token y ejecuta global_sign_out.
+        - Alternativa: recibe identification o correo y ejecuta admin_user_global_sign_out.
+        """
+        try:
+            data = request.get_json(silent=True) or {}
+            access_token = data.get('access_token')
+            identification = data.get('identification') or data.get('identificacion')
+            email = data.get('correo') or data.get('email')
+
+            # 1) Si viene access_token, usar global_sign_out
+            if access_token:
+                from cognito_service import global_sign_out
+                ok, err = global_sign_out(access_token)
+                if not ok:
+                    return jsonify({"success": False, "message": f"No se pudo cerrar sesión: {err}"}), 400
+                return jsonify({"success": True, "message": "Sesión cerrada correctamente"}), 200
+
+            # 2) Si no hay token, intentar por username (identification)
+            from cognito_service import admin_global_sign_out
+            username = None
+
+            if identification:
+                username = str(identification).strip()
+            elif email:
+                # Buscar identification en BD por correo
+                try:
+                    conn = get_connection()
+                    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                    cursor.execute(
+                        "SELECT identification FROM users.users WHERE LOWER(email)=LOWER(%s)", (email.strip(),)
+                    )
+                    row = cursor.fetchone()
+                    cursor.close(); release_connection(conn)
+                    if row and row.get('identification'):
+                        username = str(row['identification']).strip()
+                except Exception:
+                    try:
+                        release_connection(conn)
+                    except Exception:
+                        pass
+
+            if not username:
+                return jsonify({"success": False, "message": "Campo obligatorio: access_token o identification/correo"}), 400
+
+            ok, err = admin_global_sign_out(username)
+            if not ok:
+                return jsonify({"success": False, "message": f"No se pudo cerrar sesión: {err}"}), 400
+
+            return jsonify({"success": True, "message": "Sesión cerrada correctamente"}), 200
+
+        except Exception:
+            return jsonify({"success": False, "message": "¡Ups! Hubo un problema, intenta nuevamente en unos minutos"}), 500
     
     return app
 

@@ -196,3 +196,33 @@ def get_username_from_email_or_identification(email: str, identification: Option
     username = email.split('@')[0].lower().strip()
     return username
 
+
+def global_sign_out(access_token: str) -> Tuple[bool, Optional[str]]:
+    """
+    Cierra sesión global del usuario usando el AccessToken (invalida refresh tokens).
+    """
+    cognito = get_cognito_client()
+    try:
+        cognito.global_sign_out(AccessToken=access_token)
+        return True, None
+    except ClientError as e:
+        msg = e.response['Error']['Message']
+        return False, msg
+    except Exception as e:
+        return False, str(e)
+
+
+def admin_global_sign_out(username: str) -> Tuple[bool, Optional[str]]:
+    """
+    Cierra sesión global de un usuario por username (identification), invalida tokens.
+    """
+    cognito = get_cognito_client()
+    try:
+        cognito.admin_user_global_sign_out(UserPoolId=USER_POOL_ID, Username=username)
+        return True, None
+    except ClientError as e:
+        msg = e.response['Error']['Message']
+        return False, msg
+    except Exception as e:
+        return False, str(e)
+
