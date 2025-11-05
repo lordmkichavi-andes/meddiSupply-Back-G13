@@ -40,7 +40,7 @@ class TestDomainEntities:
             order_value=100,
             status_id=3,
             estimated_delivery_date=MOCK_DELIVERY_DATE,
-            orders=[]
+            items=[]
         )
         assert order.order_id == "ORD-123"
         assert order.status_id == 3
@@ -56,7 +56,7 @@ class TestDomainEntities:
             order_value=100,
             status_id=1,
             estimated_delivery_date=None,
-            orders=[]
+            items=[]
         )
         assert order.order_id == "ORD-456"
         assert order.estimated_delivery_date is None
@@ -74,7 +74,7 @@ class TestDomainEntities:
             last_updated_date=MOCK_DATE,
             order_value=100,
             status_id=status_id,
-            orders=[]
+            items=[]
         )
         # La propiedad .status debe devolver OrderStatus
         assert isinstance(order.status, OrderStatus)
@@ -92,7 +92,7 @@ class TestDomainEntities:
             last_updated_date=MOCK_DATE,
             order_value=100,
             status_id=UNKNOWN_ID,
-            orders=[]
+            items=[]
         )
         # Debe devolver el ID desconocido y el nombre 'Desconocido'
         assert order.status.id == UNKNOWN_ID
