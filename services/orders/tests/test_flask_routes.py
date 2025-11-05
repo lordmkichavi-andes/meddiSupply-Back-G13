@@ -26,6 +26,7 @@ MOCK_HISTORY_DATA = [
 
 NEW_ORDER_REQUEST = {
     "client_id": 4,
+    "seller_id": 1,
     "status_id": 1,
     "estimated_delivery_time": "2025-12-01T10:00:00",
     "products": [
@@ -36,6 +37,7 @@ NEW_ORDER_REQUEST = {
 
 INCOMPLETE_PRODUCT_REQUEST = {
     "client_id": 4,
+    "seller_id": 1,
     "products": [
         {"product_id": 50, "quantity": 2, "price_unit": 50.0},
         {"product_id": 51, "price_unit": 75.0} # Falta quantity, línea 66 en flask_routes.py
