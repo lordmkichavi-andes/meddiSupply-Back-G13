@@ -135,8 +135,10 @@ def create_sales_plan(plan_data: Dict[str, Any]) -> Optional[int]:
         return None
 
 
-def get_sales_plans(region: Optional[str] = None) -> List[Dict[str, Any]]:
-    """Obtiene los planes de venta, opcionalmente filtrados por región."""
+def get_sales_plans(region: Optional[str] = None,
+                    quarter: Optional[str] = None,
+                    year: Optional[int] = None) -> List[Dict[str, Any]]:
+    """Obtiene los planes de venta, filtrando por región/quarter/año si se especifican."""
     base_query = """
     SELECT 
         sp.plan_id,
@@ -148,15 +150,27 @@ def get_sales_plans(region: Optional[str] = None) -> List[Dict[str, Any]]:
         sp.creation_date
     FROM offers.sales_plans sp
     """
-    
+
+    clauses = []
+    params: List[Any] = []  # type: ignore
+
     if region:
-        query = base_query + " WHERE sp.region = %s ORDER BY sp.creation_date DESC"
-        params = (region,)
+        clauses.append("sp.region = %s")
+        params.append(region)
+    if quarter:
+        clauses.append("sp.quarter = %s")
+        params.append(quarter)
+    if year is not None:
+        clauses.append("sp.year = %s")
+        params.append(year)
+
+    if clauses:
+        query = base_query + " WHERE " + " AND ".join(clauses) + " ORDER BY sp.creation_date DESC"
     else:
         query = base_query + " ORDER BY sp.creation_date DESC"
-        params = None
-    
-    result = execute_query(query, params, fetch_all=True)
+        params = []
+
+    result = execute_query(query, tuple(params) if params else None, fetch_all=True)
     return result or []
 
 

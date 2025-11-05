@@ -12,6 +12,11 @@ from dateutil.relativedelta import relativedelta
 logger = logging.getLogger(__name__)
 
 
+class RegionMismatchError(Exception):
+    """Excepción cuando la región proporcionada no coincide con la región del vendedor."""
+    pass
+
+
 def get_connection():
     """Obtiene conexión a la base de datos transaccional."""
     try:
@@ -70,7 +75,7 @@ def get_vendors() -> List[Dict[str, Any]]:
     FROM
         users.sellers s
     JOIN
-        users.Users u ON s.user_id = u.user_id
+        users.users u ON s.user_id = u.user_id
     ORDER BY
     name
     """
@@ -296,8 +301,20 @@ def _get_plan_by_params(region: str, quarter: str, year: int) -> Optional[Dict[s
     data = _http_get(url, params={"region": region, "quarter": quarter, "year": year})
     if not data:
         return None
-    # Si la respuesta es lista, escoger el primero activo o el primero
+    # Si la respuesta es lista, filtrar por quarter/year exactos y priorizar activo
     if isinstance(data, list):
+        filtered = [
+            item for item in data
+            if str(item.get('quarter')).upper() == str(quarter).upper()
+            and int(item.get('year')) == int(year)
+        ]
+        # Priorizar activo entre los filtrados; si no hay, tomar el primero filtrado
+        for item in filtered:
+            if item.get('is_active') is True:
+                return item
+        if filtered:
+            return filtered[0]
+        # Como último recurso, mantener la lógica previa (activo primero)
         for item in data:
             if item.get('is_active') is True:
                 return item
@@ -360,6 +377,17 @@ def _status_from_pct(pct: float) -> str:
     return 'rojo'
 
 
+def _get_vendor_region(vendor_id: int) -> Optional[str]:
+    """Obtiene la región (zone) del vendedor desde la base de datos."""
+    query = """
+    SELECT s.zone AS region
+    FROM users.sellers s
+    WHERE s.seller_id = %s
+    """
+    result = execute_query(query, (vendor_id,), fetch_one=True)
+    return result.get('region') if result else None
+
+
 def get_sales_compliance(vendor_id: int,
                          plan_id: Optional[int] = None,
                          region: Optional[str] = None,
@@ -368,18 +396,54 @@ def get_sales_compliance(vendor_id: int,
     """Calcula cumplimiento de metas sin crear nuevas tablas.
 
     - Obtiene metas desde Offer Manager (por plan_id o por region/quarter/year).
+    - Valida que el vendedor pertenezca a la región del plan.
     - Deriva rango de fechas del quarter/year del plan.
     - Consulta ventas totales y por producto en orders.*.
     - Calcula cumplimiento por producto y total.
     """
+    # 0) Obtener región del vendedor
+    vendor_region = _get_vendor_region(int(vendor_id))
+    if not vendor_region:
+        logger.warning(f"Vendedor {vendor_id} no encontrado")
+        return None
+    
     # 1) Obtener plan/meta
     plan = None
     if plan_id is not None:
         plan = _get_plan_by_id(int(plan_id))
+        if plan:
+            # Si se pasó plan_id, validar que la región coincida
+            plan_region = plan.get('region')
+            if plan_region and plan_region != vendor_region:
+                raise RegionMismatchError(
+                    f"El plan {plan_id} pertenece a la región '{plan_region}', "
+                    f"pero el vendedor {vendor_id} pertenece a la región '{vendor_region}'. "
+                    f"La región del plan debe coincidir con la región del vendedor."
+                )
     elif region and quarter and year:
+        # Si se proporciona región explícitamente, rechazar si no coincide
+        if region != vendor_region:
+            raise RegionMismatchError(
+                f"La región proporcionada '{region}' no coincide con la región del vendedor '{vendor_region}'. "
+                f"El vendedor {vendor_id} pertenece a la región '{vendor_region}'."
+            )
         plan = _get_plan_by_params(region, quarter, int(year))
+    elif quarter and year:
+        # Si no se proporciona región, usar la región del vendedor automáticamente
+        plan = _get_plan_by_params(vendor_region, quarter, int(year))
+        region = vendor_region
+    
     if not plan:
         return None
+    
+    # Validación final: asegurar que la región del plan coincide con la del vendedor
+    plan_region = plan.get('region')
+    if plan_region and plan_region != vendor_region:
+        raise RegionMismatchError(
+            f"El plan encontrado pertenece a la región '{plan_region}', "
+            f"pero el vendedor {vendor_id} pertenece a la región '{vendor_region}'. "
+            f"La región del plan debe coincidir con la región del vendedor."
+        )
 
     # 2) Derivar fechas del plan
     plan_quarter = plan.get('quarter') or quarter

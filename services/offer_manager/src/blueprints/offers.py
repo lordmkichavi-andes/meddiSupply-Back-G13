@@ -186,8 +186,10 @@ def get_sales_plans_endpoint():
     """Obtener planes de venta."""
     try:
         region = request.args.get('region', type=str)
-        
-        plans_data = get_sales_plans(region=region)
+        quarter = request.args.get('quarter', type=str)
+        year = request.args.get('year', type=int)
+
+        plans_data = get_sales_plans(region=region, quarter=quarter, year=year)
         plans = [SalesPlan.from_dict(plan) for plan in plans_data]
         
         return jsonify([plan.to_dict() for plan in plans]), 200

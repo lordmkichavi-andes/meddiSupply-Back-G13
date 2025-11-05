@@ -6,7 +6,8 @@ from ..db import (
     get_periods, 
     get_sales_report_data, 
     validate_sales_data_availability,
-    get_sales_compliance
+    get_sales_compliance,
+    RegionMismatchError
 )
 from ..models.vendor import Vendor
 from ..models.sales_report import SalesReport
@@ -159,11 +160,11 @@ def get_sales_compliance_endpoint():
                 'error_type': 'validation_error'
             }), 400
         
-        # Validar que se proporcione plan_id o (region, quarter, year)
-        if not plan_id and not (region and quarter and year):
+        # Validar que se proporcione plan_id o (quarter, year) - región es opcional, se obtiene del vendedor
+        if not plan_id and not (quarter and year):
             return jsonify({
                 'success': False,
-                'message': 'Debe proporcionar plan_id o (region, quarter, year)',
+                'message': 'Debe proporcionar plan_id o (quarter, year). La región es opcional y se obtendrá del vendedor.',
                 'error_type': 'validation_error'
             }), 400
         
@@ -188,6 +189,12 @@ def get_sales_compliance_endpoint():
             'data': result
         })
         
+    except RegionMismatchError as e:
+        return jsonify({
+            'success': False,
+            'message': str(e),
+            'error_type': 'region_mismatch'
+        }), 400
     except ValueError as e:
         return jsonify({
             'success': False,
