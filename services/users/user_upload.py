@@ -214,6 +214,30 @@ def validate_users_data(users_data: List[Dict[str, Any]]) -> Tuple[bool, List[st
     return is_valid, errors, warnings, validated_users
 
 
+def _sync_user_id_sequence(conn, cursor):
+    """
+    Sincroniza la secuencia de user_id con el máximo valor actual en la tabla.
+    Esto previene errores de 'duplicate key' cuando la secuencia está desincronizada.
+    """
+    try:
+        # Obtener el máximo user_id actual
+        cursor.execute("SELECT COALESCE(MAX(user_id), 0) AS max_id FROM users.users")
+        max_id_result = cursor.fetchone()
+        
+        # RealDictCursor devuelve dict, cursor normal devuelve tuple
+        if isinstance(max_id_result, dict):
+            max_id = max_id_result.get('max_id', 0)
+        else:
+            max_id = max_id_result[0] if max_id_result else 0
+        
+        # Sincronizar la secuencia (false = no usar ese valor como próximo, true = usarlo como próximo)
+        cursor.execute("SELECT setval('users.users_user_id_seq', %s, true)", (max_id,))
+        print(f"✅ Secuencia de user_id sincronizada a {max_id}")
+    except Exception as e:
+        print(f"⚠️  Advertencia: No se pudo sincronizar la secuencia: {str(e)}")
+        # No fallar si no se puede sincronizar, continuar con la inserción
+
+
 def insert_users(users_data: List[Dict[str, Any]], conn, cursor, data_string: str, file_name: str = 'json_upload', file_type: str = 'csv') -> Tuple[int, int, List[str], Optional[int], List[str]]:
     """
     Inserta los usuarios validados en la base de datos.
@@ -240,11 +264,18 @@ def insert_users(users_data: List[Dict[str, Any]], conn, cursor, data_string: st
         file_type = 'csv'
     file_type = file_type[:10]
     
-    # Procesar cada usuario
+    # Sincronizar secuencia de user_id antes de insertar
+    _sync_user_id_sequence(conn, cursor)
+    
+    # Procesar cada usuario con SAVEPOINT para permitir inserción parcial
     for index, user in enumerate(users_data):
         row_num = index + 1
+        savepoint_name = f"sp_user_{index}"
         
         try:
+            # Crear SAVEPOINT para esta inserción individual
+            cursor.execute(f"SAVEPOINT {savepoint_name}")
+            
             # Separar nombre completo en name y last_name
             nombre_completo = user.get('nombre', '').strip()
             nombre_partes = nombre_completo.split(maxsplit=1)
@@ -309,9 +340,18 @@ def insert_users(users_data: List[Dict[str, Any]], conn, cursor, data_string: st
                 print(f"⚠️  Error creando usuario en Cognito: {str(cognito_ex)}")
                 warnings.append(f"Fila {row_num}: Error creando en Cognito - {str(cognito_ex)}")
             
+            # Liberar SAVEPOINT si todo salió bien
+            cursor.execute(f"RELEASE SAVEPOINT {savepoint_name}")
             successful_records += 1
             
         except Exception as e:
+            # En caso de error, hacer ROLLBACK al SAVEPOINT para continuar con el siguiente usuario
+            try:
+                cursor.execute(f"ROLLBACK TO SAVEPOINT {savepoint_name}")
+            except Exception as rollback_error:
+                # Si el savepoint no existe o hay otro error, continuar de todas formas
+                print(f"⚠️  Advertencia: No se pudo hacer rollback al savepoint: {str(rollback_error)}")
+            
             error_msg = f"Fila {row_num}: Error al insertar usuario - {str(e)}"
             print(f"Error insertando usuario {row_num}: {str(e)}")
             processed_errors.append(error_msg)
