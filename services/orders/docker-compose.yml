@@ -1,29 +1,49 @@
 version: '3.8'
 
 services:
+  # Servicio de Base de Datos PostgreSQL
+  db:
+    image: postgres:14-alpine
+    container_name: postgres_rdwo
+    restart: always
+    environment:
+      # Variables usadas por la imagen oficial de PostgreSQL
+      POSTGRES_DB: medisupplydb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      # Mapea el puerto del contenedor (5432) al puerto local (5432)
+      - "5432:5432"
+    healthcheck: # <--- Esto es lo que falta
+      test: [ "CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+
   # Servicio del Microservicio Flask
   app:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: orders
-    # Ya NO necesitamos 'depends_on' ni 'db' si la DB no está definida aquí.
-    # ELIMINAR depends_on COMPLETAMENTE.
-    
+    depends_on: # <--- La dependencia debe ser condicional
+      db:
+        condition: service_healthy
     environment:
-      # 🎯 DB_HOST ahora apunta a tu MÁQUINA HOST
-      # 'host.docker.internal' es un alias especial para acceder al host desde Docker Desktop.
-      DB_HOST: host.docker.internal 
-      DB_PORT: 5440
-      # 🎯 Usar el nombre de la DB que existe en el otro contenedor
-      DB_NAME: offer_manager_db 
+      # Variables de entorno para la aplicación (deben coincidir con config.py)
+      # DB_HOST debe ser el nombre del servicio de la DB (db)
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: medisupplydb
       DB_USER: postgres
       DB_PASSWORD: postgres
-      # La inicialización sigue siendo necesaria
+      # Asegura que la inicialización se ejecute
       RUN_DB_INIT_ON_STARTUP: "True"
-    
     ports:
-      - "8081:8080"
-    
-    # El comando se simplifica al no esperar una dependencia interna.
-    command: ["sh", "-c", "python app.py"]
+      - "8080:8080"
+    # Este comando es una práctica de robustez para esperar que la DB esté lista.
+    # Le da a PostgreSQL tiempo para inicializarse antes de que Python intente conectarse.
+    command: ["sh", "-c", "sleep 5 && python app.py"]
+
+
