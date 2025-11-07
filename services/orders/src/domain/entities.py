@@ -40,8 +40,11 @@ class Order:
     status_id: int
     items: List[OrderItem]
     order_value: int
-    seller_id: int = 0
-    estimated_delivery_date: Optional[datetime] = None
+    seller_id: int
+    estimated_delivery_date: Optional[datetime] = None,
+    address: str = ""
+    client_name: str = ""
+    seller_name: str = ""
 
 
 

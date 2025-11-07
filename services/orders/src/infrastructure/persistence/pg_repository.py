@@ -215,15 +215,31 @@ class PgOrderRepository(OrderRepository):
 
             sql_query = """
                         SELECT 
-                            o.order_id, o.client_id, o.creation_date, o.total_value,
-                            o.last_updated_date, o.estimated_delivery_date, o.status_id,
-                            ol.quantity, ol.price_unit,
-                            p.product_id, p.sku, p.name AS product_name
-                        FROM orders.Orders o
-                        JOIN orders.OrderLines ol ON o.order_id = ol.order_id
-                        JOIN products.Products p ON ol.product_id = p.product_id
-                        WHERE o.order_id = %s
-                        ORDER BY o.creation_date DESC, o.order_id;
+                        o.order_id, 
+                        o.client_id, 
+                        o.creation_date, 
+                        o.total_value,
+                        o.last_updated_date, 
+                        o.estimated_delivery_date, 
+                        o.status_id,
+                        c.address AS client_address,
+                        uc.name||' '||uc.last_name AS client_name,
+                        us.name||' '||us.last_name AS seller_name,
+                        o.seller_id,
+                        ol.quantity, 
+                        ol.price_unit,
+                        p.product_id, 
+                        p.sku, 
+                        p.name AS product_name
+                    FROM orders.Orders o
+                    JOIN orders.OrderLines ol ON o.order_id = ol.order_id
+                    JOIN products.Products p ON ol.product_id = p.product_id
+                    JOIN users.Clients c ON o.client_id = c.client_id
+                    JOIN users.Users uc ON c.user_id = uc.user_id
+                    JOIN users.sellers s ON o.seller_id = s.seller_id
+                    JOIN users.Users us ON s.user_id = us.user_id
+                    WHERE o.order_id = %s
+                    ORDER BY o.creation_date DESC, o.order_id;
                     """
 
             cursor.execute(sql_query, (order_id,))
@@ -250,6 +266,10 @@ class PgOrderRepository(OrderRepository):
                 last_updated_date=result_rows[0][4].isoformat(),
                 estimated_delivery_date=result_rows[0][5].isoformat(),
                 status_id=result_rows[0][6],
+                address = result_rows[0][7],
+                client_name = result_rows[0][8],
+                seller_name = result_rows[0][9],
+                seller_id = result_rows[0][10],
                 items=order_lines
             )
 
