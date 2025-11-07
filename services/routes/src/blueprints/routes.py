@@ -32,7 +32,7 @@ def get_clients():
 def get_seller_daily_routes(seller_ID):
     clients_data = get_clientes_by_seller(seller_ID)
     # El número de clientes a visitar es aleatorio, pero no puede exceder el total disponible.
-    num_clientes_a_visitar = random.randint(1, min(5, len(clients_data)))
+    num_clientes_a_visitar = 4
 
     # 4. Seleccionar aleatoriamente el subconjunto de clientes
     # random.sample garantiza la selección sin reemplazo
