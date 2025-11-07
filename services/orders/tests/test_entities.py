@@ -35,6 +35,7 @@ class TestDomainEntities:
         order = Order(
             order_id="ORD-123",
             client_id="1",
+            seller_id=1,
             creation_date=MOCK_DATE,
             last_updated_date=MOCK_DATE,
             order_value=100,
@@ -51,6 +52,7 @@ class TestDomainEntities:
         order = Order(
             order_id="ORD-456",
             client_id="1",
+            seller_id=1,
             creation_date=MOCK_DATE,
             last_updated_date=MOCK_DATE,
             order_value=100,
@@ -70,6 +72,7 @@ class TestDomainEntities:
         order = Order(
             order_id="ORD-789",
             client_id="1",
+            seller_id=1,
             creation_date=MOCK_DATE,
             last_updated_date=MOCK_DATE,
             order_value=100,
@@ -88,6 +91,7 @@ class TestDomainEntities:
         order = Order(
             order_id="ORD-000",
             client_id="1",
+            seller_id=1,
             creation_date=MOCK_DATE,
             last_updated_date=MOCK_DATE,
             order_value=100,
