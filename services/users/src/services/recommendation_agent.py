@@ -5,38 +5,11 @@ import requests
 import random
 import logging
 from typing import List, Dict, Any, Optional
-from src.clients.products_client import products_client
-from src.clients.orders_client import orders_client
 from src.domain.interfaces import UserRepository
+import logging
 
-def get_products() -> List[Dict[str, Any]]:
-    """Obtiene todos los productos activos para el selector a través del microservicio de products."""
-    try:
-        return products_client.get_all_active_products()
-    except Exception as e:
-        logger.error(f"Error obteniendo productos del microservicio: {e}")
-        return []
+logger = logging.getLogger(__name__)
 
-def get_client_data(client_id: int) -> List[Dict[str, Any]]:
-    """
-    Función helper para obtener la data del cliente.
-    """
-    try:
-        return orders_client.get_client_detail(client_id)
-    except Exception as e:
-        logger.error(f"Fallo grave al usar el cliente: {e}")
-        return []
-
-def get_client_history(client_id: int) -> List[Dict[str, Any]]:
-    """
-    Función helper para obtener el historial de compras usando el cliente.
-    """
-    try:
-        return orders_client.get_client_purchase_history(client_id)
-    except Exception as e:
-        logger.error(f"Fallo grave al usar el cliente de órdenes: {e}")
-        return []
-        
 class RecommendationAgent:
     """
     Encapsula toda la lógica de obtención de inteligencia y la invocación 
@@ -161,7 +134,7 @@ class RecommendationAgent:
                     f"{self.GEMINI_API_URL}?key={self.API_KEY}", 
                     json=payload, 
                     headers=headers, 
-                    timeout=30
+                    timeout=60
                 )
                 
                 if response.status_code == 200:
@@ -199,10 +172,13 @@ class RecommendationAgent:
         Main agent workflow: collects data and calls the AI.
         """
         
-        catalog = get_products()
-        client_profile = get_client_data(client_id)
+        catalog = self.user_repository.get_products() 
+        logger.error(f"catalog: {catalog}")
+        client_profile = self.user_repository.db_get_client_data(client_id)
+        logger.error(f"client_profile: {client_profile}")
         media_data = self.user_repository.get_recent_evidences_by_client(client_id) 
-        client_purchase_history = get_client_history(client_id)
+        logger.error(f"media_data: {media_data}")
+        client_purchase_history = self.user_repository.get_recent_purchase_history(client_id)
 
         if client_profile is None or not catalog:
              return None

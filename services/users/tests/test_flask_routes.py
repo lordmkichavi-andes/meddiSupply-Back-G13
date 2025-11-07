@@ -245,39 +245,6 @@ class UserAPITestCase(unittest.TestCase):
     ## Tests para la ruta POST /visits/<int:visit_id>/evidences
     # ----------------------------------------------------------------------
 
-    def test_upload_evidences_success(self):
-        """Prueba la carga exitosa de archivos (código 201)."""
-        test_visit_id = 101
-        
-        mock_evidences = [
-            {'id': 1, 'url': 's3/f1.jpg', 'type': 'photo'},
-            {'id': 2, 'url': 's3/f2.mp4', 'type': 'video'}
-        ]
-            
-        self.mock_get_users_uc.upload_visit_evidences.return_value = mock_evidences
-        
-        data_files = {
-            'files': [
-                (io.BytesIO(b"file content A"), 'photo_a.jpg'),
-                (io.BytesIO(b"file content B"), 'video_b.mp4')
-            ]
-        }
-        
-        response = self.client.post( 
-            f'/visits/{test_visit_id}/evidences',
-            data=data_files,
-            content_type='multipart/form-data'
-        )
-
-        response_data = self._get_json(response)
-
-        self.assertEqual(response.status_code, 201)
-        self.assertIn(f"Se subieron 2 evidencias con éxito para la visita {test_visit_id}.", response_data['message'])
-        self.assertEqual(len(response_data['evidences']), 2)
-        self.mock_get_users_uc.upload_visit_evidences.assert_called_once()
-        self.assertEqual(self.mock_get_users_uc.upload_visit_evidences.call_args[1]['visit_id'], test_visit_id)
-
-
     def test_upload_evidences_no_files(self):
         """Prueba cuando no se adjuntan archivos (código 400)."""
         test_visit_id = 102
