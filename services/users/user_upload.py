@@ -359,3 +359,280 @@ def insert_users(users_data: List[Dict[str, Any]], conn, cursor, data_string: st
     
     return successful_records, failed_records, processed_errors, None, warnings
 
+
+def validate_sellers_data(sellers_data: List[Dict[str, Any]]) -> Tuple[bool, List[str], List[str], List[Dict[str, Any]]]:
+    """
+    Valida los vendedores antes de insertarlos en la base de datos.
+    Similar a validate_users_data pero incluye validación de zona.
+    
+    Args:
+        sellers_data: Lista de diccionarios con vendedores a validar
+        
+    Returns:
+        Tupla: (is_valid: bool, errors: list, warnings: list, validated_sellers: list)
+    """
+    errors = []
+    warnings = []
+    validated_sellers = []
+    
+    # Validar que sea una lista y no esté vacía
+    if not isinstance(sellers_data, list):
+        errors.append("Los datos deben ser un array de vendedores")
+        return False, errors, warnings, validated_sellers
+    
+    if not sellers_data:
+        errors.append("No se recibieron vendedores para procesar")
+        return False, errors, warnings, validated_sellers
+    
+    # Validar correos e identificaciones duplicadas en el archivo
+    emails_in_file = {}
+    identifications_in_file = {}
+    for index, seller in enumerate(sellers_data):
+        if isinstance(seller, dict):
+            # Validar correo duplicado
+            if 'correo' in seller:
+                email = str(seller['correo']).strip().lower()
+                if email in emails_in_file:
+                    errors.append(f"¡Ups! Existen vendedores duplicados, revisa el archivo")
+                    return False, errors, warnings, validated_sellers
+                emails_in_file[email] = index + 1
+            
+            # Validar identification duplicada
+            identification = seller.get('identificacion') or seller.get('identification')
+            if identification:
+                identification = str(identification).strip()
+                if identification in identifications_in_file:
+                    errors.append(f"¡Ups! Existen vendedores duplicados, revisa el archivo")
+                    return False, errors, warnings, validated_sellers
+                identifications_in_file[identification] = index + 1
+    
+    # Validar cada vendedor
+    for index, seller in enumerate(sellers_data):
+        row_num = index + 1
+        
+        # Verificar que sea un diccionario
+        if not isinstance(seller, dict):
+            errors.append("¡Ups! El archivo tiene errores de validación, revisa y sube nuevamente")
+            continue
+        
+        user_errors = []
+        
+        # Campos requeridos: nombre, apellido, correo, identificacion, telefono, zona, contraseña
+        required_fields = ['nombre', 'apellido', 'correo', 'identificacion', 'telefono', 'zona', 'contraseña']
+        for field in required_fields:
+            if field not in seller or seller[field] is None or str(seller[field]).strip() == '':
+                user_errors.append(f"Campo obligatorio faltante: {field}")
+        
+        if user_errors:
+            errors.extend(user_errors)
+            continue
+        
+        # Validar formato de correo
+        email = str(seller['correo']).strip().lower()
+        email_pattern = re.compile(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
+        if not email_pattern.match(email):
+            errors.append("¡Ups! El archivo tiene errores de validación, revisa y sube nuevamente")
+            continue
+        
+        # Validar fortaleza de contraseña
+        password = str(seller['contraseña']).strip()
+        is_valid_password, password_error = validate_password_strength(password)
+        if not is_valid_password:
+            errors.append("¡Ups! El archivo tiene errores de validación, revisa y sube nuevamente")
+            continue
+        
+        # Validar zona (no vacía)
+        zona = str(seller['zona']).strip()
+        if not zona:
+            errors.append("¡Ups! El archivo tiene errores de validación, revisa y sube nuevamente")
+            continue
+        
+        # Si no hay errores, agregar el vendedor a la lista de validados
+        validated_seller = {
+            'nombre': str(seller['nombre']).strip(),
+            'apellido': str(seller['apellido']).strip(),
+            'correo': email,
+            'identificacion': str(seller['identificacion']).strip(),
+            'telefono': str(seller['telefono']).strip(),
+            'zona': zona,
+            'contraseña': password,
+            'rol': 'SELLER'  # Siempre SELLER para vendedores
+        }
+        validated_sellers.append(validated_seller)
+    
+    # Validar correos e identificaciones duplicadas en la base de datos
+    if validated_sellers:
+        try:
+            conn = get_connection()
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            
+            # 1. Validar correos duplicados
+            emails_to_check = [s['correo'] for s in validated_sellers]
+            if emails_to_check:
+                placeholders = ','.join(['%s'] * len(emails_to_check))
+                cursor.execute(
+                    f"SELECT user_id, email FROM users.users WHERE LOWER(email) IN ({placeholders})",
+                    emails_to_check
+                )
+                existing_emails = cursor.fetchall()
+                
+                if existing_emails:
+                    errors.append("¡Ups! Existen vendedores duplicados, revisa el archivo")
+                    validated_sellers = []
+            
+            # 2. Validar identificaciones duplicadas (solo si no hay error de correos)
+            if not errors:
+                identifications_to_check = [s['identificacion'] for s in validated_sellers]
+                if identifications_to_check:
+                    placeholders = ','.join(['%s'] * len(identifications_to_check))
+                    cursor.execute(
+                        f"SELECT user_id, identification FROM users.users WHERE identification IN ({placeholders})",
+                        identifications_to_check
+                    )
+                    existing_identifications = cursor.fetchall()
+                    
+                    if existing_identifications:
+                        errors.append("¡Ups! Existen vendedores duplicados, revisa el archivo")
+                        validated_sellers = []
+            
+            cursor.close()
+            release_connection(conn)
+        except Exception as db_error:
+            print(f"Error validando en la base de datos: {str(db_error)}")
+            errors.append("¡Ups! Hubo un problema, intenta nuevamente en unos minutos")
+    
+    is_valid = len(errors) == 0 and len(validated_sellers) > 0
+    return is_valid, errors, warnings, validated_sellers
+
+
+def insert_sellers(sellers_data: List[Dict[str, Any]], conn, cursor, data_string: str, file_name: str = 'json_upload', file_type: str = 'csv') -> Tuple[int, int, List[str], Optional[int], List[str]]:
+    """
+    Inserta los vendedores validados en la base de datos.
+    Crea el usuario en users.users y el registro en users.sellers.
+    
+    Args:
+        sellers_data: Lista de vendedores validados a insertar
+        conn: Conexión a la base de datos
+        cursor: Cursor de la conexión
+        data_string: String original de los datos (para file_size)
+        file_name: Nombre del archivo (default: 'json_upload')
+        file_type: Tipo de archivo - debe ser 'csv' o 'xlsx' (default: 'csv')
+        
+    Returns:
+        Tupla: (successful_records: int, failed_records: int, errors: list, upload_id: Optional[int], warnings: list)
+    """
+    successful_records = 0
+    failed_records = 0
+    processed_errors = []
+    warnings = []
+    
+    # Validar file_type
+    allowed_file_types = ['csv', 'xlsx', 'xls']
+    if file_type.lower() not in allowed_file_types:
+        file_type = 'csv'
+    file_type = file_type[:10]
+    
+    # Sincronizar secuencia de user_id antes de insertar
+    _sync_user_id_sequence(conn, cursor)
+    
+    # Procesar cada vendedor con SAVEPOINT para permitir inserción parcial
+    for index, seller in enumerate(sellers_data):
+        row_num = index + 1
+        savepoint_name = f"sp_seller_{index}"
+        
+        try:
+            # Crear SAVEPOINT para esta inserción individual
+            cursor.execute(f"SAVEPOINT {savepoint_name}")
+            
+            name = str(seller['nombre']).strip()
+            last_name = str(seller['apellido']).strip()
+            identification = str(seller['identificacion']).strip()
+            zona = str(seller['zona']).strip()
+            
+            # Insertar usuario
+            user_insert = """
+                INSERT INTO users.users
+                (name, last_name, password, identification, phone, email, active, role)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING user_id
+            """
+            cursor.execute(user_insert, (
+                name,
+                last_name,
+                seller['contraseña'],
+                identification,
+                seller.get('telefono'),
+                seller['correo'],
+                True,  # active por defecto
+                'SELLER'  # Siempre SELLER
+            ))
+            
+            user_result = cursor.fetchone()
+            # RealDictCursor devuelve dict, cursor normal devuelve tuple
+            if isinstance(user_result, dict):
+                user_id = user_result.get('user_id')
+            else:
+                user_id = user_result[0] if user_result else None
+            
+            if not user_id:
+                raise Exception("No se pudo obtener user_id después de insertar usuario")
+            
+            # Insertar en users.sellers
+            seller_insert = """
+                INSERT INTO users.sellers (user_id, zone)
+                VALUES (%s, %s)
+                RETURNING seller_id
+            """
+            cursor.execute(seller_insert, (user_id, zona))
+            
+            seller_result = cursor.fetchone()
+            if isinstance(seller_result, dict):
+                seller_id = seller_result.get('seller_id')
+            else:
+                seller_id = seller_result[0] if seller_result else None
+            
+            if not seller_id:
+                raise Exception("No se pudo obtener seller_id después de insertar vendedor")
+            
+            # Crear usuario en Cognito
+            try:
+                username = get_username_from_email_or_identification(seller['correo'], identification)
+                group_name = map_role_to_cognito_group('SELLER')  # Siempre 'ventas' para vendedores
+                
+                password_for_cognito = seller['contraseña']
+                
+                cognito_success, cognito_user_id, cognito_error = create_user_in_cognito(
+                    username=username,
+                    email=seller['correo'],
+                    password=password_for_cognito,
+                    group_name=group_name
+                )
+                
+                if not cognito_success:
+                    print(f"⚠️  Advertencia: Vendedor insertado en BD pero falló en Cognito: {cognito_error}")
+                    warnings.append(f"Fila {row_num}: Vendedor creado en BD pero no en Cognito - {cognito_error}")
+                else:
+                    print(f"✅ Vendedor creado en Cognito: {username}")
+            except Exception as cognito_ex:
+                print(f"⚠️  Error creando vendedor en Cognito: {str(cognito_ex)}")
+                warnings.append(f"Fila {row_num}: Error creando en Cognito - {str(cognito_ex)}")
+            
+            # Liberar SAVEPOINT si todo salió bien
+            cursor.execute(f"RELEASE SAVEPOINT {savepoint_name}")
+            successful_records += 1
+            print(f"✅ Vendedor insertado: {name} {last_name} (user_id: {user_id}, seller_id: {seller_id}, zona: {zona})")
+            
+        except Exception as e:
+            # En caso de error, hacer ROLLBACK al SAVEPOINT para continuar con el siguiente vendedor
+            try:
+                cursor.execute(f"ROLLBACK TO SAVEPOINT {savepoint_name}")
+            except Exception as rollback_error:
+                print(f"⚠️  Advertencia: No se pudo hacer rollback al savepoint: {str(rollback_error)}")
+            
+            error_msg = f"Fila {row_num}: Error al insertar vendedor - {str(e)}"
+            print(f"Error insertando vendedor {row_num}: {str(e)}")
+            processed_errors.append(error_msg)
+            failed_records += 1
+    
+    return successful_records, failed_records, processed_errors, None, warnings
+

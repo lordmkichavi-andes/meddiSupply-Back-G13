@@ -17,7 +17,7 @@ from config import Config
 from src.services.storage_service import StorageService 
 from src.services.recommendation_agent import RecommendationAgent 
 from src.application.generate_recommendations_usecase import GenerateRecommendationsUseCase
-from user_upload import validate_users_data, insert_users
+from user_upload import validate_users_data, insert_users, validate_sellers_data, insert_sellers
 from login_service import authenticate_user
 
 load_dotenv()
@@ -158,6 +158,8 @@ def create_app():
                 "POST /users/visit - Registra la visita del vendedor",
                 "POST /users/upload/validate - Validar usuarios CSV (HU107)",
                 "POST /users/upload/insert - Insertar usuarios CSV (HU107)",
+                "POST /users/sellers/upload/validate - Validar vendedores CSV",
+                "POST /users/sellers/upload/insert - Insertar vendedores CSV",
                 "POST /users/login - Iniciar sesión (HU37)"
             ],
             "microservicio": "usuarios",
@@ -553,10 +555,9 @@ def create_app():
             
             email = data.get('correo') or data.get('email')
             password = data.get('contraseña') or data.get('password')
-            identification = data.get('identification') or data.get('identificacion')
             
             # 2. Autenticar usuario
-            is_authenticated, user_data, error_message = authenticate_user(email, password, identification)
+            is_authenticated, user_data, error_message = authenticate_user(email, password)
             
             if not is_authenticated:
                 return jsonify({
@@ -652,6 +653,262 @@ def create_app():
         except Exception:
             return jsonify({"success": False, "message": "¡Ups! Hubo un problema, intenta nuevamente en unos minutos"}), 500
     
+    # ==========================
+    # REGISTRO DE VENDEDORES
+    # ==========================
+    
+    @app.route('/users/sellers/upload/validate', methods=['POST'])
+    def validate_sellers_endpoint():
+        """
+        Endpoint para validar vendedores sin insertarlos en la base de datos.
+        Solo realiza la validación y retorna el resultado.
+        """
+        print("=== INICIO VALIDACIÓN DE VENDEDORES ===")
+        
+        try:
+            # 1. Validar tamaño del archivo (máximo 5 MB)
+            content_length = request.content_length
+            if content_length and content_length > 5 * 1024 * 1024:  # 5 MB
+                return jsonify({
+                    "success": False,
+                    "message": "¡Ups! El archivo excede el tamaño permitido (máx. 5 MB).",
+                    "total_records": 0,
+                    "valid_records": 0,
+                    "invalid_records": 0,
+                    "errors": ["¡Ups! El archivo excede el tamaño permitido (máx. 5 MB)."],
+                    "warnings": []
+                }), 400
+            
+            # 2. Obtener y parsear datos del request
+            data_string = request.get_data(as_text=True)
+
+            if not data_string or data_string.strip() == '':
+                return jsonify({
+                    "success": False,
+                    "message": "No se recibieron datos para procesar",
+                    "total_records": 0,
+                    "valid_records": 0,
+                    "invalid_records": 0,
+                    "errors": ["No se recibieron datos para procesar"],
+                    "warnings": []
+                }), 400
+
+            print(f"Datos recibidos como string: {data_string[:200]}...")
+
+            # Limpiar el string
+            data_string = data_string.strip()
+
+            # Intentar parsear como JSON
+            try:
+                sellers_data = json.loads(data_string)
+            except json.JSONDecodeError as e:
+                return jsonify({
+                    "success": False,
+                    "message": "¡Ups! El formato del archivo no es válido",
+                    "total_records": 0,
+                    "valid_records": 0,
+                    "invalid_records": 0,
+                    "errors": ["¡Ups! El formato del archivo no es válido"],
+                    "warnings": []
+                }), 400
+
+            print(f"Vendedores parseados: {len(sellers_data)}")
+
+            # 3. Validar vendedores
+            is_valid, errors, warnings, validated_sellers = validate_sellers_data(sellers_data)
+
+            # Preparar respuesta
+            valid_records = len(validated_sellers)
+            invalid_records = len(sellers_data) - valid_records
+            
+            # Mensajes
+            if not is_valid:
+                if any("duplicados" in e.lower() for e in errors):
+                    message = "¡Ups! Existen vendedores duplicados, revisa el archivo"
+                else:
+                    message = "¡Ups! El archivo tiene errores de validación, revisa y sube nuevamente"
+            else:
+                message = f"Validación completada: {valid_records} vendedores válidos de {len(sellers_data)} totales"
+            
+            response_data = {
+                "success": is_valid,
+                "message": message,
+                "total_records": len(sellers_data),
+                "valid_records": valid_records,
+                "invalid_records": invalid_records,
+                "errors": errors,
+                "warnings": warnings,
+                "validated_sellers": validated_sellers if is_valid else []
+            }
+            
+            return jsonify(response_data), 200
+            
+        except Exception as e:
+            print(f"ERROR en validación: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            
+            return jsonify({
+                "success": False,
+                "message": "¡Ups! Hubo un problema, intenta nuevamente en unos minutos",
+                "total_records": len(sellers_data) if 'sellers_data' in locals() else 0,
+                "valid_records": 0,
+                "invalid_records": len(sellers_data) if 'sellers_data' in locals() else 0,
+                "errors": [f"Error interno: {str(e)}"],
+                "warnings": []
+            }), 500
+
+    @app.route('/users/sellers/upload/insert', methods=['POST'])
+    def insert_sellers_endpoint():
+        """
+        Endpoint para insertar vendedores validados en la base de datos.
+        Asume que los vendedores ya fueron validados previamente.
+        Crea el usuario en users.users y el registro en users.sellers.
+        """
+        print("=== INICIO INSERCIÓN DE VENDEDORES ===")
+        conn = None
+        cursor = None
+        
+        try:
+            # 1. Validar tamaño del archivo (máximo 5 MB)
+            content_length = request.content_length
+            if content_length and content_length > 5 * 1024 * 1024:  # 5 MB
+                return jsonify({
+                    "success": False,
+                    "message": "¡Ups! El archivo excede el tamaño permitido (máx. 5 MB).",
+                    "total_records": 0,
+                    "successful_records": 0,
+                    "failed_records": 0,
+                    "errors": ["¡Ups! El archivo excede el tamaño permitido (máx. 5 MB)."],
+                    "warnings": []
+                }), 400
+            
+            # 2. Obtener y parsear datos del request
+            data_string = request.get_data(as_text=True)
+
+            if not data_string or data_string.strip() == '':
+                return jsonify({
+                    "success": False,
+                    "message": "No se recibieron datos para procesar",
+                    "total_records": 0,
+                    "successful_records": 0,
+                    "failed_records": 0,
+                    "errors": ["No se recibieron datos para procesar"],
+                    "warnings": []
+                }), 400
+
+            print(f"Datos recibidos como string: {data_string[:200]}...")
+
+            # Limpiar el string
+            data_string = data_string.strip()
+
+            # Intentar parsear como JSON
+            try:
+                sellers_data = json.loads(data_string)
+            except json.JSONDecodeError as e:
+                return jsonify({
+                    "success": False,
+                    "message": "¡Ups! El formato del archivo no es válido",
+                    "total_records": 0,
+                    "successful_records": 0,
+                    "failed_records": 0,
+                    "errors": ["¡Ups! El formato del archivo no es válido"],
+                    "warnings": []
+                }), 400
+
+            print(f"Vendedores parseados para inserción: {len(sellers_data)}")
+
+            # 3. Validación rápida básica (estructura mínima)
+            if not isinstance(sellers_data, list) or not sellers_data:
+                return jsonify({
+                    "success": False,
+                    "message": "Los datos deben ser un array de vendedores no vacío",
+                    "total_records": 0,
+                    "successful_records": 0,
+                    "failed_records": 0,
+                    "errors": ["Los datos deben ser un array de vendedores no vacío"],
+                    "warnings": []
+                }), 400
+            
+            # 4. Determinar file_name y file_type desde headers o usar defaults
+            file_name = request.headers.get('X-File-Name')
+            file_type = request.headers.get('X-File-Type', 'csv')
+            
+            # Validar que file_type sea uno de los valores permitidos
+            allowed_file_types = ['csv', 'xlsx', 'xls']
+            if file_type.lower() not in allowed_file_types:
+                return jsonify({
+                    "success": False,
+                    "message": "¡Ups! El formato del archivo no es válido",
+                    "total_records": 0,
+                    "successful_records": 0,
+                    "failed_records": 0,
+                    "errors": ["¡Ups! El formato del archivo no es válido"],
+                    "warnings": []
+                }), 400
+            else:
+                file_type = file_type.lower()
+            
+            # Si no hay file_name, usar uno basado en timestamp
+            if not file_name:
+                timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+                file_name = f'sellers_upload_{timestamp}'
+            
+            # 5. Conectar a la base de datos e insertar
+            conn = get_connection()
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            print("Conexión a BD establecida")
+            
+            # Insertar vendedores
+            successful_records, failed_records, processed_errors, upload_id, insert_warnings = insert_sellers(
+                sellers_data, conn, cursor, data_string, file_name=file_name, file_type=file_type
+            )
+            
+            # Commit de la transacción
+            conn.commit()
+            print(f"Transacción completada. Exitosos: {successful_records}, Fallidos: {failed_records}")
+
+            # Determinar si fue exitoso
+            success = failed_records == 0
+            
+            if success:
+                message = "¡El archivo se ha cargado exitosamente!"
+            else:
+                message = "¡Ups! Hubo un problema, intenta nuevamente en unos minutos"
+            
+            return jsonify({
+                "success": success,
+                "message": message,
+                "total_records": len(sellers_data),
+                "successful_records": successful_records,
+                "failed_records": failed_records,
+                "errors": processed_errors,
+                "warnings": insert_warnings
+            }), 200 if success else 500
+            
+        except Exception as e:
+            print(f"ERROR en inserción: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            
+            if conn:
+                conn.rollback()
+            
+            return jsonify({
+                "success": False,
+                "message": "¡Ups! Hubo un problema, intenta nuevamente en unos minutos",
+                "total_records": len(sellers_data) if 'sellers_data' in locals() else 0,
+                "successful_records": 0,
+                "failed_records": len(sellers_data) if 'sellers_data' in locals() else 0,
+                "errors": [f"Error interno: {str(e)}"],
+                "warnings": []
+            }), 500
+        finally:
+            if cursor:
+                cursor.close()
+            if conn:
+                release_connection(conn)
+    
     return app
 
 app = create_app()
@@ -670,6 +927,8 @@ if __name__ == '__main__':
     print("   POST /users/visits/<id>/evidences - Subir evidencias")
     print("   POST /users/upload/validate - Validar usuarios CSV (HU107)")
     print("   POST /users/upload/insert - Insertar usuarios CSV (HU107)")
+    print("   POST /users/sellers/upload/validate - Validar vendedores CSV")
+    print("   POST /users/sellers/upload/insert - Insertar vendedores CSV")
     print("   POST /users/login - Iniciar sesión (HU37)")
     print(f"🌐 Servidor ejecutándose en: http://localhost:{port}")
     print("🔧 Versión: 2.1.4 - Proper ECS Deploy Test")
