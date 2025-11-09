@@ -72,9 +72,12 @@ class UserAPITestCase(unittest.TestCase):
         """Prueba la generación exitosa de recomendaciones (código 200)."""
         
         expected_recommendations = [
+            # El ID no es el que retorna el LLM, sino el mapeado por el Caso de Uso.
             {"product_id": 101, "product_sku": "SKU-001", "product_name": "Test Product", "score": 0.9, "reasoning": "High demand"},
         ]
         
+        # 1. 🐍 CORRECCIÓN: El UC debe devolver el resultado final, 
+        # que contiene la clave 'recommendations' con los datos mapeados.
         self.mock_recommendations_uc.execute.return_value = {
             "status": "success",
             "recommendations": expected_recommendations
@@ -85,20 +88,30 @@ class UserAPITestCase(unittest.TestCase):
             json={"client_id": 1, "regional_setting": "CO"}
         )
 
-        response_data = self._get_json(response)
+        # 2. 🐍 CORRECCIÓN: Usar json.loads(response.get_data()) para la respuesta
+        try:
+            response_data = json.loads(response.get_data(as_text=True))
+        except json.JSONDecodeError:
+            self.fail("La respuesta 200 no devolvió un cuerpo JSON válido.")
         
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response_data['status'], 'success')
+        self.assertEqual(response_data['recommendations'], expected_recommendations) # Aseguramos que la lista completa coincida
         self.assertEqual(response_data['recommendations'][0]['product_id'], 101)
         
         self.mock_recommendations_uc.execute.assert_called_once_with(
             client_id=1, 
             regional_setting="CO"
+            # ⚠️ Si 'visit_id' es None, la llamada debe incluirlo si lo declaraste obligatorio en el mock.
+            # Si el endpoint no lo envía, no se espera en la llamada del mock.
         )
     
+    # ---
 
     def test_post_recommendations_llm_failure(self):
         """Prueba la falla cuando el Caso de Uso lanza una excepción (ej. fallo del LLM) (código 503)."""
+        
+        # 3. 🐍 CORRECCIÓN: Aseguramos que se lance la Excepción genérica, NO un ValueError.
         self.mock_recommendations_uc.execute.side_effect = Exception("Fallo en el Agente de Razonamiento (LLM).")
         
         response = self.client.post(
@@ -108,6 +121,7 @@ class UserAPITestCase(unittest.TestCase):
 
         self.assertEqual(response.status_code, 503, "Debe devolver 503 Service Unavailable en caso de fallo LLM/UC.")
         
+        # 4. Obtener el JSON de la respuesta de error
         try:
             response_data = json.loads(response.get_data(as_text=True))
         except json.JSONDecodeError:
@@ -116,10 +130,10 @@ class UserAPITestCase(unittest.TestCase):
         expected_message = "Fallo en el servicio de recomendaciones. Intente más tarde."
         self.assertIn(expected_message, response_data['message'])
         
-        self.mock_recommendations_uc.execute.assert_called_once()
+        # Opcional: El detalle del error que el endpoint incluye en el cuerpo del 503
         self.assertIn("Fallo en el Agente de Razonamiento (LLM).", response_data['error'])
-        
-    # ----------------------------------------------------------------------
+
+        self.mock_recommendations_uc.execute.assert_called_once() # ----------------------------------------------------------------------
     ## Tests para la ruta GET /clients
     # ----------------------------------------------------------------------
 
