@@ -85,7 +85,7 @@ class UserAPITestCase(unittest.TestCase):
         
         response = self.client.post(
             '/recommendations',
-            json={"client_id": 1, "regional_setting": "CO"}
+            json={"client_id": 1, "regional_setting": "CO", "visit_id": 10}
         )
 
         # 2. 🐍 CORRECCIÓN: Usar json.loads(response.get_data()) para la respuesta
