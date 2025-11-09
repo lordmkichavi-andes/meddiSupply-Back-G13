@@ -11,24 +11,24 @@ services:
     # ELIMINAR depends_on COMPLETAMENTE.
     
     environment:
-      # 🎯 DB_HOST ahora apunta a tu MÁQUINA HOST
-      # 'host.docker.internal' es un alias especial para acceder al host desde Docker Desktop.
+      # Conectar a la misma base de datos de Products (expuesta en el host en 5432)
       DB_HOST: host.docker.internal 
-      DB_PORT: 5440
-      # 🎯 Usar el nombre de la DB que existe en el otro contenedor
-      DB_NAME: offer_manager_db 
+      DB_PORT: 5433
+      DB_NAME: medisupplydb
       DB_USER: postgres
       DB_PASSWORD: postgres
-      # La inicialización sigue siendo necesaria
       RUN_DB_INIT_ON_STARTUP: "True"
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
-      AWS_REGION: ${AWS_REGION}
+      PORT: 8083
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-AKIARYEUCIJBA62TQ4QM}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-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}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      COGNITO_USER_POOL_ID: ${COGNITO_USER_POOL_ID:-us-east-1_3n4C8QOve}
+      COGNITO_CLIENT_ID: ${COGNITO_CLIENT_ID:-113qhpd3hktvupdbhpi5361h90}
       PYTHONUNBUFFERED: 1
       
     
     ports:
-      - "8082:8080"
+      - "8083:8083"
     
     # El comando se simplifica al no esperar una dependencia interna.
     command: ["sh", "-c", "python app.py"]

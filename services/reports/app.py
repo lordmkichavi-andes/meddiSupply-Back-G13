@@ -32,6 +32,8 @@ app = create_app()
 
 
 if __name__ == '__main__':
+    import os
+    port = int(os.environ.get('PORT', '8085'))
     print("Iniciando servidor de reportes de ventas...")
     print("Endpoints disponibles:")
     print("   GET  /reports/vendors - Lista de vendedores")
@@ -39,6 +41,6 @@ if __name__ == '__main__':
     print("   POST /reports/sales-report - Generar reporte")
     print("   POST /reports/sales-report/validate - Validar datos")
     print("   GET  /reports/health - Estado del servidor")
-    print("Servidor corriendo en http://localhost:8080")
+    print(f"Servidor corriendo en http://localhost:{port}")
     
-    app.run(host='0.0.0.0', port=8080, debug=False)
+    app.run(host='0.0.0.0', port=port, debug=False)

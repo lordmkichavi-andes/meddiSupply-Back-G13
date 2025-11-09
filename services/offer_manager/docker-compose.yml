@@ -23,7 +23,10 @@ services:
       - ./db/init:/docker-entrypoint-initdb.d 
 
   app:
-    image: 120569610818.dkr.ecr.us-east-1.amazonaws.com/cdk-exp-container-assets-120569610818-us-east-1:699775ffb48570c925437c99410c5f5637930979-offer_manager
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: offer_manager:local
     container_name: offer_manager
     restart: always
     depends_on:
@@ -37,8 +40,8 @@ services:
       DB_PASSWORD: postgres
       PGSSLMODE: disable
       DB_SSLMODE: disable
-      # URL del microservicio de products dentro de su red existente
-      PRODUCTS_SERVICE_URL: http://MediSu-MediS-5XPY2MhrDivI-109634141.us-east-1.elb.amazonaws.com/
+      # URL del microservicio de products local (Docker a Docker)
+      PRODUCTS_SERVICE_URL: http://products:8080
       ORDERS_SERVICE_URL: http://MediSu-MediS-5XPY2MhrDivI-109634141.us-east-1.elb.amazonaws.com/
       PRODUCTS_SERVICE_TIMEOUT: 10
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
@@ -46,7 +49,7 @@ services:
       AWS_REGION: ${AWS_REGION}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
     ports:
-      - "8080:8080"
+      - "8082:8080"
     networks:
       - offer_manager_net
       - products_default

@@ -196,6 +196,15 @@ def validate_products_data(products_data):
             except (ValueError, TypeError):
                 product_errors.append(f"Fila {row_num}: El warehouse_id debe ser un número entero válido")
         
+        # Validaciones de ubicación física (opcionales - si están todos, deben ser válidos)
+        location_fields = ['section', 'aisle', 'shelf', 'level']
+        location_present = [field for field in location_fields if field in product and product[field] and str(product[field]).strip()]
+        
+        # Si algunos campos de ubicación están presentes, todos deben estar
+        if len(location_present) > 0 and len(location_present) < len(location_fields):
+            missing_fields = [field for field in location_fields if field not in location_present]
+            product_errors.append(f"Fila {row_num}: Si se especifica ubicación física, todos los campos son requeridos (section, aisle, shelf, level). Faltan: {', '.join(missing_fields)}")
+        
         # Si hay errores en este producto, agregarlos a la lista general
         if product_errors:
             errors.extend(product_errors)
@@ -399,21 +408,69 @@ def insert_products(products_data, conn, cursor, data_string, file_name='json_up
             product_id = cursor.fetchone()['product_id']
             print(f"Producto creado: {product['sku']} (ID: {product_id})")
             
-            # Insertar stock
-            stock_insert = """
-                INSERT INTO products.productstock 
-                (product_id, quantity, lote, warehouse_id, provider_id, country)
-                VALUES (%s, %s, %s, %s, %s, %s)
-            """
+            # Obtener o crear location_id si se proporciona ubicación física
+            location_id = None
+            if all(field in product and product[field] and str(product[field]).strip() 
+                   for field in ['section', 'aisle', 'shelf', 'level']):
+                section = str(product['section']).strip()
+                aisle = str(product['aisle']).strip()
+                shelf = str(product['shelf']).strip()
+                level = str(product['level']).strip()
+                warehouse_id = int(product['warehouse_id'])
+                
+                # Buscar ubicación existente
+                cursor.execute("""
+                    SELECT location_id FROM products.warehouse_locations
+                    WHERE warehouse_id = %s AND section = %s AND aisle = %s 
+                    AND shelf = %s AND level = %s
+                """, (warehouse_id, section, aisle, shelf, level))
+                
+                location_result = cursor.fetchone()
+                
+                if location_result:
+                    location_id = location_result['location_id']
+                    print(f"Ubicación encontrada: {section}-{aisle}-{shelf}-{level} (ID: {location_id})")
+                else:
+                    # Crear nueva ubicación
+                    cursor.execute("""
+                        INSERT INTO products.warehouse_locations 
+                        (warehouse_id, section, aisle, shelf, level, active)
+                        VALUES (%s, %s, %s, %s, %s, true)
+                        RETURNING location_id
+                    """, (warehouse_id, section, aisle, shelf, level))
+                    location_id = cursor.fetchone()['location_id']
+                    print(f"Nueva ubicación creada: {section}-{aisle}-{shelf}-{level} (ID: {location_id})")
             
-            cursor.execute(stock_insert, (
-                product_id,
-                int(product['quantity']),
-                f"LOTE-{product['sku']}-{datetime.now().strftime('%Y%m%d')}",  # lote generado
-                int(product['warehouse_id']),
-                1,  # provider_id
-                'COL'  # country (hardcoded)
-            ))
+            # Insertar stock
+            if location_id:
+                stock_insert = """
+                    INSERT INTO products.productstock 
+                    (product_id, quantity, lote, warehouse_id, provider_id, country, location_id)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """
+                cursor.execute(stock_insert, (
+                    product_id,
+                    int(product['quantity']),
+                    f"LOTE-{product['sku']}-{datetime.now().strftime('%Y%m%d')}",  # lote generado
+                    int(product['warehouse_id']),
+                    1,  # provider_id
+                    'COL',  # country (hardcoded)
+                    location_id
+                ))
+            else:
+                stock_insert = """
+                    INSERT INTO products.productstock 
+                    (product_id, quantity, lote, warehouse_id, provider_id, country)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                """
+                cursor.execute(stock_insert, (
+                    product_id,
+                    int(product['quantity']),
+                    f"LOTE-{product['sku']}-{datetime.now().strftime('%Y%m%d')}",  # lote generado
+                    int(product['warehouse_id']),
+                    1,  # provider_id
+                    'COL'  # country (hardcoded)
+                ))
             print(f"Stock creado para producto {product_id}")
             
             # Insertar en product_history
@@ -758,6 +815,132 @@ def insert_products_endpoint():
         if conn:
             conn.close()
         print("Conexiones cerradas")
+
+
+@app.route('/products/insert', methods=['POST'])
+def insert_single_product_endpoint():
+    """
+    Endpoint para insertar un solo producto con validación.
+    Reutiliza validate_products_data e insert_products.
+    Soporta ubicación física (section, aisle, shelf, level) opcional.
+    """
+    print("=== INICIO INSERCIÓN DE PRODUCTO INDIVIDUAL ===")
+    conn = None
+    cursor = None
+    
+    try:
+        # 1. Obtener datos del producto
+        product_data = request.get_json()
+        
+        if not product_data:
+            return jsonify({
+                "success": False,
+                "message": "No se recibieron datos del producto",
+                "errors": ["Datos del producto requeridos"]
+            }), 400
+        
+        # Convertir a lista para reutilizar las funciones existentes
+        products_list = [product_data]
+        data_string = json.dumps(products_list)
+        
+        # 2. Validar producto
+        is_valid, errors, warnings, validated_products = validate_products_data(products_list)
+        
+        if not is_valid:
+            return jsonify({
+                "success": False,
+                "message": "Error de validación",
+                "errors": errors,
+                "warnings": warnings
+            }), 400
+        
+        # 3. Insertar producto
+        conn, cursor = product_repository._get_connection()
+        
+        successful, failed, insert_errors, upload_id, insert_warnings = insert_products(
+            validated_products,
+            conn,
+            cursor,
+            data_string,
+            file_name='single_product_insert',
+            file_type='json'
+        )
+        
+        conn.commit()
+        
+        if successful > 0:
+            # Obtener el product_id del producto insertado
+            cursor.execute("SELECT product_id FROM products.products WHERE sku = %s", (product_data['sku'],))
+            result = cursor.fetchone()
+            product_id = result['product_id'] if result else None
+            
+            # Obtener información de ubicación si se proporcionó
+            location_info = None
+            if all(field in product_data and product_data[field] and str(product_data[field]).strip() 
+                   for field in ['section', 'aisle', 'shelf', 'level']):
+                cursor.execute("""
+                    SELECT location_id, section, aisle, shelf, level 
+                    FROM products.warehouse_locations
+                    WHERE warehouse_id = %s AND section = %s AND aisle = %s 
+                    AND shelf = %s AND level = %s
+                """, (
+                    int(product_data['warehouse_id']),
+                    str(product_data['section']).strip(),
+                    str(product_data['aisle']).strip(),
+                    str(product_data['shelf']).strip(),
+                    str(product_data['level']).strip()
+                ))
+                location = cursor.fetchone()
+                if location:
+                    location_info = {
+                        "location_id": location['location_id'],
+                        "section": location['section'],
+                        "aisle": location['aisle'],
+                        "shelf": location['shelf'],
+                        "level": location['level']
+                    }
+            
+            cursor.close()
+            conn.close()
+            
+            response = {
+                "success": True,
+                "message": "Producto insertado exitosamente",
+                "product_id": product_id,
+                "warnings": warnings + insert_warnings
+            }
+            
+            if location_info:
+                response["location"] = location_info
+            
+            return jsonify(response), 201
+        else:
+            cursor.close()
+            conn.close()
+            
+            return jsonify({
+                "success": False,
+                "message": "Error al insertar producto",
+                "errors": insert_errors,
+                "warnings": warnings + insert_warnings
+            }), 400
+            
+    except Exception as e:
+        if conn:
+            conn.rollback()
+            if cursor:
+                cursor.close()
+            conn.close()
+        
+        print(f"ERROR en inserción individual: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        
+        return jsonify({
+            "success": False,
+            "message": "Error interno del servidor",
+            "errors": [f"Error interno: {str(e)}"]
+        }), 500
 
 
 ## Endpoint /products/upload3 eliminado
