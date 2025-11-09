@@ -111,29 +111,40 @@ class UserAPITestCase(unittest.TestCase):
     def test_post_recommendations_llm_failure(self):
         """Prueba la falla cuando el Caso de Uso lanza una excepción (ej. fallo del LLM) (código 503)."""
         
-        # 3. 🐍 CORRECCIÓN: Aseguramos que se lance la Excepción genérica, NO un ValueError.
+        # 1. Configurar el mock para lanzar una excepción genérica
         self.mock_recommendations_uc.execute.side_effect = Exception("Fallo en el Agente de Razonamiento (LLM).")
         
         response = self.client.post(
             '/recommendations',
-            json={"client_id": 1, "regional_setting": "CO"}
+            # 🚨 Incluir todos los campos obligatorios para pasar la validación 400 del endpoint
+            json={"client_id": 1, "regional_setting": "CO", "visit_id": 10} 
         )
 
+        # 2. Verificar el Código de Estado (503)
         self.assertEqual(response.status_code, 503, "Debe devolver 503 Service Unavailable en caso de fallo LLM/UC.")
         
-        # 4. Obtener el JSON de la respuesta de error
+        # 3. Obtener el JSON de la respuesta de error
         try:
             response_data = json.loads(response.get_data(as_text=True))
         except json.JSONDecodeError:
             self.fail("La respuesta 503 no devolvió un cuerpo JSON válido.")
         
+        # 4. Verificar el Contenido del Mensaje
         expected_message = "Fallo en el servicio de recomendaciones. Intente más tarde."
         self.assertIn(expected_message, response_data['message'])
         
-        # Opcional: El detalle del error que el endpoint incluye en el cuerpo del 503
+        # 5. Verificar el detalle del error
         self.assertIn("Fallo en el Agente de Razonamiento (LLM).", response_data['error'])
 
-        self.mock_recommendations_uc.execute.assert_called_once() # ----------------------------------------------------------------------
+        # 6. Verificar que el Caso de Uso fue llamado con los parámetros correctos
+        self.mock_recommendations_uc.execute.assert_called_once_with(
+            client_id=1,
+            regional_setting="CO",
+            visit_id=10
+        )
+        
+        
+        # ----------------------------------------------------------------------
     ## Tests para la ruta GET /clients
     # ----------------------------------------------------------------------
 
