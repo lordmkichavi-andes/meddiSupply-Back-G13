@@ -311,6 +311,201 @@ class TestValidateSalesDataEndpoint:
         assert 'Campos requeridos no proporcionados' in data['message']
 
 
+class TestSalesComplianceEndpoint:
+    """Tests unitarios para endpoint /sales-compliance."""
+    
+    @patch('src.blueprints.reports.get_sales_compliance')
+    def test_get_sales_compliance_success_by_plan_id(self, mock_compliance, client):
+        """Test: POST /sales-compliance exitoso con plan_id."""
+        # Arrange
+        mock_compliance_data = {
+            'vendor_id': 1,
+            'period_start': '2024-01-01',
+            'period_end': '2024-03-31',
+            'pedidos': 10,
+            'ventasTotales': 150000.0,
+            'total_goal': 150000.0,
+            'cumplimiento_total_pct': 1.0,
+            'status': 'verde',
+            'detalle_productos': []
+        }
+        mock_compliance.return_value = mock_compliance_data
+        
+        request_data = {'vendor_id': 1, 'plan_id': 1}
+        
+        # Act
+        response = client.post(
+            '/reports/sales-compliance',
+            data=json.dumps(request_data),
+            content_type='application/json'
+        )
+        
+        # Assert
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['success'] is True
+        assert data['data']['vendor_id'] == 1
+        assert data['data']['status'] == 'verde'
+    
+    @patch('src.blueprints.reports.get_sales_compliance')
+    def test_get_sales_compliance_success_by_quarter_year(self, mock_compliance, client):
+        """Test: POST /sales-compliance exitoso con quarter/year."""
+        # Arrange
+        mock_compliance_data = {
+            'vendor_id': 1,
+            'period_start': '2024-01-01',
+            'period_end': '2024-03-31',
+            'pedidos': 5,
+            'ventasTotales': 60000.0,
+            'total_goal': 100000.0,
+            'cumplimiento_total_pct': 0.6,
+            'status': 'amarillo',
+            'detalle_productos': []
+        }
+        mock_compliance.return_value = mock_compliance_data
+        
+        request_data = {'vendor_id': 1, 'quarter': 'Q1', 'year': 2024}
+        
+        # Act
+        response = client.post(
+            '/reports/sales-compliance',
+            data=json.dumps(request_data),
+            content_type='application/json'
+        )
+        
+        # Assert
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['success'] is True
+        assert data['data']['vendor_id'] == 1
+        assert data['data']['status'] == 'amarillo'
+    
+    def test_get_sales_compliance_missing_vendor_id(self, client):
+        """Test: POST /sales-compliance sin vendor_id."""
+        # Arrange
+        request_data = {'plan_id': 1}
+        
+        # Act
+        response = client.post(
+            '/reports/sales-compliance',
+            data=json.dumps(request_data),
+            content_type='application/json'
+        )
+        
+        # Assert
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert data['success'] is False
+        assert 'vendor_id' in data['message']
+        assert data['error_type'] == 'validation_error'
+    
+    def test_get_sales_compliance_missing_plan_and_quarter(self, client):
+        """Test: POST /sales-compliance sin plan_id ni quarter/year."""
+        # Arrange
+        request_data = {'vendor_id': 1}
+        
+        # Act
+        response = client.post(
+            '/reports/sales-compliance',
+            data=json.dumps(request_data),
+            content_type='application/json'
+        )
+        
+        # Assert
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert data['success'] is False
+        assert 'plan_id' in data['message'] or 'quarter' in data['message']
+        assert data['error_type'] == 'validation_error'
+    
+    @patch('src.blueprints.reports.get_sales_compliance')
+    def test_get_sales_compliance_not_found(self, mock_compliance, client):
+        """Test: POST /sales-compliance cuando no se encuentra el plan."""
+        # Arrange
+        mock_compliance.return_value = None
+        
+        request_data = {'vendor_id': 1, 'quarter': 'Q1', 'year': 2024}
+        
+        # Act
+        response = client.post(
+            '/reports/sales-compliance',
+            data=json.dumps(request_data),
+            content_type='application/json'
+        )
+        
+        # Assert
+        assert response.status_code == 404
+        data = json.loads(response.data)
+        assert data['success'] is False
+        assert 'No se encontró el plan' in data['message']
+        assert data['error_type'] == 'not_found'
+    
+    @patch('src.blueprints.reports.get_sales_compliance')
+    def test_get_sales_compliance_region_mismatch(self, mock_compliance, client):
+        """Test: POST /sales-compliance con error de región no coincidente."""
+        # Arrange
+        from src.db import RegionMismatchError
+        mock_compliance.side_effect = RegionMismatchError("Región no coincide")
+        
+        request_data = {'vendor_id': 1, 'plan_id': 1}
+        
+        # Act
+        response = client.post(
+            '/reports/sales-compliance',
+            data=json.dumps(request_data),
+            content_type='application/json'
+        )
+        
+        # Assert
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert data['success'] is False
+        assert data['error_type'] == 'region_mismatch'
+    
+    @patch('src.blueprints.reports.get_sales_compliance')
+    def test_get_sales_compliance_value_error(self, mock_compliance, client):
+        """Test: POST /sales-compliance con error de formato de datos."""
+        # Arrange
+        mock_compliance.side_effect = ValueError("Formato inválido")
+        
+        request_data = {'vendor_id': 'invalid', 'plan_id': 1}
+        
+        # Act
+        response = client.post(
+            '/reports/sales-compliance',
+            data=json.dumps(request_data),
+            content_type='application/json'
+        )
+        
+        # Assert
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert data['success'] is False
+        assert data['error_type'] == 'validation_error'
+    
+    @patch('src.blueprints.reports.get_sales_compliance')
+    def test_get_sales_compliance_exception(self, mock_compliance, client):
+        """Test: POST /sales-compliance con excepción general."""
+        # Arrange
+        mock_compliance.side_effect = Exception("Database error")
+        
+        request_data = {'vendor_id': 1, 'plan_id': 1}
+        
+        # Act
+        response = client.post(
+            '/reports/sales-compliance',
+            data=json.dumps(request_data),
+            content_type='application/json'
+        )
+        
+        # Assert
+        assert response.status_code == 500
+        data = json.loads(response.data)
+        assert data['success'] is False
+        assert 'Hubo un error al generar el reporte de cumplimiento' in data['message']
+        assert data['error_type'] == 'server_error'
+
+
 class TestHealthEndpoint:
     """Tests unitarios para endpoint /health."""
     
