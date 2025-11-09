@@ -207,7 +207,7 @@ class RecommendationAgent:
         endpoint_url = self.API_URL
         
         if not self.API_KEY:
-            logger.error("LLM ERROR: La variable API_KEY está vacía. No se puede llamar al servicio de Gemini.")
+            logger.error(f"LLM ERROR: La variable LLM_API_KEY {self.API_KEY} está vacía. No se puede llamar al servicio de {self.LLM_PROVIDER}.")
             return None
 
         if self.LLM_PROVIDER == 'GEMINI':
