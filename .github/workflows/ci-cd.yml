@@ -349,15 +349,39 @@ jobs:
             # 7. Manipulación y Despliegue con JQ
             jq 'del(.status,.taskDefinitionArn,.requiresAttributes,.revision,.compatibilities,.registeredAt,.registeredBy)' base.json > stripped.json
             
-            jq --arg S "$SERVICE_SLUG" --arg IMG "$IMAGE" '
-              .containerDefinitions |= map(
-                  # 🟢 MODIFICACIÓN CLAVE: Usamos 'test' con el flag 'i' para una coincidencia flexible
-                  if (.name | test($S; "i")) then 
-                      .image = $IMG 
-                  else 
-                      . 
-                  end
-              )' stripped.json > rendered.json
+            # 8. Actualizar imagen y variables de entorno (si es el servicio users)
+            if [ "$SERVICE_SLUG" == "users" ]; then
+              echo "🔧 Agregando variables de entorno LLM para servicio users..."
+              jq --arg S "$SERVICE_SLUG" --arg IMG "$IMAGE" \
+                 --arg LLM_API_KEY "${{ secrets.LLM_API_KEY }}" \
+                 --arg ACTIVE_LLM "${{ secrets.ACTIVE_LLM }}" \
+                 --arg LLM_MODEL "${{ secrets.LLM_MODEL }}" '
+                .containerDefinitions |= map(
+                    if (.name | test($S; "i")) then 
+                        .image = $IMG |
+                        # Filtrar variables de entorno existentes (excluyendo LLM) y agregar/actualizar LLM
+                        .environment = (
+                            (.environment // []) | 
+                            map(select(.name != "LLM_API_KEY" and .name != "ACTIVE_LLM" and .name != "LLM_MODEL"))
+                        ) + [
+                            {name: "LLM_API_KEY", value: $LLM_API_KEY},
+                            {name: "ACTIVE_LLM", value: $ACTIVE_LLM},
+                            {name: "LLM_MODEL", value: $LLM_MODEL}
+                        ]
+                    else 
+                        . 
+                    end
+                )' stripped.json > rendered.json
+            else
+              jq --arg S "$SERVICE_SLUG" --arg IMG "$IMAGE" '
+                .containerDefinitions |= map(
+                    if (.name | test($S; "i")) then 
+                        .image = $IMG 
+                    else 
+                        . 
+                    end
+                )' stripped.json > rendered.json
+            fi
             
             NEW_TD_ARN=$(aws ecs register-task-definition --cli-input-json file://rendered.json --query 'taskDefinition.taskDefinitionArn' --output text --region "$AWS_REGION")
             
