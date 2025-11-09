@@ -1,5 +1,6 @@
 from src.domain.interfaces import UserRepository
 import logging
+from typing import List, Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -52,3 +53,13 @@ class GenerateRecommendationsUseCase:
             "status": "success",
             "recommendations": final_recommendations
         }
+
+    def get_all_suggestions_for_client(self, client_id: int) -> List[Dict[str, Any]]:
+        """
+        Obtiene todas las sugerencias de productos históricas para un cliente
+        y las retorna como una lista de diccionarios (JSON-ready).
+        """
+
+        suggestions_data = self.repository.get_suggestions_by_client(client_id)
+        
+        return suggestions_data
