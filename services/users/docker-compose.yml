@@ -1,39 +1,34 @@
 version: '3.8'
 
 services:
-  # 🗄️ Servicio de Base de Datos PostgreSQL
-  db:
-    image: postgres:14-alpine
-    container_name: postgres_rdwu
-    restart: always
-    environment:
-      POSTGRES_DB: medisupplydb
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: 1q2w3e4r
-    ports:
-      - "5432:5432"  # Puerto externo 5434 → interno 5432
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  usuarios-service:
+  # Servicio del Microservicio Flask
+  app:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: usuarios_service
-    platform: linux/amd64
-    ports:
-      - "8080:8080"
-    depends_on:
-      db:
-        condition: service_healthy
+    container_name: users
+    # Ya NO necesitamos 'depends_on' ni 'db' si la DB no está definida aquí.
+    # ELIMINAR depends_on COMPLETAMENTE.
+
     environment:
-        DB_HOST: db
-        DB_PORT: 5432
-        DB_NAME: medisupplydb
-        DB_USER: postgres
-        DB_PASSWORD: 1q2w3e4r
-        RUN_DB_INIT_ON_STARTUP: true
-    command: ["gunicorn", "--bind", "0.0.0.0:8080", "app:app"]
+      # Conectar a la misma base de datos de Products (expuesta en el host en 5432)
+      DB_HOST: host.docker.internal
+      DB_PORT: 5433
+      DB_NAME: medisupplydb
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      RUN_DB_INIT_ON_STARTUP: "True"
+      PORT: 8083
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-AKIARYEUCIJBA62TQ4QM}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-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}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      COGNITO_USER_POOL_ID: ${COGNITO_USER_POOL_ID:-us-east-1_3n4C8QOve}
+      COGNITO_CLIENT_ID: ${COGNITO_CLIENT_ID:-113qhpd3hktvupdbhpi5361h90}
+      PYTHONUNBUFFERED: 1
+
+
+    ports:
+      - "8083:8083"
+
+    # El comando se simplifica al no esperar una dependencia interna.
+    command: ["sh", "-c", "python app.py"]

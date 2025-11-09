@@ -45,6 +45,15 @@ MOCK_USERS: List[MockUser] = [
              'Calle 72 # 10-30, Bogotá', 4.659970, -74.058370, 2, "900111222-3", "La tienda")
 ]
 
+class MockFileStorage:
+    """Simula el objeto werkzeug.datastructures.FileStorage."""
+    def __init__(self, filename, mimetype):
+        self.filename = filename
+        self.mimetype = mimetype
+        # El método read() debe ser mockeado por MagicMock para simular lectura de bytes
+        self.read = MagicMock(return_value=b'file_content_bytes')
+
+MOCK_VISIT_DATA = {'visit_id': 100, 'client_id': 5, 'date': '2025-10-01'}
 
 class TestGetClientUsersUseCase(unittest.TestCase):
     """
@@ -53,7 +62,8 @@ class TestGetClientUsersUseCase(unittest.TestCase):
 
     def setUp(self):
         self.mock_repository = Mock()
-        self.use_case = GetClientUsersUseCase(self.mock_repository)
+        self.mock_storage_service = Mock()
+        self.use_case = GetClientUsersUseCase(self.mock_repository, self.mock_storage_service)
 
     def test_execute_returns_formatted_users(self):
         """Verifica que el caso de uso formatea correctamente los usuarios CLIENT."""
@@ -158,6 +168,122 @@ class TestGetClientUsersUseCase(unittest.TestCase):
         self.mock_repository.get_users_by_seller.assert_called_once_with(test_seller_id)
         self.assertIn("Database query timed out.", str(cm.exception))
 
+    def test_upload_evidences_visit_not_found(self):
+        """Verifica que lanza ValueError si la visita no existe."""
+        test_visit_id = 999
+        mock_files = [MockFileStorage(filename="test.jpg", mimetype="image/jpeg")]
+
+        # Mock: la visita no existe
+        self.mock_repository.get_visit_by_id.return_value = None
+
+        # ACT & ASSERT
+        with self.assertRaises(ValueError) as cm:
+            self.use_case.upload_visit_evidences(test_visit_id, mock_files)
+
+        self.assertIn(f"La visita con ID {test_visit_id} no existe", str(cm.exception))
+        # No se debe llamar al servicio de almacenamiento ni al guardado
+        self.mock_storage_service.upload_file.assert_not_called()
+        self.mock_repository.save_evidence.assert_not_called()
+
+
+    def test_upload_evidences_storage_service_fails(self):
+        """Verifica que propaga la excepción si falla la subida a S3."""
+        test_visit_id = 100
+        mock_file = MockFileStorage(filename="error.png", mimetype="image/png")
+        mock_files = [mock_file]
+
+        self.mock_repository.get_visit_by_id.return_value = MOCK_VISIT_DATA
+
+        # Mock: La subida a S3 falla
+        self.mock_storage_service.upload_file.side_effect = RuntimeError("AWS S3 Connection Timeout")
+
+        # ACT & ASSERT
+        with self.assertRaisesRegex(Exception, f"Fallo en el almacenamiento del archivo {mock_file.filename}") as cm:
+            self.use_case.upload_visit_evidences(test_visit_id, mock_files)
+
+        # Se llama al repositorio para validar, pero no para guardar
+        self.mock_repository.get_visit_by_id.assert_called_once_with(test_visit_id)
+        self.mock_storage_service.upload_file.assert_called_once()
+        self.mock_repository.save_evidence.assert_not_called()
+
+    def test_get_user_by_id_success(self):
+        """Verifica que get_user_by_id llama al repositorio y retorna el perfil."""
+        test_client_id = 15
+        mock_data = {"client_id": 15, "name": "Test Client"}
+
+        # Configurar el mock para que devuelva datos
+        self.mock_repository.db_get_client_data.return_value = mock_data
+
+        # ACT
+        result = self.use_case.get_user_by_id(test_client_id)
+
+        # ASSERT
+        # 1. Verificar la llamada al repositorio
+        self.mock_repository.db_get_client_data.assert_called_once_with(test_client_id)
+
+        # 2. Verificar el resultado
+        self.assertEqual(result, mock_data)
+
+    def test_get_user_by_id_not_found(self):
+        """Verifica que get_user_by_id retorna None si el repositorio no encuentra datos."""
+        test_client_id = 999
+
+        # Configurar el mock para que devuelva None
+        self.mock_repository.db_get_client_data.return_value = None
+
+        # ACT
+        result = self.use_case.get_user_by_id(test_client_id)
+
+        # ASSERT
+        self.mock_repository.db_get_client_data.assert_called_once_with(test_client_id)
+        self.assertIsNone(result)
+
+    def test_get_visit_by_id_found(self):
+        """Verifica que el método llama al repositorio y retorna la visita."""
+        test_visit_id = 150
+        # MOCK_VISIT_DATA ya está definido al inicio del archivo
+        mock_visit = MOCK_VISIT_DATA
+
+        # Configurar el mock para que devuelva la data de la visita
+        self.mock_repository.get_by_id.return_value = mock_visit
+
+        # ACT
+        result = self.use_case.get_visit_by_id(test_visit_id)
+
+        # ASSERT
+        # 1. Verificar que se llamó al repositorio con el ID correcto
+        self.mock_repository.get_by_id.assert_called_once_with(test_visit_id)
+
+        # 2. Verificar que se retorna la data simulada
+        self.assertEqual(result, mock_visit)
+
+
+    def test_get_visit_by_id_not_found(self):
+        """Verifica que retorna None si el repositorio no encuentra la visita."""
+        test_visit_id = 999
+
+        # Configurar el mock para que devuelva None
+        self.mock_repository.get_by_id.return_value = None
+
+        # ACT
+        result = self.use_case.get_visit_by_id(test_visit_id)
+
+        # ASSERT
+        self.mock_repository.get_by_id.assert_called_once_with(test_visit_id)
+        self.assertIsNone(result)
+
+    def test_get_visit_by_id_propagates_exception(self):
+        """Verifica que si el repositorio falla, la excepción se propaga."""
+        test_visit_id = 500
+        # Configurar el mock para que lance una excepción
+        self.mock_repository.get_by_id.side_effect = ConnectionError("DB connection failed")
+
+        # ACT & ASSERT
+        with self.assertRaises(ConnectionError) as cm:
+            self.use_case.get_visit_by_id(test_visit_id)
+
+        self.mock_repository.get_by_id.assert_called_once_with(test_visit_id)
+        self.assertIn("DB connection failed", str(cm.exception))
 
 if __name__ == '__main__':
     unittest.main()

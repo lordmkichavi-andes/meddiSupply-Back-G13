@@ -1,10 +1,10 @@
-from typing import List, Any
+from typing import List, Any, Dict, Optional
 from src.domain.interfaces import UserRepository
 from src.domain.entities import Client
 from .db_connector import get_connection, release_connection
-
 import psycopg2
-
+import sys
+import psycopg2.extras
 
 class PgUserRepository(UserRepository):
     """
@@ -35,7 +35,7 @@ class PgUserRepository(UserRepository):
                     u.role,
                     c.nit,
                     c.balance,
-                    c.perfil,
+                    c.name AS client_name,
                     c.address,
                     c.latitude,
                     c.longitude
@@ -60,7 +60,7 @@ class PgUserRepository(UserRepository):
                     role_value,
                     nit,
                     balance,
-                    perfil,
+                    client_name,
                     address,
                     latitude,
                     longitude
@@ -78,7 +78,7 @@ class PgUserRepository(UserRepository):
                     role_value=role_value,
                     nit=nit,
                     balance=balance,
-                    perfil=perfil,
+                    perfil=client_name,
                     address = address,
                     latitude=latitude,
                     longitude=longitude
@@ -177,10 +177,122 @@ class PgUserRepository(UserRepository):
             if conn:
                 release_connection(conn)
 
+    def db_get_client_data(self, client_id: int) -> Optional[Dict[str, Any]]:
+        """
+        Obtiene el perfil enriquecido del cliente (Users, Clients, Sellers)
+        en formato de diccionario para el motor de recomendaciones.
+        """
+        conn = None
+        try:
+            conn = get_connection()
+            # Usamos DictCursor para retornar un diccionario por columna, que es
+            # lo que se espera para el perfil enriquecido de recomendaciones.
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+
+            query = """
+            SELECT
+                c.client_id, 
+                u.name AS user_name, 
+                u.last_name, 
+                u.email,
+                c.balance, 
+                c.address, 
+                c.latitude, 
+                c.longitude,
+                s.zone AS seller_zone  
+            FROM
+                users.Clients c
+            JOIN users.Users u ON c.user_id = u.user_id
+            LEFT JOIN users.sellers s ON c.seller_id = s.seller_id
+            WHERE c.client_id = %s;
+            """
+
+            # Ejecutamos la consulta
+            cursor.execute(query, (client_id,))
+            result = cursor.fetchone()
+
+            if result:
+                # Convertimos el DictRow de psycopg2 a un dict estándar de Python
+                return dict(result)
+            else:
+                return None
+
+        except psycopg2.Error as e:
+            # Capturamos errores de la base de datos
+            print(f"ERROR de base de datos al obtener perfil del cliente {client_id}: {e}")
+            raise Exception("Database error during client profile retrieval.")
+        except Exception as e:
+            # Capturamos cualquier otro error inesperado (p. ej., conexión)
+            print(f"ERROR INESPERADO AL OBTENER PERFIL: {e}", file=sys.stderr, flush=True)
+            raise Exception("ERROR inesperado al obtener perfil del cliente {client_id}: {e}")
+        finally:
+            # 🚨 Liberamos la conexión
+            if conn:
+                release_connection(conn)
+
+    def get_by_id(self, client_id: int) -> Optional[Dict[str, Any]]:
+        """
+        Retorna un cliente por su client_id
+        """
+        conn = None
+        try:
+            conn = get_connection()
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+
+            query = """
+                SELECT c.*, u.name, u.last_name, u.email, u.phone, s.zone AS seller_zone
+                FROM users.Clients c
+                JOIN users.Users u ON c.user_id = u.user_id
+                LEFT JOIN users.sellers s ON c.seller_id = s.seller_id
+                WHERE c.client_id = %s;
+            """
+            cursor.execute(query, (client_id,))
+            result = cursor.fetchone()
+            return dict(result) if result else None
+
+        except psycopg2.Error as e:
+            print(f"ERROR al obtener cliente {client_id}: {e}")
+            raise
+        finally:
+            if conn:
+                release_connection(conn)
+
+    def get_visit_by_id(self, visit_id: int) -> Optional[Dict[str, Any]]:
+        """
+        Recupera una visita por su ID desde la base de datos, usando las columnas de tu DDL.
+        """
+        conn = None
+        try:
+            conn = get_connection()
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+
+            query = """
+                SELECT 
+                    visit_id, 
+                    seller_id, 
+                    date,       
+                    findings,    
+                    client_id    
+                FROM users.visits 
+                WHERE visit_id = %s;
+            """
+
+            cursor.execute(query, (visit_id,))
+            result = cursor.fetchone()
+
+            return dict(result) if result else None
+
+        except psycopg2.Error as e:
+            print(f"ERROR de base de datos al obtener la visita {visit_id}: {e}")
+            raise Exception(f"Database error during visit retrieval for ID {visit_id}.") from e
+
+        finally:
+            if conn:
+                release_connection(conn)
+
     def save_visit(self, client_id: int, seller_id: int, date: str, findings: str):
         """
         Guarda la información de una nueva visita en la base de datos.
-
         :param visit_data: Diccionario con client_id, seller_id, date y findings.
         :return: Una instancia de la Visita recién creada con su visit_id.
         """
@@ -223,7 +335,7 @@ class PgUserRepository(UserRepository):
                 "client_id": client_id,
                 "seller_id": seller_id,
                 "date": date,
-                "findings":findings,
+                "findings": findings,
             }
             # Si tienes una clase Visit, sería:
             # return Visit(visit_id=new_visit_id, client_id=..., seller_id=..., findings=...)
@@ -235,6 +347,188 @@ class PgUserRepository(UserRepository):
             print(f"ERROR de base de datos al guardar visita: {e}")
             # Relanzar una excepción genérica de dominio/aplicación para aislar la capa
             raise Exception("Database error during visit saving.")
+        finally:
+            if conn:
+                release_connection(conn)
+
+    def get_recent_evidences_by_client(self, client_id: int) -> List[Dict[str, str]]:
+        """
+        Obtiene las URLs y tipos de archivos de evidencia visual (media) asociados a las
+        visitas recientes de un cliente.
+
+        Retorna una lista de diccionarios con las claves 'url' y 'type'.
+        """
+        conn = None
+        try:
+            conn = get_connection()
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+
+            query = """
+            SELECT
+                ve.url_file AS url,
+                ve.type
+            FROM
+                users.visual_evidences ve
+            JOIN
+                users.visits v ON ve.visit_id = v.visit_id
+            WHERE
+                v.client_id = %s
+            ORDER BY
+                v.date DESC, ve.evidence_id DESC 
+            LIMIT 10;
+            """
+
+            cursor.execute(query, (client_id,))
+            result = cursor.fetchall()
+
+            if not result:
+                return []
+
+            return [dict(row) for row in result]
+
+        except psycopg2.Error as e:
+            print(f"ERROR de base de datos al obtener evidencias del cliente {client_id}: {e}")
+            raise Exception("Database error during recent evidences retrieval.")
+        finally:
+            if conn:
+                release_connection(conn)
+
+    def get_recent_purchase_history(self, client_id: int, limit: int = 10) -> List[Dict[str, Any]]:
+        """
+        Recupera el historial reciente (SKU y nombre) de productos comprados por un cliente.
+        """
+        conn = None
+        history = []
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+
+            query = """
+                SELECT DISTINCT ON (p.product_id)
+                    p.sku, 
+                    p.name
+                FROM orders.Orders o
+                JOIN orders.OrderLines ol ON o.order_id = ol.order_id
+                JOIN products.Products p ON ol.product_id = p.product_id
+                WHERE o.client_id = %s
+                ORDER BY p.product_id, o.creation_date DESC 
+                LIMIT %s;
+            """
+
+            cursor.execute(query, (client_id, limit))
+
+            for row in cursor.fetchall():
+                history.append({
+                    "sku": row[0],
+                    "name": row[1]
+                })
+
+            return history
+
+        except psycopg2.Error as e:
+            print(f"ERROR de base de datos al recuperar el historial de compras: {e}")
+            if conn:
+                conn.rollback()
+            raise Exception("Database error retrieving purchase history.")
+        finally:
+            if conn:
+                release_connection(conn)
+
+    def get_products(self) -> List[Dict[str, Any]]:
+        """
+        Obtiene el catálogo de productos disponibles (con stock > 0)
+        directamente desde la base de datos PostgreSQL, usando los esquemas actualizados.
+
+        Retorna una lista de diccionarios con el detalle del producto.
+        """
+        conn = None
+        products = []
+        try:
+            conn = get_connection()
+            # Usamos DictCursor para obtener diccionarios, que es el formato de retorno deseado.
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+
+            query = """
+            SELECT
+                p.product_id,
+                p.sku,
+                p.value,
+                p.name,
+                p.image_url,
+                c.name AS category_name,
+                SUM(ps.quantity) AS total_quantity
+            FROM 
+                products.Products p
+            JOIN 
+                products.Category c ON p.category_id = c.category_id
+            JOIN 
+                products.ProductStock ps ON p.product_id = ps.product_id
+            WHERE
+                ps.quantity > 0
+            GROUP BY
+                p.product_id, p.sku, p.value, p.name, p.image_url, c.name -- Agrupación completa requerida por PostgreSQL
+            ORDER BY
+                p.sku;
+            """
+
+            cursor.execute(query)
+            results = cursor.fetchall()
+
+            # Mapeamos los resultados (DictRow) a una lista de diccionarios Python estándar
+            products = [dict(row) for row in results]
+
+            # logger.info(f"Catálogo cargado: {len(products)} productos disponibles.")
+            return products
+
+        except psycopg2.Error as e:
+            # Aquí puedes registrar el error de DB para debugging
+            logger.error(f"ERROR de base de datos al recuperar el catálogo de productos: {e}")
+            return []
+        except Exception as e:
+            # Aquí puedes registrar cualquier otro error inesperado
+            logger.error(f"ERROR INESPERADO AL OBTENER CATÁLOGO: {e}")
+            return []
+        finally:
+            if conn:
+                release_connection(conn)
+
+    def save_evidence(self, visit_id: int, url: str, type: str) -> Dict[str, Any]:
+        """
+        Guarda la información de un archivo de evidencia (URL y tipo)
+        asociada a una visita en la tabla users.visual_evidences.
+        """
+        conn = None
+        new_evidence_id = None
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+
+            # Consulta SQL para insertar la nueva evidencia
+            query = """
+                INSERT INTO users.visual_evidences (visit_id, url_file, type)
+                VALUES (%s, %s, %s)
+                RETURNING evidence_id;
+            """
+            values = (visit_id, url, type.upper()) # Aseguramos que el tipo esté en mayúsculas (si es necesario)
+
+            cursor.execute(query, values)
+
+            # Obtenemos el ID de la evidencia recién insertada
+            new_evidence_id = cursor.fetchone()[0]
+            conn.commit()
+
+            return {
+                "evidence_id": new_evidence_id,
+                "visit_id": visit_id,
+                "url": url,
+                "type": type
+            }
+
+        except psycopg2.Error as e:
+            if conn:
+                conn.rollback()
+            logger.error(f"Error de base de datos al guardar evidencia para visita {visit_id}: {e}")
+            raise Exception("Database error during evidence saving.")
         finally:
             if conn:
                 release_connection(conn)

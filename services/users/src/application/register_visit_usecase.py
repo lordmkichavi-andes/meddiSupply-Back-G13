@@ -15,7 +15,6 @@ class RegisterVisitUseCase:
     def execute(self, client_id: int, seller_id: int, date: str, findings: str) -> Dict[str, Any]:
         """
         Ejecuta la lógica de negocio para registrar una visita.
-
         :param client_id: ID del cliente visitado.
         :param seller_id: ID del vendedor que realiza la visita.
         :param fecha: Objeto date con la fecha de la visita.

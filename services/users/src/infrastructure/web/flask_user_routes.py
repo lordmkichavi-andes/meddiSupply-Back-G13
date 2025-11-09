@@ -1,14 +1,15 @@
 from flask import Blueprint, jsonify, request
-from datetime import datetime, timedelta
 from dateutil import parser
 
 from src.application.use_cases import GetClientUsersUseCase
 from src.application.register_visit_usecase import RegisterVisitUseCase
-
+from src.application.generate_recommendations_usecase import GenerateRecommendationsUseCase
+from datetime import datetime, timedelta, timezone
 
 def create_user_api_blueprint(
         use_case: GetClientUsersUseCase,
         register_visit_use_case: RegisterVisitUseCase,
+        generate_recommendations_uc: GenerateRecommendationsUseCase
 ):
     """
     Función de fábrica para inyectar el Caso de Uso en el Blueprint.
@@ -76,6 +77,70 @@ def create_user_api_blueprint(
                 "error": str(e)
             }), 500
 
+    @user_api_bp.route('/detail/<int:client_id>', methods=['GET'])
+    def get_user_by_id(client_id):
+        """
+        Maneja la solicitud HTTP para obtener un usuario individual por su user_id.
+        """
+        try:
+            user_data = use_case.get_user_by_id(client_id=client_id)
+
+            if not user_data:
+                return jsonify({
+                    "message": f"Usuario con ID {client_id} no encontrado."
+                }), 404
+
+            return jsonify(user_data), 200
+
+        except Exception as e:
+            return jsonify({
+                "message": "Error al obtener la información del usuario. Intenta nuevamente.",
+                "error": str(e)
+            }), 500
+
+
+    @user_api_bp.route('/visits/<int:visit_id>/evidences', methods=['POST'])
+    def upload_visit_evidences_endpoint(visit_id):
+        """
+        Maneja la carga de evidencias (fotos/videos) asociadas a una visita,
+        delegando la lógica principal de validación y guardado al caso de uso.
+        """
+        try:
+            uploaded_files = request.files.getlist('files')
+
+            if not uploaded_files or uploaded_files[0].filename == '':
+                return jsonify({
+                    "message": "No se adjuntaron archivos para la evidencia."
+                }), 400
+
+            saved_evidences = use_case.upload_visit_evidences(
+                visit_id=visit_id,
+                files=uploaded_files
+            )
+
+            return jsonify({
+                "message": f"Se subieron {len(saved_evidences)} evidencias con éxito para la visita {visit_id}.",
+                "evidences": saved_evidences
+            }), 201
+
+        except FileNotFoundError as e:
+            return jsonify({
+                "message": "Error: La visita no existe o el sistema de archivos falló.",
+                "error": str(e)
+            }), 404
+
+        except ValueError as e:
+            return jsonify({
+                "message": str(e)
+            }), 404
+
+        except Exception as e:
+            return jsonify({
+                "message": "No se pudieron subir las evidencias. Intenta nuevamente.",
+                "error": str(e)
+            }), 500
+
+
     @user_api_bp.route('/visit', methods=['POST'])
     def register_visit():
         """
@@ -116,7 +181,7 @@ def create_user_api_blueprint(
                 "message": "La cadena proporcionada no corresponde a un formato de fecha válido."
             }), 400
 
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
         thirty_days_ago = now - timedelta(days=30)
 
         # La fecha no debe ser mayor a la fecha actual
@@ -155,4 +220,40 @@ def create_user_api_blueprint(
                 "error": str(e)
             }), 500
 
+    @user_api_bp.route('/recommendations',  methods=['POST'])
+    def post_recommendations_endpoint():
+        """
+        Genera recomendaciones de productos llamando al Caso de Uso.
+        """
+        data = request.get_json()
+        client_id = data.get('client_id')
+        regional_setting = data.get('regional_setting', 'CO')
+
+        if not client_id:
+            return jsonify({"message": "Falta el 'client_id' para la recomendación"}), 400
+
+        try:
+            # 🛑 LLAMADA AL CASO DE USO 🛑
+            result = generate_recommendations_uc.execute(
+                client_id=client_id,
+                regional_setting=regional_setting
+            )
+
+            # Retorno exitoso
+            return jsonify({
+                "status": "success",
+                "recommendations": result.get('recommendations', []),
+            }), 200
+
+        except ValueError as e:
+            # Errores de validación (client_id faltante, etc.)
+            return jsonify({"message": str(e)}), 400
+
+        except Exception as e:
+            # Errores del agente LLM, etc.
+            print(f"Error interno al generar recomendaciones: {e}")
+            return jsonify({
+                "message": "Fallo en el servicio de recomendaciones. Intente más tarde.",
+                "error": str(e)
+            }), 503
     return user_api_bp

@@ -1,23 +1,59 @@
 from abc import ABC, abstractmethod
-from typing import List
+from typing import List, Optional, Dict, Any, runtime_checkable, Protocol
 from .entities import Client
+from werkzeug.datastructures import FileStorage
 
 class UserRepository(ABC):
-    """
-    Contrato (Interfaz) para la capa de acceso a datos de Usuarios.
-    La capa de Aplicación solo conoce esta Interfaz, no la implementación.
-    """
     @abstractmethod
     def get_users_by_role(self, role: str) -> List[Client]:
-        """Recupera la lista de usuarios con un rol específico."""
         pass
 
     @abstractmethod
     def get_users_by_seller(self, seller_id: int) -> List[Client]:
-        """Recupera la lista de usuarios con un rol específico."""
+        pass
+
+    @abstractmethod
+    def db_get_client_data(self, client_id: int) -> Optional[Dict[str, Any]]:
+        pass
+
+    @abstractmethod
+    def get_by_id(self, visit_id: int) -> Optional[Dict[str, Any]]:
         pass
 
     @abstractmethod
     def save_visit(self, client_id: int, seller_id: int, date: str, findings: str):
         """Registra visitas"""
+        pass
+
+    @abstractmethod
+    def get_recent_evidences_by_client(self, client_id: int) -> List[Dict[str, str]]:
+        """
+        Obtiene las URLs y tipos de archivos de evidencia visual (media)
+        asociados a las visitas recientes de un cliente.
+        """
+        pass
+
+    @abstractmethod
+    def get_products(self) -> List[Dict[str, Any]]:
+        """Obtiene el catálogo de productos activos."""
+        pass
+
+    @abstractmethod
+    def save_evidence(self, visit_id: int, url: str, type: str) -> Dict[str, Any]:
+        """Guarda una nueva evidencia visual para una visita específica."""
+        pass
+
+@runtime_checkable
+class StorageServiceInterface(Protocol):
+    """
+    Define el contrato para cualquier servicio de almacenamiento de archivos.
+    Esto permite que la Capa de Aplicación (Use Case) dependa de la abstracción,
+    no de la implementación concreta (como boto3/S3).
+    """
+
+    @abstractmethod
+    def upload_file(self, file: FileStorage, visit_id: int) -> str:
+        """
+        Sube un archivo y retorna su URL de acceso.
+        """
         pass

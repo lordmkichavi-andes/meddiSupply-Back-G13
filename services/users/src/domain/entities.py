@@ -5,6 +5,7 @@ USER_ROLE_MAP = {
     "SUPERVISOR": {"name": "Supervisor"},
     "SELLER": {"name": "Vendedor"},
     "CLIENT": {"name": "Cliente"},
+    "PROVIDER": {"name": "Proveedor"},
 }
 
 @dataclass
