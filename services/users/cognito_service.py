@@ -168,7 +168,8 @@ def map_role_to_cognito_group(role: str) -> str:
     role_mapping = {
         'ADMIN': 'admin',
         'SELLER': 'ventas',  # Vendedores → grupo 'ventas' en Cognito
-        'CLIENT': 'clientes'  # Clientes → grupo 'clientes' en Cognito
+        'CLIENT': 'clientes',  # Clientes → grupo 'clientes' en Cognito
+        'PROVIDER': 'compras'  # Proveedores → grupo 'compras' en Cognito
     }
     return role_mapping.get(role.upper(), 'clientes')  # Default a 'clientes'
 

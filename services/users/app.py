@@ -17,7 +17,7 @@ from config import Config
 from src.services.storage_service import StorageService 
 from src.services.recommendation_agent import RecommendationAgent 
 from src.application.generate_recommendations_usecase import GenerateRecommendationsUseCase
-from user_upload import validate_users_data, insert_users, validate_sellers_data, insert_sellers
+from user_upload import validate_users_data, insert_users, validate_sellers_data, insert_sellers, validate_providers_data, insert_providers
 from login_service import authenticate_user
 
 load_dotenv()
@@ -160,6 +160,8 @@ def create_app():
                 "POST /users/upload/insert - Insertar usuarios CSV (HU107)",
                 "POST /users/sellers/upload/validate - Validar vendedores CSV",
                 "POST /users/sellers/upload/insert - Insertar vendedores CSV",
+                "POST /users/providers/upload/validate - Validar proveedores CSV",
+                "POST /users/providers/upload/insert - Insertar proveedores CSV",
                 "POST /users/login - Iniciar sesión (HU37)"
             ],
             "microservicio": "usuarios",
@@ -456,7 +458,7 @@ def create_app():
             file_type = request.headers.get('X-File-Type', 'csv')
             
             # Validar que file_type sea uno de los valores permitidos
-            allowed_file_types = ['csv', 'xlsx', 'xls']
+            allowed_file_types = ['csv', 'xlsx', 'xls', 'json']
             if file_type.lower() not in allowed_file_types:
                 return jsonify({
                     "success": False,
@@ -835,7 +837,7 @@ def create_app():
             file_type = request.headers.get('X-File-Type', 'csv')
             
             # Validar que file_type sea uno de los valores permitidos
-            allowed_file_types = ['csv', 'xlsx', 'xls']
+            allowed_file_types = ['csv', 'xlsx', 'xls', 'json']
             if file_type.lower() not in allowed_file_types:
                 return jsonify({
                     "success": False,
@@ -908,6 +910,258 @@ def create_app():
                 cursor.close()
             if conn:
                 release_connection(conn)
+
+    @app.route('/users/providers/upload/validate', methods=['POST'])
+    def validate_providers_endpoint():
+        """
+        Endpoint para validar proveedores antes de insertarlos.
+        Valida formato, duplicados y estructura de datos.
+        """
+        print("=== INICIO VALIDACIÓN DE PROVEEDORES ===")
+        
+        try:
+            # 1. Validar tamaño del archivo (máximo 5 MB)
+            content_length = request.content_length
+            if content_length and content_length > 5 * 1024 * 1024:  # 5 MB
+                return jsonify({
+                    "success": False,
+                    "message": "¡Ups! El archivo excede el tamaño permitido (máx. 5 MB).",
+                    "total_records": 0,
+                    "valid_records": 0,
+                    "invalid_records": 0,
+                    "errors": ["¡Ups! El archivo excede el tamaño permitido (máx. 5 MB)."],
+                    "warnings": []
+                }), 400
+            
+            # 2. Obtener y parsear datos del request
+            data_string = request.get_data(as_text=True)
+
+            if not data_string or data_string.strip() == '':
+                return jsonify({
+                    "success": False,
+                    "message": "No se recibieron datos para procesar",
+                    "total_records": 0,
+                    "valid_records": 0,
+                    "invalid_records": 0,
+                    "errors": ["No se recibieron datos para procesar"],
+                    "warnings": []
+                }), 400
+
+            print(f"Datos recibidos como string: {data_string[:200]}...")
+
+            # Limpiar el string
+            data_string = data_string.strip()
+
+            # Intentar parsear como JSON
+            try:
+                providers_data = json.loads(data_string)
+            except json.JSONDecodeError as e:
+                return jsonify({
+                    "success": False,
+                    "message": "¡Ups! El formato del archivo no es válido",
+                    "total_records": 0,
+                    "valid_records": 0,
+                    "invalid_records": 0,
+                    "errors": ["¡Ups! El formato del archivo no es válido"],
+                    "warnings": []
+                }), 400
+
+            print(f"Proveedores parseados: {len(providers_data)}")
+
+            # 3. Validar proveedores
+            is_valid, errors, warnings, validated_providers = validate_providers_data(providers_data)
+
+            # Preparar respuesta
+            valid_records = len(validated_providers)
+            invalid_records = len(providers_data) - valid_records
+            
+            # Mensajes
+            if not is_valid:
+                if any("duplicados" in e.lower() for e in errors):
+                    message = "¡Ups! Existen proveedores duplicados, revisa el archivo"
+                else:
+                    message = "¡Ups! El archivo tiene errores de validación, revisa y sube nuevamente"
+            else:
+                message = f"Validación completada: {valid_records} proveedores válidos de {len(providers_data)} totales"
+            
+            response_data = {
+                "success": is_valid,
+                "message": message,
+                "total_records": len(providers_data),
+                "valid_records": valid_records,
+                "invalid_records": invalid_records,
+                "errors": errors,
+                "warnings": warnings,
+                "validated_providers": validated_providers if is_valid else []
+            }
+            
+            return jsonify(response_data), 200
+            
+        except Exception as e:
+            print(f"ERROR en validación: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            
+            return jsonify({
+                "success": False,
+                "message": "¡Ups! Hubo un problema, intenta nuevamente en unos minutos",
+                "total_records": len(providers_data) if 'providers_data' in locals() else 0,
+                "valid_records": 0,
+                "invalid_records": len(providers_data) if 'providers_data' in locals() else 0,
+                "errors": [f"Error interno: {str(e)}"],
+                "warnings": []
+            }), 500
+
+    @app.route('/users/providers/upload/insert', methods=['POST'])
+    def insert_providers_endpoint():
+        """
+        Endpoint para insertar proveedores validados en la base de datos.
+        Asume que los proveedores ya fueron validados previamente.
+        Crea el usuario en users.users, el registro en products.Providers y el registro en users.providers.
+        """
+        print("=== INICIO INSERCIÓN DE PROVEEDORES ===")
+        conn = None
+        cursor = None
+        
+        try:
+            # 1. Validar tamaño del archivo (máximo 5 MB)
+            content_length = request.content_length
+            if content_length and content_length > 5 * 1024 * 1024:  # 5 MB
+                return jsonify({
+                    "success": False,
+                    "message": "¡Ups! El archivo excede el tamaño permitido (máx. 5 MB).",
+                    "total_records": 0,
+                    "successful_records": 0,
+                    "failed_records": 0,
+                    "errors": ["¡Ups! El archivo excede el tamaño permitido (máx. 5 MB)."],
+                    "warnings": []
+                }), 400
+            
+            # 2. Obtener y parsear datos del request
+            data_string = request.get_data(as_text=True)
+
+            if not data_string or data_string.strip() == '':
+                return jsonify({
+                    "success": False,
+                    "message": "No se recibieron datos para procesar",
+                    "total_records": 0,
+                    "successful_records": 0,
+                    "failed_records": 0,
+                    "errors": ["No se recibieron datos para procesar"],
+                    "warnings": []
+                }), 400
+
+            print(f"Datos recibidos como string: {data_string[:200]}...")
+
+            # Limpiar el string
+            data_string = data_string.strip()
+
+            # Intentar parsear como JSON
+            try:
+                providers_data = json.loads(data_string)
+            except json.JSONDecodeError as e:
+                return jsonify({
+                    "success": False,
+                    "message": "¡Ups! El formato del archivo no es válido",
+                    "total_records": 0,
+                    "successful_records": 0,
+                    "failed_records": 0,
+                    "errors": ["¡Ups! El formato del archivo no es válido"],
+                    "warnings": []
+                }), 400
+
+            print(f"Proveedores parseados para inserción: {len(providers_data)}")
+
+            # 3. Validación rápida básica (estructura mínima)
+            if not isinstance(providers_data, list) or not providers_data:
+                return jsonify({
+                    "success": False,
+                    "message": "Los datos deben ser un array de proveedores no vacío",
+                    "total_records": 0,
+                    "successful_records": 0,
+                    "failed_records": 0,
+                    "errors": ["Los datos deben ser un array de proveedores no vacío"],
+                    "warnings": []
+                }), 400
+            
+            # 4. Determinar file_name y file_type desde headers o usar defaults
+            file_name = request.headers.get('X-File-Name')
+            file_type = request.headers.get('X-File-Type', 'csv')
+            
+            # Validar que file_type sea uno de los valores permitidos
+            allowed_file_types = ['csv', 'xlsx', 'xls', 'json']
+            if file_type.lower() not in allowed_file_types:
+                return jsonify({
+                    "success": False,
+                    "message": "¡Ups! El formato del archivo no es válido",
+                    "total_records": 0,
+                    "successful_records": 0,
+                    "failed_records": 0,
+                    "errors": ["¡Ups! El formato del archivo no es válido"],
+                    "warnings": []
+                }), 400
+            else:
+                file_type = file_type.lower()
+            
+            # Si no hay file_name, usar uno basado en timestamp
+            if not file_name:
+                timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+                file_name = f'providers_upload_{timestamp}'
+            
+            # 5. Conectar a la base de datos e insertar
+            conn = get_connection()
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            print("Conexión a BD establecida")
+            
+            # Insertar proveedores
+            successful_records, failed_records, processed_errors, upload_id, insert_warnings = insert_providers(
+                providers_data, conn, cursor, data_string, file_name=file_name, file_type=file_type
+            )
+            
+            # Commit de la transacción
+            conn.commit()
+            print(f"Transacción completada. Exitosos: {successful_records}, Fallidos: {failed_records}")
+
+            # Determinar si fue exitoso
+            success = failed_records == 0
+            
+            if success:
+                message = "¡El archivo se ha cargado exitosamente!"
+            else:
+                message = "¡Ups! Hubo un problema, intenta nuevamente en unos minutos"
+            
+            return jsonify({
+                "success": success,
+                "message": message,
+                "total_records": len(providers_data),
+                "successful_records": successful_records,
+                "failed_records": failed_records,
+                "errors": processed_errors,
+                "warnings": insert_warnings
+            }), 200 if success else 500
+            
+        except Exception as e:
+            print(f"ERROR en inserción: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            
+            if conn:
+                conn.rollback()
+            
+            return jsonify({
+                "success": False,
+                "message": "¡Ups! Hubo un problema, intenta nuevamente en unos minutos",
+                "total_records": len(providers_data) if 'providers_data' in locals() else 0,
+                "successful_records": 0,
+                "failed_records": len(providers_data) if 'providers_data' in locals() else 0,
+                "errors": [f"Error interno: {str(e)}"],
+                "warnings": []
+            }), 500
+        finally:
+            if cursor:
+                cursor.close()
+            if conn:
+                release_connection(conn)
     
     return app
 
@@ -929,6 +1183,8 @@ if __name__ == '__main__':
     print("   POST /users/upload/insert - Insertar usuarios CSV (HU107)")
     print("   POST /users/sellers/upload/validate - Validar vendedores CSV")
     print("   POST /users/sellers/upload/insert - Insertar vendedores CSV")
+    print("   POST /users/providers/upload/validate - Validar proveedores CSV")
+    print("   POST /users/providers/upload/insert - Insertar proveedores CSV")
     print("   POST /users/login - Iniciar sesión (HU37)")
     print(f"🌐 Servidor ejecutándose en: http://localhost:{port}")
     print("🔧 Versión: 2.1.4 - Proper ECS Deploy Test")
