@@ -123,7 +123,8 @@ def create_app():
         user_repository=user_repository
     )
     generate_recommendations_uc = GenerateRecommendationsUseCase(
-        recommendation_agent=recommendation_agent
+        recommendation_agent=recommendation_agent,
+        user_repository=user_repository
     )
 
     # 3. Capa de Presentación (Web) - Arquitectura Limpia
