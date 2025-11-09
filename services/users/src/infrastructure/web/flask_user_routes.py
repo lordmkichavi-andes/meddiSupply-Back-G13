@@ -260,4 +260,41 @@ def create_user_api_blueprint(
                 "message": "Fallo en el servicio de recomendaciones. Intente más tarde.",
                 "error": str(e)
             }), 503
+
+    @user_api_bp.route('/recommendations/client/<int:client_id>', methods=['GET'])
+    def get_all_suggestions_for_client_endpoint(client_id):
+        """
+        Retorna todas las sugerencias de productos guardadas históricamente 
+        para un cliente específico (client_id).
+        """
+        if not client_id or client_id <= 0:
+             return jsonify({
+                "message": "ID de cliente inválido."
+            }), 400
+
+        try:
+            suggestions = generate_recommendations_uc.get_all_suggestions_for_client(
+                client_id=client_id
+            )
+
+            if not suggestions:
+                return jsonify({
+                    "status": "success",
+                    "message": f"No se encontraron sugerencias históricas para el cliente {client_id}.",
+                    "suggestions": []
+                }), 404 
+
+            return jsonify({
+                "status": "success", 
+                "client_id": client_id,
+                "suggestions": suggestions
+            }), 200
+
+        except Exception as e:
+            print(f"Error interno al obtener sugerencias históricas: {e}")
+            return jsonify({
+                "message": f"Error al recuperar las sugerencias históricas para el cliente {client_id}.",
+                "error": str(e)
+            }), 500
+
     return user_api_bp

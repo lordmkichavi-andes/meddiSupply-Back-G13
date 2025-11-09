@@ -572,3 +572,70 @@ class PgUserRepository(UserRepository):
         finally:
             if conn:
                 release_connection(conn)
+
+    def get_suggestions_by_client(self, client_id: int) -> List[Dict[str, Any]]:
+        """
+        Recupera el historial de productos sugeridos para un cliente, 
+        incluyendo los detalles del producto consultando los esquemas 'users' y 'products'.
+        """
+        conn = None
+        products_data = []
+        try:
+            conn = get_connection() 
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor) 
+
+            query = """
+                SELECT DISTINCT
+                    p.product_id,
+                    p.sku, 
+                    p.value, 
+                    p.image_url, 
+                    p.name,
+                    -- Referencia a products.Category
+                    pc.name AS category_name,
+                    -- Agregamos el stock total de la tabla products.ProductStock
+                    COALESCE(SUM(ps.quantity), 0) AS total_quantity 
+                FROM 
+                    users.visits v
+                -- 1. Unir a las sugerencias de producto (users.visit_product_suggestions)
+                JOIN 
+                    users.visit_product_suggestions vps ON v.visit_id = vps.visit_id
+                -- 2. Unir a la tabla maestra de Productos (products.Products)
+                JOIN 
+                    products.Products p ON vps.product_id = p.product_id
+                -- 3. Unir a la tabla de Categorías (products.Category)
+                LEFT JOIN 
+                    products.Category pc ON p.category_id = pc.category_id
+                -- 4. Unir a la tabla de Stock (products.ProductStock)
+                LEFT JOIN
+                    products.ProductStock ps ON p.product_id = ps.product_id
+                WHERE 
+                    v.client_id = %s
+                GROUP BY
+                    p.product_id, p.sku, p.value, p.image_url, p.name, pc.name
+                ORDER BY 
+                    p.product_id DESC;
+            """
+            
+            cursor.execute(query, (client_id,))
+            result = cursor.fetchall()
+            
+            for row in result:
+                products_data.append({
+                    'product_id': row['product_id'],
+                    'sku': row['sku'],
+                    'value': float(row['value']),
+                    'image_url': row['image_url'],
+                    'name': row['name'],
+                    'category_name': row['category_name'],
+                    'total_quantity': int(row['total_quantity']) 
+                })
+
+            return products_data
+
+        except psycopg2.Error as e:
+            print(f"ERROR de base de datos al recuperar sugerencias del cliente {client_id}: {e}")
+            raise Exception("Database error retrieving client suggestions.")
+        finally:
+            if conn:
+                release_connection(conn)
