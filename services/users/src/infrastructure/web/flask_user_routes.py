@@ -227,30 +227,34 @@ def create_user_api_blueprint(
         """
         data = request.get_json()
         client_id = data.get('client_id')
-        regional_setting = data.get('regional_setting', 'CO')
+        visit_id = data.get('visit_id')
+        regional_setting = data.get('regional_setting')
 
         if not client_id:
             return jsonify({"message": "Falta el 'client_id' para la recomendación"}), 400
+
+        if not regional_setting:
+            return jsonify({"message": "Falta el 'regional_setting' para la recomendación"}), 400
+
+        if not visit_id:
+            return jsonify({"message": "Falta el 'visit_id' para la recomendación"}), 400
         
         try:
-            # 🛑 LLAMADA AL CASO DE USO 🛑
             result = generate_recommendations_uc.execute(
                 client_id=client_id, 
-                regional_setting=regional_setting
+                regional_setting=regional_setting,
+                visit_id=visit_id
             )
             
-            # Retorno exitoso
             return jsonify({
                 "status": "success", 
                 "recommendations": result.get('recommendations', []),
             }), 200
 
         except ValueError as e:
-            # Errores de validación (client_id faltante, etc.)
             return jsonify({"message": str(e)}), 400
             
         except Exception as e:
-            # Errores del agente LLM, etc.
             print(f"Error interno al generar recomendaciones: {e}")
             return jsonify({
                 "message": "Fallo en el servicio de recomendaciones. Intente más tarde.",

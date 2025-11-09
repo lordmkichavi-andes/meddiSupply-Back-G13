@@ -5,6 +5,9 @@ from .db_connector import get_connection, release_connection
 import psycopg2
 import sys
 import psycopg2.extras
+import logging
+
+logger = logging.getLogger(__name__)
 
 class PgUserRepository(UserRepository):
     """
@@ -434,64 +437,6 @@ class PgUserRepository(UserRepository):
             if conn:
                 release_connection(conn)
 
-    def get_products(self) -> List[Dict[str, Any]]:
-        """
-        Obtiene el catálogo de productos disponibles (con stock > 0) 
-        directamente desde la base de datos PostgreSQL, usando los esquemas actualizados.
-        
-        Retorna una lista de diccionarios con el detalle del producto.
-        """
-        conn = None
-        products = []
-        try:
-            conn = get_connection()
-            # Usamos DictCursor para obtener diccionarios, que es el formato de retorno deseado.
-            cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-
-            query = """
-            SELECT
-                p.product_id,
-                p.sku,
-                p.value,
-                p.name,
-                p.image_url,
-                c.name AS category_name,
-                SUM(ps.quantity) AS total_quantity
-            FROM 
-                products.Products p
-            JOIN 
-                products.Category c ON p.category_id = c.category_id
-            JOIN 
-                products.ProductStock ps ON p.product_id = ps.product_id
-            WHERE
-                ps.quantity > 0
-            GROUP BY
-                p.product_id, p.sku, p.value, p.name, p.image_url, c.name -- Agrupación completa requerida por PostgreSQL
-            ORDER BY
-                p.sku;
-            """
-            
-            cursor.execute(query)
-            results = cursor.fetchall()
-            
-            # Mapeamos los resultados (DictRow) a una lista de diccionarios Python estándar
-            products = [dict(row) for row in results]
-            
-            # logger.info(f"Catálogo cargado: {len(products)} productos disponibles.")
-            return products
-
-        except psycopg2.Error as e:
-            # Aquí puedes registrar el error de DB para debugging
-            logger.error(f"ERROR de base de datos al recuperar el catálogo de productos: {e}")
-            return []
-        except Exception as e:
-            # Aquí puedes registrar cualquier otro error inesperado
-            logger.error(f"ERROR INESPERADO AL OBTENER CATÁLOGO: {e}")
-            return []
-        finally:
-            if conn:
-                release_connection(conn)
-
     def save_evidence(self, visit_id: int, url: str, type: str) -> Dict[str, Any]:
         """
         Guarda la información de un archivo de evidencia (URL y tipo) 
@@ -529,6 +474,101 @@ class PgUserRepository(UserRepository):
                 conn.rollback()
             logger.error(f"Error de base de datos al guardar evidencia para visita {visit_id}: {e}")
             raise Exception("Database error during evidence saving.")
+        finally:
+            if conn:
+                release_connection(conn)
+
+    def save_suggestion(
+        self, 
+        visit_id: int, 
+        product_id: int
+    ) -> Dict[str, Any]:
+        """
+        Guarda una sugerencia de producto, asociando el product_id al visit_id 
+        en la tabla users.visit_product_suggestions.
+        
+        Esta tabla no almacena score ni reasoning.
+        """
+        conn = None
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+
+            query = """
+                INSERT INTO users.visit_product_suggestions (visit_id, product_id)
+                VALUES (%s, %s)
+                ON CONFLICT (visit_id, product_id) DO NOTHING;
+            """
+            values = (visit_id, product_id)
+
+            cursor.execute(query, values)
+            conn.commit()
+            rows_affected = cursor.rowcount
+
+            return {
+                "visit_id": visit_id,
+                "product_id": product_id,
+                "status": "inserted" if rows_affected > 0 else "already_exists"
+            }
+
+        except psycopg2.Error as e:
+            if conn:
+                conn.rollback()
+            logger.error(f"Error de base de datos al guardar sugerencia para visita {visit_id}: {e}")
+            raise Exception("Database error during suggestion saving.")
+        finally:
+            if conn:
+                release_connection(conn)
+
+    def get_products(self) -> List[Dict[str, Any]]:
+        """
+        Obtiene el catálogo de productos disponibles (con stock > 0) 
+        directamente desde la base de datos PostgreSQL, usando los esquemas actualizados.
+        
+        Retorna una lista de diccionarios con el detalle del producto.
+        """
+        conn = None
+        products = []
+        try:
+            conn = get_connection()
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+
+            query = """
+            SELECT
+                p.product_id,
+                p.sku,
+                p.value,
+                p.name,
+                p.image_url,
+                c.name AS category_name,
+                SUM(ps.quantity) AS total_quantity
+            FROM 
+                products.Products p
+            JOIN 
+                products.Category c ON p.category_id = c.category_id
+            JOIN 
+                products.ProductStock ps ON p.product_id = ps.product_id
+            WHERE
+                ps.quantity > 0
+            GROUP BY
+                p.product_id, p.sku, p.value, p.name, p.image_url, c.name -- Agrupación completa requerida por PostgreSQL
+            ORDER BY
+                p.sku;
+            """
+            
+            cursor.execute(query)
+            results = cursor.fetchall()
+            
+            products = [dict(row) for row in results]
+            
+            return products
+
+        except psycopg2.Error as e:
+            logger.error(f"ERROR de base de datos al recuperar el catálogo de productos: {e}")
+            return []
+        except Exception as e:
+            logger.error(f"ERROR INESPERADO AL OBTENER CATÁLOGO: {e}")
+            return []
         finally:
             if conn:
                 release_connection(conn)
