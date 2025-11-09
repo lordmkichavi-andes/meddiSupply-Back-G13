@@ -167,7 +167,7 @@ class TestGetClientUsersUseCase(unittest.TestCase):
 
         self.mock_repository.get_users_by_seller.assert_called_once_with(test_seller_id)
         self.assertIn("Database query timed out.", str(cm.exception))
-
+        
     def test_upload_evidences_visit_not_found(self):
         """Verifica que lanza ValueError si la visita no existe."""
         test_visit_id = 999
@@ -191,7 +191,7 @@ class TestGetClientUsersUseCase(unittest.TestCase):
         test_visit_id = 100
         mock_file = MockFileStorage(filename="error.png", mimetype="image/png")
         mock_files = [mock_file]
-
+        
         self.mock_repository.get_visit_by_id.return_value = MOCK_VISIT_DATA
 
         # Mock: La subida a S3 falla
@@ -242,7 +242,7 @@ class TestGetClientUsersUseCase(unittest.TestCase):
         """Verifica que el método llama al repositorio y retorna la visita."""
         test_visit_id = 150
         # MOCK_VISIT_DATA ya está definido al inicio del archivo
-        mock_visit = MOCK_VISIT_DATA
+        mock_visit = MOCK_VISIT_DATA 
 
         # Configurar el mock para que devuelva la data de la visita
         self.mock_repository.get_by_id.return_value = mock_visit
@@ -284,6 +284,6 @@ class TestGetClientUsersUseCase(unittest.TestCase):
 
         self.mock_repository.get_by_id.assert_called_once_with(test_visit_id)
         self.assertIn("DB connection failed", str(cm.exception))
-
+        
 if __name__ == '__main__':
     unittest.main()
