@@ -98,3 +98,17 @@ class GetClientPurchaseHistoryUseCase:
             List[Dict[str, Any]]: Lista de diccionarios con el detalle del producto (sku, name).
         """
         return self.repository.get_recent_purchase_history(client_id, limit)
+
+class GetOrdersByIDUseCase:
+    """
+    Caso de Uso: Obtener todas las órdenes procesadas con sus productos detallados (para reportes/web).
+    """
+
+    def __init__(self, repository: OrderRepository):
+        self.repository = repository
+
+    def execute(self, order_id: int) -> Order:
+        """
+        Llama al repositorio para obtener la lista completa y agrupada de órdenes.
+        """
+        return self.repository.get_order_with_details_by_id(order_id)

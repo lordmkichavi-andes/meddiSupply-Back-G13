@@ -1,15 +1,35 @@
 version: '3.8'
 
 services:
+  # Servicio de Base de Datos PostgreSQL
+  db:
+    image: postgres:14-alpine
+    container_name: postgres_rdwo
+    restart: always
+    environment:
+      # Variables usadas por la imagen oficial de PostgreSQL
+      POSTGRES_DB: medisupplydb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      # Mapea el puerto del contenedor (5432) al puerto local (5432)
+      - "5432:5432"
+    healthcheck: # <--- Esto es lo que falta
+      test: [ "CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+
   # Servicio del Microservicio Flask
   app:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: orders
-    # Ya NO necesitamos 'depends_on' ni 'db' si la DB no está definida aquí.
-    # ELIMINAR depends_on COMPLETAMENTE.
-    
+    depends_on: # <--- La dependencia debe ser condicional
+      db:
+        condition: service_healthy
     environment:
       # Conectar a la misma base de datos de Products (host en 5433)
       DB_HOST: host.docker.internal 

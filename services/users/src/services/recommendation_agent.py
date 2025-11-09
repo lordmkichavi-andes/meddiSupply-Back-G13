@@ -7,6 +7,7 @@ import logging
 from typing import List, Dict, Any, Optional
 from src.domain.interfaces import UserRepository
 import logging
+import codecs
 
 logger = logging.getLogger(__name__)
 
@@ -17,14 +18,36 @@ class RecommendationAgent:
     """
     
     def __init__(self, user_repository: UserRepository):
+        
         self.MAX_RETRIES = 5
         self.BASE_DELAY = 1.0
-        self.GEMINI_API_URL = os.getenv(
-            "GEMINI_API_URL", 
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent"
-        )
-        self.API_KEY = os.getenv('GEMINI_API_KEY', 'AIzaSyDBM4aXt4948DT9Z_JkKmLKOvgRb19IZGA') 
         self.user_repository = user_repository
+        self.LLM_PROVIDER = os.getenv("ACTIVE_LLM", "GEMINI").upper()
+        self.API_KEY = os.getenv('LLM_API_KEY') 
+        self.API_URL = os.getenv("LLM_API_URL", self._get_default_url(self.LLM_PROVIDER))
+        self.MODEL_NAME = os.getenv('LLM_MODEL')
+        
+        if not self.API_KEY:
+            logger.warning(f"La variable LLM_API_KEY está vacía. El proveedor {self.LLM_PROVIDER} no podrá ser invocado.")
+            
+        if not self.API_URL:
+            logger.error(f"La URL de la API para el proveedor {self.LLM_PROVIDER} es inválida o no está definida.")
+
+
+    def _get_default_url(self, provider: str) -> str:
+        """Define URLs por defecto para proveedores conocidos si LLM_API_URL falta."""
+        provider = provider.upper()
+        
+        if provider == 'GEMINI':
+            return "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent"
+        
+        if provider == 'OPENAI':
+            return "https://api.openai.com/v1/chat/completions" 
+        
+        if provider == 'CLAUDE':
+            return "https://api.anthropic.com/v1/messages"
+        
+        return ""
         
     def _get_client_intelligence_tags(self, client_id: int, media: List[Dict[str, str]]) -> List[str]:
         """
@@ -100,38 +123,113 @@ class RecommendationAgent:
         """
         headers = {'Content-Type': 'application/json'}
         
-        payload = {
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {
-                "responseMimeType": "application/json",
-                "responseSchema": {
-                    "type": "OBJECT",
-                    "properties": {
-                        "recommendations": {
-                            "type": "ARRAY",
-                            "items": {
-                                "type": "OBJECT",
-                                "properties": {
-                                    "product_sku": {"type": "STRING"},
-                                    "product_name": {"type": "STRING"},
-                                    "score": {"type": "NUMBER"},
-                                    "reasoning": {"type": "STRING"}
+        if self.LLM_PROVIDER == 'GEMINI':
+            payload = {
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {
+                    "responseMimeType": "application/json",
+                    "responseSchema": {
+                        "type": "OBJECT",
+                        "properties": {
+                            "recommendations": {
+                                "type": "ARRAY",
+                                "items": {
+                                    "type": "OBJECT",
+                                    "properties": {
+                                        "product_sku": {"type": "STRING"},
+                                        "product_name": {"type": "STRING"},
+                                        "score": {"type": "NUMBER"},
+                                        "reasoning": {"type": "STRING"}
+                                    }
                                 }
                             }
                         }
                     }
                 }
             }
-        }
+
+        elif self.LLM_PROVIDER == 'OPENAI':
+            if not self.MODEL_NAME:
+                logger.error("LLM ERROR: La variable LLM_MODEL es requerida para OpenAI.")
+                return None
+                
+            payload = {
+                "model": self.MODEL_NAME, 
+                "messages": [
+                    {"role": "user", "content": prompt}
+                ],
+                "response_format": {"type": "json_object"},
+            }
+
+        elif self.LLM_PROVIDER == 'CLAUDE':
+            if not self.MODEL_NAME:
+                logger.error("LLM ERROR: La variable LLM_MODEL es requerida para Claude.")
+                return None
+                
+            payload = {
+                "model": self.MODEL_NAME, 
+                "system": "Eres un Motor de Razonamiento IA (LLM) para MediSupply. Genera una lista de tres (3) recomendaciones de productos y devuelve SOLO el objeto JSON.",
+                "messages": [
+                    {"role": "user", "content": prompt}
+                ],
+                
+                "max_tokens": 4096, 
+                "temperature": 0.1,  
+
+                "tool_choice": {"type": "tool", "name": "recommendation_schema"},
+                "tools": [
+                    {
+                        "name": "recommendation_schema",
+                        "description": "Herramienta usada para forzar la salida a un objeto JSON específico que contiene una lista de recomendaciones.",
+                        "input_schema": {
+                            "type": "object",
+                            "properties": {
+                                "recommendations": {
+                                    "type": "array",
+                                    "description": "Una lista de tres objetos de recomendación.",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "product_sku": {"type": "string"},
+                                            "product_name": {"type": "string"},
+                                            "score": {"type": "number"},
+                                            "reasoning": {"type": "string"}
+                                        },
+                                        "required": ["product_sku", "product_name", "score", "reasoning"]
+                                    }
+                                }
+                            }
+                        }
+                    }
+                ]
+            }
+
+        endpoint_url = self.API_URL
         
         if not self.API_KEY:
             logger.error("LLM ERROR: La variable API_KEY está vacía. No se puede llamar al servicio de Gemini.")
             return None
 
+        if self.LLM_PROVIDER == 'GEMINI':
+            endpoint_url = f"{self.API_URL}?key={self.API_KEY}"
+
+        elif self.LLM_PROVIDER == 'OPENAI':
+            if self.API_KEY:
+                headers['Authorization'] = f'Bearer {self.API_KEY}'
+
+        elif self.LLM_PROVIDER == 'CLAUDE':
+            if self.API_KEY:
+                headers['x-api-key'] = self.API_KEY
+                headers['anthropic-version'] = '2023-06-01'
+        
+        if not endpoint_url or (not self.API_KEY and self.LLM_PROVIDER != 'GEMINI'): 
+            logger.error(f"LLM ERROR: Configuración incompleta para el proveedor {self.LLM_PROVIDER}.")
+            return None
+
         for attempt in range(self.MAX_RETRIES):
             try:
                 response = requests.post(
-                    f"{self.GEMINI_API_URL}?key={self.API_KEY}", 
+                    endpoint_url,
                     json=payload, 
                     headers=headers, 
                     timeout=60
@@ -140,20 +238,21 @@ class RecommendationAgent:
                 if response.status_code == 200:
                     result = response.json()
                     
-                    if result.get('candidates') and result['candidates'][0]['content']['parts'][0]['text']:
-                        json_str = result['candidates'][0]['content']['parts'][0]['text']
+                    json_str = self._extract_response(result)
+                    
+                    if json_str:
                         return json.loads(json_str)
                     else:
-                        logger.error("LLM API - Respuesta 200, pero el texto generado está vacío.")
+                        logger.error(f"LLM API - Proveedor {self.LLM_PROVIDER}: Respuesta 200, pero el texto generado está vacío.")
                         return None
-                        
+
                 if response.status_code >= 500:
                     logger.warning(f"LLM API - Intento {attempt + 1}: Error de servidor ({response.status_code}). Reintentando...")
                     response.raise_for_status() 
 
                 logger.error(f"LLM API - Error irrecuperable ({response.status_code}). Mensaje: {response.text}")
                 return None
-
+            
             except (requests.exceptions.RequestException, requests.exceptions.HTTPError) as e:
                 if attempt < self.MAX_RETRIES - 1:
                     delay = self.BASE_DELAY * (2 ** attempt) + (random.random() * 0.5)
@@ -172,7 +271,7 @@ class RecommendationAgent:
         Main agent workflow: collects data and calls the AI.
         """
         
-        catalog = self.user_repository.get_products() 
+        catalog = self.user_repository.get_products()
         logger.error(f"catalog: {catalog}")
         client_profile = self.user_repository.db_get_client_data(client_id)
         logger.error(f"client_profile: {client_profile}")
@@ -191,3 +290,32 @@ class RecommendationAgent:
         )
         
         return self.invoke(full_prompt)
+
+    def _extract_response(self, response_json: Dict[str, Any]) -> Optional[str]:
+        """Extrae la cadena JSON de texto de la respuesta del proveedor activo."""
+        
+        if self.LLM_PROVIDER == 'GEMINI':
+            if response_json.get('candidates') and response_json['candidates'][0]['content']['parts'][0]['text']:
+                raw_text = response_json['candidates'][0]['content']['parts'][0]['text']
+                
+                try:
+                    clean_text = codecs.decode(raw_text, 'unicode_escape')
+                    return clean_text
+                except Exception as e:
+                    logger.error(f"Gemini: Fallo en la decodificación de caracteres. Usando texto sin limpiar. Error: {e}")
+                    return raw_text
+        
+        if self.LLM_PROVIDER == 'OPENAI':
+            if response_json.get('choices') and response_json['choices'][0]['message']['content']:
+                return response_json['choices'][0]['message']['content']
+        
+        if self.LLM_PROVIDER == 'CLAUDE':
+            if response_json.get('content') and response_json['content'][0]['type'] == 'tool_use':
+                tool_input = response_json['content'][0]['input']
+                return json.dumps(tool_input)
+            
+            if response_json.get('content') and response_json['content'][0]['text']:
+                 return response_json['content'][0]['text']
+        
+        logger.error(f"Fallo al extraer la respuesta del proveedor {self.LLM_PROVIDER}. Estructura inesperada.")
+        return None

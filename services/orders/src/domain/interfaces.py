@@ -34,3 +34,11 @@ class OrderRepository(ABC):
         Usado por el GetClientPurchaseHistoryUseCase.
         """
         pass
+
+    @abstractmethod
+    def get_order_with_details_by_id(self, order_id: int) -> Order:
+        """
+        Recupera el historial reciente (SKU y nombre) de productos comprados por un cliente.
+        Usado por el GetClientPurchaseHistoryUseCase.
+        """
+        pass

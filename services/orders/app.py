@@ -1,8 +1,9 @@
 # app.py
 from flask import Flask, jsonify
 from dotenv import load_dotenv  # Necesario para cargar variables de entorno
+
 from src.infrastructure.web.flask_routes import create_api_blueprint
-from src.application.use_cases import TrackOrdersUseCase, CreateOrderUseCase, GetClientPurchaseHistoryUseCase, GetAllOrdersUseCase
+from src.application.use_cases import TrackOrdersUseCase, CreateOrderUseCase, GetClientPurchaseHistoryUseCase, GetAllOrdersUseCase, GetOrdersByIDUseCase
 from src.infrastructure.persistence.pg_repository import PgOrderRepository
 from src.infrastructure.persistence.db_connector import init_db_pool
 from src.infrastructure.persistence.db_initializer import initialize_database
@@ -53,6 +54,9 @@ def create_app():
     all_orders_use_case = GetAllOrdersUseCase(
         repository=order_repository
     )
+    get_orders_by_id = GetOrdersByIDUseCase(
+        repository=order_repository
+    )
     # Configurar CORS
     CORS(app, resources={
         r"/*": {
@@ -66,7 +70,8 @@ def create_app():
         track_orders_use_case, 
         create_order_use_case, 
         history_use_case, 
-        all_orders_use_case
+        all_orders_use_case,
+        get_orders_by_id
     )
     app.register_blueprint(api_bp, url_prefix='/orders')
 

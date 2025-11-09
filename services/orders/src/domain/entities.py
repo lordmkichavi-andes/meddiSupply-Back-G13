@@ -21,6 +21,8 @@ class OrderItem:
     product_id: str
     quantity: int
     price_unit: float
+    sku: str = ""
+    name: str = ""
 
 @dataclass
 class OrderStatus:
@@ -36,9 +38,13 @@ class Order:
     creation_date: datetime
     last_updated_date: datetime
     status_id: int
-    orders: List[OrderItem]
+    items: List[OrderItem]
     order_value: int
-    estimated_delivery_date: Optional[datetime] = None
+    seller_id: int
+    estimated_delivery_date: Optional[datetime] = None,
+    address: str = ""
+    client_name: str = ""
+    seller_name: str = ""
 
 
 

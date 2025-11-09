@@ -383,3 +383,504 @@ class TestPgUserRepository:
 
         # Verificar que se liberó la conexión
         mock_release.assert_called_once_with(conn)
+
+
+    @patch('src.infrastructure.persistence.pg_user_repository.release_connection')
+    @patch('src.infrastructure.persistence.pg_user_repository.get_connection')
+    def test_get_users_by_seller_success(
+            self,
+            mock_get_conn,
+            mock_release,
+            repository,
+            mock_connection,
+            sample_db_rows
+    ):
+        """Test: recuperación exitosa de clientes por ID de vendedor."""
+        # Arrange
+        conn, cursor = mock_connection
+        mock_get_conn.return_value = conn
+        # Ajustamos sample_db_rows para que coincida con el SELECT de get_users_by_seller
+        # El SELECT de get_users_by_seller tiene un orden diferente de columnas (client_name va antes de nit)
+        seller_rows = [
+            (
+                1, 1, "Juan", "Pérez", "hashed_password_123", "1234567890", "3001234567",
+                'CLIENT', "premium", "900123456-7", 1500000.50,
+                'Calle 72 # 10-30, Bogotá', 4.659970, -74.058370
+            )
+        ]
+        cursor.fetchall.return_value = seller_rows
+
+        # Act
+        result = repository.get_users_by_seller('VEND-001')
+
+        # Assert
+        assert len(result) == 1
+        assert all(isinstance(user, Client) for user in result)
+        assert result[0].name == "Juan"
+        assert result[0].perfil == "premium"
+        
+        # Verificar que se llamó la query correcta
+        cursor.execute.assert_called_once()
+        call_args = cursor.execute.call_args
+        assert "WHERE s.seller_id = %s" in call_args[0][0]
+        assert call_args[0][1] == ('VEND-001',)
+        mock_release.assert_called_once_with(conn)
+
+    @patch('src.infrastructure.persistence.pg_user_repository.release_connection')
+    @patch('src.infrastructure.persistence.pg_user_repository.get_connection')
+    def test_get_users_by_seller_empty_result(
+            self,
+            mock_get_conn,
+            mock_release,
+            repository,
+            mock_connection
+    ):
+        """Test: no se encuentran clientes para el vendedor especificado."""
+        # Arrange
+        conn, cursor = mock_connection
+        mock_get_conn.return_value = conn
+        cursor.fetchall.return_value = []
+
+        # Act
+        result = repository.get_users_by_seller("VEND-999")
+
+        # Assert
+        assert result == []
+        mock_release.assert_called_once_with(conn)
+        
+    # --- Tests para db_get_client_data (Perfil Enriquecido) ---
+
+    @patch('src.infrastructure.persistence.pg_user_repository.release_connection')
+    @patch('src.infrastructure.persistence.pg_user_repository.get_connection')
+    def test_db_get_client_data_success(
+            self,
+            mock_get_conn,
+            mock_release,
+            repository,
+            mock_connection
+    ):
+        """Test: Obtención exitosa del perfil enriquecido del cliente."""
+        # Arrange
+        conn, cursor = mock_connection
+        mock_get_conn.return_value = conn
+        
+        # Simular DictRow (usando un dict normal ya que el cursor mockeado lo maneja)
+        mock_data = {
+            'client_id': 5, 
+            'user_name': 'Carlos', 
+            'last_name': 'Gomez', 
+            'balance': 50000.00,
+            'seller_zone': 'CENTRO'
+        }
+        cursor.fetchone.return_value = mock_data
+
+        # Act
+        result = repository.db_get_client_data(5)
+
+        # Assert
+        assert result is not None
+        assert result['client_id'] == 5
+        assert result['seller_zone'] == 'CENTRO'
+        
+        # Verificar que se usó DictCursor (solo se verifica la llamada al cursor)
+        mock_get_conn.return_value.cursor.assert_called_once_with(
+            cursor_factory=psycopg2.extras.DictCursor
+        )
+        mock_release.assert_called_once_with(conn)
+
+    @patch('src.infrastructure.persistence.pg_user_repository.release_connection')
+    @patch('src.infrastructure.persistence.pg_user_repository.get_connection')
+    def test_db_get_client_data_not_found(
+            self,
+            mock_get_conn,
+            mock_release,
+            repository,
+            mock_connection
+    ):
+        """Test: Perfil no encontrado."""
+        # Arrange
+        conn, cursor = mock_connection
+        mock_get_conn.return_value = conn
+        cursor.fetchone.return_value = None
+
+        # Act
+        result = repository.db_get_client_data(999)
+
+        # Assert
+        assert result is None
+        mock_release.assert_called_once_with(conn)
+
+    # --- Tests para get_by_id (Retorna dict del cliente) ---
+    
+    @patch('src.infrastructure.persistence.pg_user_repository.release_connection')
+    @patch('src.infrastructure.persistence.pg_user_repository.get_connection')
+    def test_get_by_id_success(
+            self,
+            mock_get_conn,
+            mock_release,
+            repository,
+            mock_connection
+    ):
+        """Test: Obtención exitosa de cliente por client_id."""
+        # Arrange
+        conn, cursor = mock_connection
+        mock_get_conn.return_value = conn
+        mock_data = {
+            'client_id': 5, 
+            'name': 'Carlos', 
+            'balance': 50000.00,
+            'seller_zone': 'CENTRO'
+        }
+        cursor.fetchone.return_value = mock_data
+
+        # Act
+        result = repository.get_by_id(5)
+
+        # Assert
+        assert result is not None
+        assert result['client_id'] == 5
+        assert 'seller_zone' in result
+        mock_release.assert_called_once_with(conn)
+
+    # --- Tests para get_visit_by_id ---
+
+    @patch('src.infrastructure.persistence.pg_user_repository.release_connection')
+    @patch('src.infrastructure.persistence.pg_user_repository.get_connection')
+    def test_get_visit_by_id_success(
+            self,
+            mock_get_conn,
+            mock_release,
+            repository,
+            mock_connection
+    ):
+        """Test: Recuperación exitosa de una visita."""
+        # Arrange
+        conn, cursor = mock_connection
+        mock_get_conn.return_value = conn
+        mock_data = {
+            'visit_id': 10,
+            'seller_id': 20,
+            'date': '2025-11-01',
+            'client_id': 5
+        }
+        cursor.fetchone.return_value = mock_data
+
+        # Act
+        result = repository.get_visit_by_id(10)
+
+        # Assert
+        assert result is not None
+        assert result['visit_id'] == 10
+        assert result['seller_id'] == 20
+        mock_release.assert_called_once_with(conn)
+
+    @patch('src.infrastructure.persistence.pg_user_repository.release_connection')
+    @patch('src.infrastructure.persistence.pg_user_repository.get_connection')
+    def test_get_visit_by_id_not_found(
+            self,
+            mock_get_conn,
+            mock_release,
+            repository,
+            mock_connection
+    ):
+        """Test: Visita no encontrada."""
+        # Arrange
+        conn, cursor = mock_connection
+        mock_get_conn.return_value = conn
+        cursor.fetchone.return_value = None
+
+        # Act
+        result = repository.get_visit_by_id(999)
+
+        # Assert
+        assert result is None
+        mock_release.assert_called_once_with(conn)
+
+    # --- Tests para save_visit ---
+
+    @patch('src.infrastructure.persistence.pg_user_repository.release_connection')
+    @patch('src.infrastructure.persistence.pg_user_repository.get_connection')
+    def test_save_visit_success(
+            self,
+            mock_get_conn,
+            mock_release,
+            repository,
+            mock_connection
+    ):
+        """Test: Guardado exitoso de una nueva visita."""
+        # Arrange
+        conn, cursor = mock_connection
+        mock_get_conn.return_value = conn
+        # Simular el ID retornado después de la inserción
+        cursor.fetchone.return_value = (100,) 
+        
+        visit_data = {
+            "client_id": 5, 
+            "seller_id": 20, 
+            "date": "2025-11-08", 
+            "findings": "Todo OK"
+        }
+
+        # Act
+        result = repository.save_visit(**visit_data)
+
+        # Assert
+        assert result['visit_id'] == 100
+        assert result['client_id'] == 5
+        cursor.execute.assert_called_once()
+        conn.commit.assert_called_once()
+        mock_release.assert_called_once_with(conn)
+
+    @patch('src.infrastructure.persistence.pg_user_repository.release_connection')
+    @patch('src.infrastructure.persistence.pg_user_repository.get_connection')
+    def test_save_visit_rollback_on_error(
+            self,
+            mock_get_conn,
+            mock_release,
+            repository,
+            mock_connection
+    ):
+        """Test: Rollback en caso de error de base de datos al guardar."""
+        # Arrange
+        conn, cursor = mock_connection
+        mock_get_conn.return_value = conn
+        cursor.execute.side_effect = psycopg2.Error("FK Constraint violation")
+
+        # Act & Assert
+        with pytest.raises(Exception) as exc_info:
+            repository.save_visit(5, 20, "2025-11-08", "Test")
+
+        assert str(exc_info.value) == "Database error during visit saving."
+        conn.rollback.assert_called_once()
+        mock_release.assert_called_once_with(conn)
+
+    # --- Tests para get_recent_evidences_by_client ---
+
+    @patch('src.infrastructure.persistence.pg_user_repository.release_connection')
+    @patch('src.infrastructure.persistence.pg_user_repository.get_connection')
+    def test_get_recent_evidences_by_client_success(
+            self,
+            mock_get_conn,
+            mock_release,
+            repository,
+            mock_connection
+    ):
+        """Test: Recuperación exitosa de evidencias recientes."""
+        # Arrange
+        conn, cursor = mock_connection
+        mock_get_conn.return_value = conn
+        mock_rows = [
+            {'url': 'url1.jpg', 'type': 'IMAGE'}, 
+            {'url': 'url2.mp4', 'type': 'VIDEO'}
+        ]
+        cursor.fetchall.return_value = mock_rows
+
+        # Act
+        result = repository.get_recent_evidences_by_client(5)
+
+        # Assert
+        assert len(result) == 2
+        assert result[0]['url'] == 'url1.jpg'
+        cursor.execute.assert_called_once()
+        assert 'LIMIT 10' in cursor.execute.call_args[0][0]
+        mock_release.assert_called_once_with(conn)
+
+    @patch('src.infrastructure.persistence.pg_user_repository.release_connection')
+    @patch('src.infrastructure.persistence.pg_user_repository.get_connection')
+    def test_get_recent_evidences_by_client_empty(
+            self,
+            mock_get_conn,
+            mock_release,
+            repository,
+            mock_connection
+    ):
+        """Test: No se encuentran evidencias."""
+        # Arrange
+        conn, cursor = mock_connection
+        mock_get_conn.return_value = conn
+        cursor.fetchall.return_value = []
+
+        # Act
+        result = repository.get_recent_evidences_by_client(5)
+
+        # Assert
+        assert result == []
+        mock_release.assert_called_once_with(conn)
+
+    # --- Tests para get_recent_purchase_history ---
+
+    @patch('src.infrastructure.persistence.pg_user_repository.release_connection')
+    @patch('src.infrastructure.persistence.pg_user_repository.get_connection')
+    def test_get_recent_purchase_history_success(
+            self,
+            mock_get_conn,
+            mock_release,
+            repository,
+            mock_connection
+    ):
+        """Test: Recuperación exitosa del historial de compras."""
+        # Arrange
+        conn, cursor = mock_connection
+        mock_get_conn.return_value = conn
+        mock_rows = [
+            ('SKU-A', 'Medicina A'), 
+            ('SKU-B', 'Medicina B')
+        ]
+        cursor.fetchall.return_value = mock_rows
+
+        # Act
+        result = repository.get_recent_purchase_history(5)
+
+        # Assert
+        assert len(result) == 2
+        assert result[0]['sku'] == 'SKU-A'
+        cursor.execute.assert_called_once()
+        assert cursor.execute.call_args[0][1] == (5, 10) # Verifica client_id y limit
+        mock_release.assert_called_once_with(conn)
+
+    @patch('src.infrastructure.persistence.pg_user_repository.release_connection')
+    @patch('src.infrastructure.persistence.pg_user_repository.get_connection')
+    def test_get_recent_purchase_history_empty(
+            self,
+            mock_get_conn,
+            mock_release,
+            repository,
+            mock_connection
+    ):
+        """Test: Historial de compras vacío."""
+        # Arrange
+        conn, cursor = mock_connection
+        mock_get_conn.return_value = conn
+        cursor.fetchall.return_value = []
+
+        # Act
+        result = repository.get_recent_purchase_history(5)
+
+        # Assert
+        assert result == []
+        mock_release.assert_called_once_with(conn)
+
+    # --- Tests para save_evidence ---
+
+    @patch('src.infrastructure.persistence.pg_user_repository.release_connection')
+    @patch('src.infrastructure.persistence.pg_user_repository.get_connection')
+    def test_save_evidence_success(
+            self,
+            mock_get_conn,
+            mock_release,
+            repository,
+            mock_connection
+    ):
+        """Test: Guardado exitoso de evidencia visual."""
+        # Arrange
+        conn, cursor = mock_connection
+        mock_get_conn.return_value = conn
+        cursor.fetchone.return_value = (500,) # evidence_id generado
+
+        # Act
+        result = repository.save_evidence(10, 'http://url/image.jpg', 'IMAGE')
+
+        # Assert
+        assert result['evidence_id'] == 500
+        assert result['type'] == 'IMAGE'
+        cursor.execute.assert_called_once()
+        # Verificar que el tipo de archivo se envía en mayúsculas a la DB
+        assert cursor.execute.call_args[0][1][2] == 'IMAGE' 
+        conn.commit.assert_called_once()
+        mock_release.assert_called_once_with(conn)
+
+    @patch('src.infrastructure.persistence.pg_user_repository.release_connection')
+    @patch('src.infrastructure.persistence.pg_user_repository.get_connection')
+    def test_save_evidence_rollback_on_error(
+            self,
+            mock_get_conn,
+            mock_release,
+            repository,
+            mock_connection
+    ):
+        """Test: Rollback y liberación de conexión en error al guardar evidencia."""
+        # Arrange
+        conn, cursor = mock_connection
+        mock_get_conn.return_value = conn
+        cursor.execute.side_effect = psycopg2.Error("DB error")
+
+        # Act & Assert
+        with pytest.raises(Exception) as exc_info:
+            repository.save_evidence(10, 'url', 'pdf')
+
+        assert str(exc_info.value) == "Database error during evidence saving."
+        conn.rollback.assert_called_once()
+        mock_release.assert_called_once_with(conn)
+
+    # --- Tests para save_suggestion ---
+
+    @patch('src.infrastructure.persistence.pg_user_repository.release_connection')
+    @patch('src.infrastructure.persistence.pg_user_repository.get_connection')
+    def test_save_suggestion_inserted(
+            self,
+            mock_get_conn,
+            mock_release,
+            repository,
+            mock_connection
+    ):
+        """Test: Guardado exitoso de una sugerencia (INSERTED)."""
+        # Arrange
+        conn, cursor = mock_connection
+        mock_get_conn.return_value = conn
+        cursor.rowcount = 1 # 1 fila insertada
+        
+        # Act
+        result = repository.save_suggestion(10, 200)
+
+        # Assert
+        assert result['status'] == 'inserted'
+        assert result['visit_id'] == 10
+        conn.commit.assert_called_once()
+        assert 'ON CONFLICT' in cursor.execute.call_args[0][0]
+        mock_release.assert_called_once_with(conn)
+        
+    @patch('src.infrastructure.persistence.pg_user_repository.release_connection')
+    @patch('src.infrastructure.persistence.pg_user_repository.get_connection')
+    def test_save_suggestion_already_exists(
+            self,
+            mock_get_conn,
+            mock_release,
+            repository,
+            mock_connection
+    ):
+        """Test: Sugerencia ya existente (DO NOTHING)."""
+        # Arrange
+        conn, cursor = mock_connection
+        mock_get_conn.return_value = conn
+        cursor.rowcount = 0 # 0 filas insertadas (conflicto)
+        
+        # Act
+        result = repository.save_suggestion(10, 200)
+
+        # Assert
+        assert result['status'] == 'already_exists'
+        conn.commit.assert_called_once()
+        mock_release.assert_called_once_with(conn)
+
+    @patch('src.infrastructure.persistence.pg_user_repository.release_connection')
+    @patch('src.infrastructure.persistence.pg_user_repository.get_connection')
+    def test_save_suggestion_rollback_on_error(
+            self,
+            mock_get_conn,
+            mock_release,
+            repository,
+            mock_connection
+    ):
+        """Test: Rollback y liberación de conexión en error al guardar sugerencia."""
+        # Arrange
+        conn, cursor = mock_connection
+        mock_get_conn.return_value = conn
+        cursor.execute.side_effect = psycopg2.Error("DB error: FK violation")
+
+        # Act & Assert
+        with pytest.raises(Exception) as exc_info:
+            repository.save_suggestion(10, 200)
+
+        assert str(exc_info.value) == "Database error during suggestion saving."
+        conn.rollback.assert_called_once()
+        mock_release.assert_called_once_with(conn)

@@ -33,7 +33,7 @@ class PgOrderRepository(OrderRepository):
                 order.client_id, 
                 order.estimated_delivery_date, 
                 order.status_id, 
-                order.total_value
+                order.order_value
             ))
             
             new_order_id = cursor.fetchone()[0]
@@ -75,13 +75,13 @@ class PgOrderRepository(OrderRepository):
             sql_query = """
                 SELECT 
                     order_id, client_id, creation_date, 
-                    last_updated_date, estimated_delivery_date, status_id, total_value 
+                    last_updated_date, estimated_delivery_date, status_id, total_value, seller_id
                 FROM orders.Orders
                 WHERE client_id = %s
                 ORDER BY creation_date DESC;
             """
             cursor.execute(sql_query, (client_id,))
-            
+
             for row in cursor.fetchall():
                 order = Order(
                     order_id=row[0],
@@ -91,7 +91,8 @@ class PgOrderRepository(OrderRepository):
                     estimated_delivery_date=row[4],
                     status_id=row[5],
                     order_value=row[6],
-                    orders = []
+                    seller_id = row[7],
+                    items = []
                 )
                 orders.append(order)
                 
@@ -200,6 +201,88 @@ class PgOrderRepository(OrderRepository):
             if conn:
                 conn.rollback()
             raise Exception("Database error retrieving purchase history.")
+        finally:
+            if conn:
+                release_connection(conn)
+
+    def get_order_with_details_by_id(self, order_id: int) -> Order:
+        """
+                Ejecuta la consulta SQL real para obtener TODAS las órdenes con sus productos detallados.
+                """
+        conn = None
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+
+            sql_query = """
+                        SELECT 
+                        o.order_id, 
+                        o.client_id, 
+                        o.creation_date, 
+                        o.total_value,
+                        o.last_updated_date, 
+                        o.estimated_delivery_date, 
+                        o.status_id,
+                        c.address AS client_address,
+                        uc.name||' '||uc.last_name AS client_name,
+                        us.name||' '||us.last_name AS seller_name,
+                        o.seller_id,
+                        ol.quantity, 
+                        ol.price_unit,
+                        p.product_id, 
+                        p.sku, 
+                        p.name AS product_name
+                    FROM orders.Orders o
+                    JOIN orders.OrderLines ol ON o.order_id = ol.order_id
+                    JOIN products.Products p ON ol.product_id = p.product_id
+                    JOIN users.Clients c ON o.client_id = c.client_id
+                    JOIN users.Users uc ON c.user_id = uc.user_id
+                    JOIN users.sellers s ON o.seller_id = s.seller_id
+                    JOIN users.Users us ON s.user_id = us.user_id
+                    WHERE o.order_id = %s
+                    ORDER BY o.creation_date DESC, o.order_id;
+                    """
+
+            cursor.execute(sql_query, (order_id,))
+
+            column_names = [desc[0] for desc in cursor.description]
+            result_rows = cursor.fetchall()
+            order_lines = []
+
+
+            for row_tuple in result_rows:
+                row = dict(zip(column_names, row_tuple))
+                order_lines.append(OrderItem(
+                    sku=row['sku'],
+                    name=row['product_name'],
+                    quantity=row['quantity'],
+                    price_unit=float(row['price_unit']),
+                    product_id=row['product_id'],
+                ))
+            order = Order(
+                order_id=order_id,
+                client_id=result_rows[0][1],
+                creation_date=result_rows[0][2].isoformat(),
+                order_value=float(result_rows[0][3]),
+                last_updated_date=result_rows[0][4].isoformat(),
+                estimated_delivery_date=result_rows[0][5].isoformat(),
+                status_id=result_rows[0][6],
+                address = result_rows[0][7],
+                client_name = result_rows[0][8],
+                seller_name = result_rows[0][9],
+                seller_id = result_rows[0][10],
+                items=order_lines
+            )
+
+
+
+            return order
+
+        except psycopg2.Error as e:
+            print(f"ERROR de base de datos al consultar todas las órdenes: {e}")
+            if conn:
+                conn.rollback()
+            raise Exception("Database error during all orders retrieval.")
         finally:
             if conn:
                 release_connection(conn)
