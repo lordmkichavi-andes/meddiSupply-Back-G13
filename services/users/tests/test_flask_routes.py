@@ -99,8 +99,6 @@ class UserAPITestCase(unittest.TestCase):
 
     def test_post_recommendations_llm_failure(self):
         """Prueba la falla cuando el Caso de Uso lanza una excepción (ej. fallo del LLM) (código 503)."""
-        
-        # Simular una excepción de servicio externo
         self.mock_recommendations_uc.execute.side_effect = Exception("Fallo en el Agente de Razonamiento (LLM).")
         
         response = self.client.post(
@@ -108,11 +106,18 @@ class UserAPITestCase(unittest.TestCase):
             json={"client_id": 1, "regional_setting": "CO"}
         )
 
-        response_data = self._get_json(response)
+        self.assertEqual(response.status_code, 503, "Debe devolver 503 Service Unavailable en caso de fallo LLM/UC.")
         
-        self.assertEqual(response.status_code, 503) # 503 Service Unavailable es apropiado para LLM
-        self.assertIn("Fallo en el servicio de recomendaciones", response_data['message'])
+        try:
+            response_data = json.loads(response.get_data(as_text=True))
+        except json.JSONDecodeError:
+            self.fail("La respuesta 503 no devolvió un cuerpo JSON válido.")
+        
+        expected_message = "Fallo en el servicio de recomendaciones. Intente más tarde."
+        self.assertIn(expected_message, response_data['message'])
+        
         self.mock_recommendations_uc.execute.assert_called_once()
+        self.assertIn("Fallo en el Agente de Razonamiento (LLM).", response_data['error'])
         
     # ----------------------------------------------------------------------
     ## Tests para la ruta GET /clients
