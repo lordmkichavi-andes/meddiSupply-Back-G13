@@ -1184,6 +1184,5 @@ if __name__ == '__main__':
     print("   POST /users/providers/upload/validate - Validar proveedores CSV")
     print("   POST /users/providers/upload/insert - Insertar proveedores CSV")
     print("   POST /users/login - Iniciar sesión (HU37)")
-    print(f"🌐 Servidor ejecutándose en: http://localhost:{port}")
     print("🔧 Versión: 2.1.4 - Proper ECS Deploy Test")
     app.run(host='0.0.0.0', port=8080, debug=False)
