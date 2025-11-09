@@ -101,9 +101,8 @@ class UserAPITestCase(unittest.TestCase):
         
         self.mock_recommendations_uc.execute.assert_called_once_with(
             client_id=1, 
-            regional_setting="CO"
-            # ⚠️ Si 'visit_id' es None, la llamada debe incluirlo si lo declaraste obligatorio en el mock.
-            # Si el endpoint no lo envía, no se espera en la llamada del mock.
+            regional_setting="CO",
+            visit_id=10
         )
     
     # ---
