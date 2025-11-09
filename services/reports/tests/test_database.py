@@ -268,26 +268,29 @@ class TestGetSalesReportData:
     
     def test_get_sales_report_data_success(self):
         """Test obtener datos de reporte de ventas exitoso."""
+        from datetime import datetime, date
         with patch.object(db_module, 'execute_query') as mock_execute:
             # Configurar mock para las 3 consultas separadas
             def mock_execute_side_effect(query, params=None, fetch_one=False, fetch_all=False):
-                if 'LIMIT 1' in query:  # Consulta de ventas básicas
+                # Consulta de ventas básicas (fetch_one=True, tiene COUNT y ventas_totales)
+                if fetch_one and 'COUNT(o.order_id)' in query and 'ventas_totales' in query:
                     return {
                         'ventas_totales': 150000.0,
-                        'pedidos': 10,
-                        'period_start': '2024-01-01',
-                        'period_end': '2024-03-31'
+                        'pedidos': 10
                     }
-                elif 'GROUP BY p.name' in query:  # Consulta de productos
+                # Consulta de productos (fetch_all=True, tiene GROUP BY p.name)
+                elif fetch_all and 'GROUP BY p.name' in query:
                     return [
                         {'nombre': 'Producto A', 'ventas': 75000.0, 'cantidad': 50},
                         {'nombre': 'Producto B', 'ventas': 75000.0, 'cantidad': 25}
                     ]
-                elif 'DISTINCT' in query:  # Consulta del gráfico
+                # Consulta del gráfico (fetch_all=True, tiene DATE_TRUNC)
+                elif fetch_all and 'DATE_TRUNC' in query:
+                    # Retornar fechas como datetime para que fmt_period funcione
                     return [
-                        {'idx': 1, 'value': 50000},
-                        {'idx': 2, 'value': 100000},
-                        {'idx': 3, 'value': 150000}
+                        {'periodo': datetime(2024, 10, 1), 'ventas': 50000.0},
+                        {'periodo': datetime(2024, 11, 1), 'ventas': 100000.0},
+                        {'periodo': datetime(2024, 12, 1), 'ventas': 150000.0}
                     ]
                 return None
             
@@ -295,42 +298,74 @@ class TestGetSalesReportData:
             
             result = db_module.get_sales_report_data('v1', 'trimestral')
             
-            assert result is  None
-            """
+            # Validar que el resultado no es None y tiene la estructura correcta
+            assert result is not None
             assert result['ventasTotales'] == 150000.0
+            assert result['ventas_totales'] == 150000.0
             assert result['pedidos'] == 10
-            assert result['periodo'] == '2024-01-01 - 2024-03-31'
+            assert 'period_start' in result
+            assert 'period_end' in result
+            assert 'periodo' in result
             assert len(result['grafico']) == 3
-            assert result['grafico'] == [50000, 100000, 150000]
+            # Validar estructura del gráfico (lista de dicts con periodo y ventas)
+            assert result['grafico'][0]['periodo'] == '2024-10'
+            assert result['grafico'][0]['ventas'] == 50000.0
+            assert result['grafico'][1]['periodo'] == '2024-11'
+            assert result['grafico'][1]['ventas'] == 100000.0
+            assert result['grafico'][2]['periodo'] == '2024-12'
+            assert result['grafico'][2]['ventas'] == 150000.0
             assert len(result['productos']) == 2
             assert result['productos'][0]['nombre'] == 'Producto A'
+            assert result['productos'][0]['ventas'] == 75000.0
+            assert result['productos'][0]['cantidad'] == 50
             assert result['productos'][1]['nombre'] == 'Producto B'
-            """
+            assert result['productos'][1]['ventas'] == 75000.0
+            assert result['productos'][1]['cantidad'] == 25
     
     def test_get_sales_report_data_no_data(self):
         """Test obtener datos de reporte de ventas sin datos."""
+        from datetime import datetime
         with patch.object(db_module, 'execute_query') as mock_execute:
-            mock_execute.return_value = None
+            # Cuando no hay datos, execute_query retorna None o {} o []
+            def mock_execute_side_effect(query, params=None, fetch_one=False, fetch_all=False):
+                if fetch_one:
+                    return {}  # Diccionario vacío cuando no hay datos
+                elif fetch_all:
+                    return []  # Lista vacía cuando no hay datos
+                return None
+            
+            mock_execute.side_effect = mock_execute_side_effect
             
             result = db_module.get_sales_report_data('v1', 'trimestral')
             
-            assert result is None
+            # La función retorna un diccionario con valores por defecto, no None
+            assert result is not None
+            assert result['ventas_totales'] == 0.0
+            assert result['ventasTotales'] == 0.0
+            assert result['pedidos'] == 0
+            assert result['productos'] == []
+            assert result['grafico'] == []
+            assert 'period_start' in result
+            assert 'period_end' in result
+            assert 'periodo' in result
     
     def test_get_sales_report_data_different_periods(self):
         """Test obtener datos de reporte con diferentes períodos."""
+        from datetime import datetime
         with patch.object(db_module, 'execute_query') as mock_execute:
             # Configurar mock para las 3 consultas separadas
             def mock_execute_side_effect(query, params=None, fetch_one=False, fetch_all=False):
-                if 'LIMIT 1' in query:  # Consulta de ventas básicas
+                # Consulta de ventas básicas
+                if fetch_one and 'COUNT(o.order_id)' in query and 'ventas_totales' in query:
                     return {
                         'ventas_totales': 100000.0,
-                        'pedidos': 5,
-                        'period_start': '2024-01-01',
-                        'period_end': '2024-02-29'
+                        'pedidos': 5
                     }
-                elif 'GROUP BY p.name' in query:  # Consulta de productos
+                # Consulta de productos
+                elif fetch_all and 'GROUP BY p.name' in query:
                     return []  # Sin productos
-                elif 'DISTINCT' in query:  # Consulta del gráfico
+                # Consulta del gráfico
+                elif fetch_all and 'DATE_TRUNC' in query:
                     return []  # Sin datos del gráfico
                 return None
             
@@ -341,9 +376,24 @@ class TestGetSalesReportData:
             result2 = db_module.get_sales_report_data('v1', 'semestral')
             result3 = db_module.get_sales_report_data('v1', 'anual')
             
-            assert result1 is  None
-            assert result2 is  None
-            assert result3 is  None
+            # Todos deben retornar un diccionario válido, no None
+            assert result1 is not None
+            assert result1['ventas_totales'] == 100000.0
+            assert result1['pedidos'] == 5
+            assert result1['productos'] == []
+            assert result1['grafico'] == []
+            
+            assert result2 is not None
+            assert result2['ventas_totales'] == 100000.0
+            assert result2['pedidos'] == 5
+            assert result2['productos'] == []
+            assert result2['grafico'] == []
+            
+            assert result3 is not None
+            assert result3['ventas_totales'] == 100000.0
+            assert result3['pedidos'] == 5
+            assert result3['productos'] == []
+            assert result3['grafico'] == []
 
 
 class TestValidateSalesDataAvailability:
