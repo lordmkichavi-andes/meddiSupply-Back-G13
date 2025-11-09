@@ -269,12 +269,12 @@ def validate_sales_data_availability(vendor_id: str, period: str) -> bool:
 def _get_offer_manager_base_url() -> str:
     """Obtiene la URL base del Offer Manager desde variables de entorno."""
     # Permite configurar en entorno; fallback a localhost 8082 si no está.
-    return os.getenv('OFFER_MANAGER_URL', 'http://localhost:8082')
+    return os.getenv('OFFER_MANAGER_URL', 'http://MediSu-MediS-5XPY2MhrDivI-109634141.us-east-1.elb.amazonaws.com/')
 
 
 def _get_products_base_url() -> str:
     """Obtiene la URL base del Products MS para enriquecimiento opcional."""
-    return os.getenv('PRODUCTS_SERVICE_URL', 'http://localhost:8081')
+    return os.getenv('PRODUCTS_SERVICE_URL', 'http://MediSu-MediS-5XPY2MhrDivI-109634141.us-east-1.elb.amazonaws.com/')
 
 
 def _http_get(url: str, params: Dict[str, Any] = None, timeout: int = 10) -> Optional[Dict[str, Any]]:
