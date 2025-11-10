@@ -230,8 +230,11 @@ def _sync_user_id_sequence(conn, cursor):
         else:
             max_id = max_id_result[0] if max_id_result else 0
         
-        # Sincronizar la secuencia (false = no usar ese valor como próximo, true = usarlo como próximo)
-        cursor.execute("SELECT setval('users.users_user_id_seq', %s, true)", (max_id,))
+        # Sincronizar la secuencia
+        # setval(sequence, value, true): establece que el último valor usado fue 'value',
+        # por lo que el próximo nextval() devolverá 'value + 1'
+        # Nota: El nombre de la secuencia es users_users_user_id_seq (con guion bajo, no punto)
+        cursor.execute("SELECT setval('users_users_user_id_seq', %s, true)", (max_id,))
         print(f"✅ Secuencia de user_id sincronizada a {max_id}")
     except Exception as e:
         print(f"⚠️  Advertencia: No se pudo sincronizar la secuencia: {str(e)}")

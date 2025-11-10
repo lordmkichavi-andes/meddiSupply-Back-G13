@@ -278,6 +278,89 @@ def create_app():
                 "timestamp": datetime.datetime.utcnow().isoformat() + "Z"
             }), 503
 
+    @app.route('/users/debug/sequence', methods=['GET'])
+    def debug_sequence():
+        """
+        Endpoint de diagnóstico para revisar el estado de la secuencia de user_id.
+        Útil para diagnosticar problemas de sincronización.
+        """
+        try:
+            conn = get_connection()
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            
+            # 1. Obtener el máximo user_id en la tabla
+            cursor.execute("SELECT COALESCE(MAX(user_id), 0) AS max_id FROM users.users")
+            max_id_result = cursor.fetchone()
+            max_id = max_id_result['max_id'] if isinstance(max_id_result, dict) else max_id_result[0]
+            
+            # 2. Obtener el valor actual de la secuencia (sin consumirlo)
+            cursor.execute("SELECT last_value, is_called FROM users_users_user_id_seq")
+            seq_result = cursor.fetchone()
+            last_value = seq_result['last_value'] if isinstance(seq_result, dict) else seq_result[0]
+            is_called = seq_result['is_called'] if isinstance(seq_result, dict) else seq_result[1]
+            
+            # 3. Calcular el próximo valor que usará la secuencia
+            if is_called:
+                next_value = last_value + 1
+            else:
+                next_value = last_value
+            
+            # 4. Intentar sincronizar la secuencia
+            try:
+                # setval(sequence, value, true): establece que el último valor usado fue 'value',
+                # por lo que el próximo nextval() devolverá 'value + 1'
+                cursor.execute("SELECT setval('users_users_user_id_seq', %s, true)", (max_id,))
+                sync_success = True
+                sync_message = f"Secuencia sincronizada a {max_id}, próximo valor será {max_id + 1}"
+            except Exception as sync_error:
+                sync_success = False
+                sync_message = f"Error al sincronizar: {str(sync_error)}"
+            
+            # 5. Verificar el estado después de la sincronización
+            cursor.execute("SELECT last_value, is_called FROM users_users_user_id_seq")
+            seq_after_result = cursor.fetchone()
+            last_value_after = seq_after_result['last_value'] if isinstance(seq_after_result, dict) else seq_after_result[0]
+            is_called_after = seq_after_result['is_called'] if isinstance(seq_after_result, dict) else seq_after_result[1]
+            
+            if is_called_after:
+                next_value_after = last_value_after + 1
+            else:
+                next_value_after = last_value_after
+            
+            # 6. Determinar si está sincronizado
+            is_synced = (next_value_after == max_id + 1)
+            
+            release_connection(conn)
+            
+            return jsonify({
+                "status": "ok",
+                "sequence_info": {
+                    "max_user_id_in_table": max_id,
+                    "sequence_last_value": last_value,
+                    "sequence_is_called": is_called,
+                    "next_value_before_sync": next_value,
+                    "next_value_after_sync": next_value_after,
+                    "is_synced": is_synced,
+                    "sync_success": sync_success,
+                    "sync_message": sync_message
+                },
+                "diagnosis": {
+                    "problem": "Secuencia desincronizada" if not is_synced else "Secuencia sincronizada correctamente",
+                    "recommendation": f"El próximo user_id será {next_value_after}" if is_synced else f"La secuencia debería estar en {max_id + 1} pero está en {next_value_after}"
+                },
+                "timestamp": datetime.datetime.utcnow().isoformat() + "Z"
+            }), 200
+            
+        except Exception as e:
+            import traceback
+            error_trace = traceback.format_exc()
+            return jsonify({
+                "status": "error",
+                "error": str(e),
+                "traceback": error_trace,
+                "timestamp": datetime.datetime.utcnow().isoformat() + "Z"
+            }), 500
+
     # ==========================
     # HU107 - REGISTRO USUARIOS VÍA CSV
     # ==========================
