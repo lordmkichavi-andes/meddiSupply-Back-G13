@@ -236,6 +236,7 @@ class RecommendationAgent:
                 )
                 
                 if response.status_code == 200:
+                    response.encoding = 'utf-8'
                     result = response.json()
                     
                     json_str = self._extract_response(result)
@@ -299,11 +300,14 @@ class RecommendationAgent:
                 raw_text = response_json['candidates'][0]['content']['parts'][0]['text']
                 
                 try:
-                    clean_text = codecs.decode(raw_text, 'unicode_escape')
-                    return clean_text
+                    escaped_text = codecs.decode(raw_text, 'unicode_escape') 
+                    corrected_text = escaped_text.encode('latin1').decode('utf8')
+                    data = json.loads(corrected_text)
+                    return json.dumps(data, ensure_ascii=False)
+                    
                 except Exception as e:
-                    logger.error(f"Gemini: Fallo en la decodificación de caracteres. Usando texto sin limpiar. Error: {e}")
-                    return raw_text
+                    logger.error(f"Gemini: Fallo en la decodificación/parsing JSON. Error: {e}. Texto crudo (corrupto): {raw_text[:50]}...")
+                    return None
         
         if self.LLM_PROVIDER == 'OPENAI':
             if response_json.get('choices') and response_json['choices'][0]['message']['content']:
