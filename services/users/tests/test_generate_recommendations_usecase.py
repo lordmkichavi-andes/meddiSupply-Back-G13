@@ -23,7 +23,8 @@ class TestGenerateRecommendationsUseCase(unittest.TestCase):
 
     def test_init_stores_recommendation_agent(self):
         """Prueba que el constructor almacena correctamente el recommendation_agent."""
-        use_case = GenerateRecommendationsUseCase(self.mock_recommendation_agent)
+        self.mock_repo = Mock(spec=UserRepository)
+        use_case = GenerateRecommendationsUseCase(self.mock_recommendation_agent, user_repository=self.mock_repo)
         self.assertEqual(use_case.recommendation_agent, self.mock_recommendation_agent)
 
     def test_execute_success(self):
