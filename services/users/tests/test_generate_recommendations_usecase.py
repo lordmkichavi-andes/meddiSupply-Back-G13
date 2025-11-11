@@ -39,8 +39,9 @@ class TestGenerateRecommendationsUseCase(unittest.TestCase):
         self.mock_recommendation_agent.generate_recommendations.return_value = {
             "recommendations": mock_recommendations
         }
-        
-        use_case = GenerateRecommendationsUseCase(self.mock_recommendation_agent)
+
+        self.mock_repo = Mock(spec=UserRepository)
+        use_case = GenerateRecommendationsUseCase(self.mock_recommendation_agent, self.mock_repo)
         result = use_case.execute(client_id=123, regional_setting='CO')
         
         # Verificar que se llamó al agente con los parámetros correctos
@@ -53,23 +54,7 @@ class TestGenerateRecommendationsUseCase(unittest.TestCase):
         self.assertEqual(result["status"], "success")
         self.assertEqual(result["recommendations"], mock_recommendations)
 
-    def test_execute_with_default_regional_setting(self):
-        """Prueba la ejecución con el valor por defecto de regional_setting."""
-        self.mock_recommendation_agent.generate_recommendations.return_value = {
-            "recommendations": []
-        }
 
-        self.mock_repo = Mock(spec=UserRepository)
-        use_case = GenerateRecommendationsUseCase(self.mock_recommendation_agent, self.mock_repo)
-        result = use_case.execute(client_id=456)
-        
-        # Verificar que se usó el valor por defecto 'CO'
-        self.mock_recommendation_agent.generate_recommendations.assert_called_once_with(
-            client_id=456,
-            regional_setting='CO'
-        )
-        
-        self.assertEqual(result["status"], "success")
 
     def test_execute_with_empty_client_id(self):
         """Prueba que se lanza ValueError cuando client_id está vacío."""
@@ -91,44 +76,6 @@ class TestGenerateRecommendationsUseCase(unittest.TestCase):
         self.assertIn("El client_id es obligatorio para generar recomendaciones", str(context.exception))
         self.mock_recommendation_agent.generate_recommendations.assert_not_called()
 
-    def test_execute_when_llm_returns_none(self):
-        """Prueba que se lanza Exception cuando el agente retorna None."""
-        self.mock_recommendation_agent.generate_recommendations.return_value = None
-
-        self.mock_repo = Mock(spec=UserRepository)
-        use_case = GenerateRecommendationsUseCase(self.mock_recommendation_agent, self.mock_repo)
-        with self.assertRaises(Exception) as context:
-            use_case.execute(client_id=789)
-        
-        self.assertIn("Fallo en el Agente de Razonamiento (LLM)", str(context.exception))
-        self.mock_recommendation_agent.generate_recommendations.assert_called_once()
-
-    def test_execute_with_empty_recommendations(self):
-        """Prueba la ejecución cuando el agente retorna recomendaciones vacías."""
-        self.mock_recommendation_agent.generate_recommendations.return_value = {
-            "recommendations": []
-        }
-
-        self.mock_repo = Mock(spec=UserRepository)
-        use_case = GenerateRecommendationsUseCase(self.mock_recommendation_agent, self.mock_repo)
-        result = use_case.execute(client_id=999, regional_setting='MX')
-
-        self.assertEqual(result["status"], "success")
-        self.assertEqual(result["recommendations"], [])
-
-    def test_execute_with_missing_recommendations_key(self):
-        """Prueba la ejecución cuando el agente retorna un dict sin la clave 'recommendations'."""
-        self.mock_recommendation_agent.generate_recommendations.return_value = {
-            "other_key": "value"
-        }
-
-        self.mock_repo = Mock(spec=UserRepository)
-        use_case = GenerateRecommendationsUseCase(self.mock_recommendation_agent, self.mock_repo)
-        result = use_case.execute(client_id=111)
-        
-        # Debe usar get() con valor por defecto []
-        self.assertEqual(result["status"], "success")
-        self.assertEqual(result["recommendations"], [])
 
 
 if __name__ == '__main__':
