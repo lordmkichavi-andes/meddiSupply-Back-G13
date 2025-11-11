@@ -2,6 +2,8 @@ import unittest
 from unittest.mock import Mock, MagicMock
 import sys
 import os
+from src.domain.interfaces import UserRepository
+
 
 # Asegurar que los módulos de src se pueden importar
 current_dir = os.path.dirname(os.path.abspath(__file__))
