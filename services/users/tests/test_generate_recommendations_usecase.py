@@ -56,8 +56,9 @@ class TestGenerateRecommendationsUseCase(unittest.TestCase):
         self.mock_recommendation_agent.generate_recommendations.return_value = {
             "recommendations": []
         }
-        
-        use_case = GenerateRecommendationsUseCase(self.mock_recommendation_agent)
+
+        self.mock_repo = Mock(spec=UserRepository)
+        use_case = GenerateRecommendationsUseCase(self.mock_recommendation_agent, user_repository=self.mock_repo)
         result = use_case.execute(client_id=456)
         
         # Verificar que se usó el valor por defecto 'CO'
@@ -70,8 +71,8 @@ class TestGenerateRecommendationsUseCase(unittest.TestCase):
 
     def test_execute_with_empty_client_id(self):
         """Prueba que se lanza ValueError cuando client_id está vacío."""
-        use_case = GenerateRecommendationsUseCase(self.mock_recommendation_agent)
-        
+        self.mock_repo = Mock(spec=UserRepository)
+        use_case = GenerateRecommendationsUseCase(self.mock_recommendation_agent, user_repository=self.mock_repo)
         with self.assertRaises(ValueError) as context:
             use_case.execute(client_id=None)
         
@@ -80,8 +81,8 @@ class TestGenerateRecommendationsUseCase(unittest.TestCase):
 
     def test_execute_with_zero_client_id(self):
         """Prueba que se lanza ValueError cuando client_id es 0."""
-        use_case = GenerateRecommendationsUseCase(self.mock_recommendation_agent)
-        
+        self.mock_repo = Mock(spec=UserRepository)
+        use_case = GenerateRecommendationsUseCase(self.mock_recommendation_agent, user_repository=self.mock_repo)
         with self.assertRaises(ValueError) as context:
             use_case.execute(client_id=0)
         
@@ -91,9 +92,9 @@ class TestGenerateRecommendationsUseCase(unittest.TestCase):
     def test_execute_when_llm_returns_none(self):
         """Prueba que se lanza Exception cuando el agente retorna None."""
         self.mock_recommendation_agent.generate_recommendations.return_value = None
-        
-        use_case = GenerateRecommendationsUseCase(self.mock_recommendation_agent)
-        
+
+        self.mock_repo = Mock(spec=UserRepository)
+        use_case = GenerateRecommendationsUseCase(self.mock_recommendation_agent, user_repository=self.mock_repo)
         with self.assertRaises(Exception) as context:
             use_case.execute(client_id=789)
         
@@ -105,10 +106,11 @@ class TestGenerateRecommendationsUseCase(unittest.TestCase):
         self.mock_recommendation_agent.generate_recommendations.return_value = {
             "recommendations": []
         }
-        
-        use_case = GenerateRecommendationsUseCase(self.mock_recommendation_agent)
+
+        self.mock_repo = Mock(spec=UserRepository)
+        use_case = GenerateRecommendationsUseCase(self.mock_recommendation_agent, user_repository=self.mock_repo)
         result = use_case.execute(client_id=999, regional_setting='MX')
-        
+
         self.assertEqual(result["status"], "success")
         self.assertEqual(result["recommendations"], [])
 
@@ -117,8 +119,9 @@ class TestGenerateRecommendationsUseCase(unittest.TestCase):
         self.mock_recommendation_agent.generate_recommendations.return_value = {
             "other_key": "value"
         }
-        
-        use_case = GenerateRecommendationsUseCase(self.mock_recommendation_agent)
+
+        self.mock_repo = Mock(spec=UserRepository)
+        use_case = GenerateRecommendationsUseCase(self.mock_recommendation_agent, user_repository=self.mock_repo)
         result = use_case.execute(client_id=111)
         
         # Debe usar get() con valor por defecto []
