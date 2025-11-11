@@ -1,10 +1,8 @@
 from flask import Flask, jsonify
 from flask_cors import CORS
 
-
 def create_app() -> Flask:
     app = Flask(__name__)
-    
     # Configurar CORS
     CORS(app, resources={
         r"/*": {
@@ -15,8 +13,8 @@ def create_app() -> Flask:
     })
 
     # Registro del blueprint de dominio "offers"
-    from src.blueprints.sales_plans import sales_plans_bp
-    app.register_blueprint(sales_plans_bp, url_prefix='/offers')
+    from src.blueprints.offers import offers_bp
+    app.register_blueprint(offers_bp, url_prefix='/offers')
 
     @app.route('/health', methods=['GET'])
     def health():

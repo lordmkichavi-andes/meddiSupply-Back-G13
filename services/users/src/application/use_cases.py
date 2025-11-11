@@ -2,7 +2,7 @@ from typing import List, Dict, Any, Optional
 from src.domain.interfaces import UserRepository, StorageServiceInterface
 from src.domain.entities import User
 from werkzeug.datastructures import FileStorage
-import logging
+import logging 
 logger = logging.getLogger(__name__)
 
 class GetClientUsersUseCase:
@@ -83,11 +83,12 @@ class GetClientUsersUseCase:
         visit = self.repository.get_by_id(visit_id)
         return visit
 
+    
     def upload_visit_evidences(self, visit_id: int, files: List[FileStorage]) -> List[Dict[str, Any]]:
         """
         Logica de negocio para procesar, subir y registrar las evidencias de una visita.
         """
-        visit = self.repository.get_visit_by_id(visit_id)
+        visit = self.repository.get_visit_by_id(visit_id) 
         if visit is None:
             raise ValueError(f"La visita con ID {visit_id} no existe en el sistema.")
 
@@ -96,23 +97,24 @@ class GetClientUsersUseCase:
         for i, file in enumerate(files):
             file_name = file.filename
             content_type = file.mimetype
-
-            file_type = "photo"
+            
+            file_type = "photo" 
             if 'video' in content_type:
                 file_type = "video"
             elif 'image' in content_type:
                 file_type = "photo"
 
+                
             logger.info(f"Procesando archivo {i+1}/{len(files)}: '{file_name}' (Tipo: {file_type}, Content-Type: {content_type}).")
 
             try:
                 logger.debug(f"Subiendo archivo {file_name} a S3 (Bucket: {self.storage_service.BUCKET_NAME})...")
 
                 url_file = self.storage_service.upload_file(
-                    file=file,
+                    file=file, 
                     visit_id=visit_id
                 )
-
+                
                 db_data = {
                     "visit_id": visit_id,
                     "type": file_type,
@@ -120,6 +122,7 @@ class GetClientUsersUseCase:
                     "description": file_name,
                 }
 
+                
                 new_evidence_data = self.repository.save_evidence(
                     visit_id=db_data['visit_id'],
                     url=db_data['url_file'],
@@ -131,4 +134,5 @@ class GetClientUsersUseCase:
                 logger.error(f"Fallo en el almacenamiento o registro del archivo '{file_name}'.", exc_info=True)
                 raise Exception(f"Fallo en el almacenamiento del archivo {file_name}") from e
 
+                
         return saved_evidences

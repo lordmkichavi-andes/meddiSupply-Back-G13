@@ -76,6 +76,70 @@ def create_user_api_blueprint(
                 "message": "No se pudieron obtener los clientes. Intenta nuevamente.",
                 "error": str(e)
             }), 500
+    
+    @user_api_bp.route('/detail/<int:client_id>', methods=['GET'])
+    def get_user_by_id(client_id):
+        """
+        Maneja la solicitud HTTP para obtener un usuario individual por su user_id.
+        """
+        try:
+            user_data = use_case.get_user_by_id(client_id=client_id) 
+
+            if not user_data:
+                return jsonify({
+                    "message": f"Usuario con ID {client_id} no encontrado."
+                }), 404
+
+            return jsonify(user_data), 200
+
+        except Exception as e:
+            return jsonify({
+                "message": "Error al obtener la información del usuario. Intenta nuevamente.",
+                "error": str(e)
+            }), 500
+    
+    
+    @user_api_bp.route('/visits/<int:visit_id>/evidences', methods=['POST'])
+    def upload_visit_evidences_endpoint(visit_id):
+        """
+        Maneja la carga de evidencias (fotos/videos) asociadas a una visita,
+        delegando la lógica principal de validación y guardado al caso de uso.
+        """
+        try:
+            uploaded_files = request.files.getlist('files')
+            
+            if not uploaded_files or uploaded_files[0].filename == '':
+                return jsonify({
+                    "message": "No se adjuntaron archivos para la evidencia."
+                }), 400
+
+            saved_evidences = use_case.upload_visit_evidences(
+                visit_id=visit_id,
+                files=uploaded_files
+            )
+
+            return jsonify({
+                "message": f"Se subieron {len(saved_evidences)} evidencias con éxito para la visita {visit_id}.",
+                "evidences": saved_evidences
+            }), 201
+
+        except FileNotFoundError as e:
+            return jsonify({
+                "message": "Error: La visita no existe o el sistema de archivos falló.",
+                "error": str(e)
+            }), 404 
+        
+        except ValueError as e:
+            return jsonify({
+                "message": str(e)
+            }), 404
+
+        except Exception as e:
+            return jsonify({
+                "message": "No se pudieron subir las evidencias. Intenta nuevamente.",
+                "error": str(e)
+            }), 500
+
 
     @user_api_bp.route('/detail/<int:client_id>', methods=['GET'])
     def get_user_by_id(client_id):
@@ -217,6 +281,83 @@ def create_user_api_blueprint(
             # Si el sistema no puede registrar la información (ej. error de BD)
             return jsonify({
                 "message": "No se pudo registrar la visita. Intenta nuevamente.",
+                "error": str(e)
+            }), 500
+    
+    @user_api_bp.route('/recommendations',  methods=['POST'])
+    def post_recommendations_endpoint():
+        """
+        Genera recomendaciones de productos llamando al Caso de Uso.
+        """
+        data = request.get_json()
+        client_id = data.get('client_id')
+        visit_id = data.get('visit_id')
+        regional_setting = data.get('regional_setting')
+
+        if not client_id:
+            return jsonify({"message": "Falta el 'client_id' para la recomendación"}), 400
+
+        if not regional_setting:
+            return jsonify({"message": "Falta el 'regional_setting' para la recomendación"}), 400
+
+        if not visit_id:
+            return jsonify({"message": "Falta el 'visit_id' para la recomendación"}), 400
+        
+        try:
+            result = generate_recommendations_uc.execute(
+                client_id=client_id, 
+                regional_setting=regional_setting,
+                visit_id=visit_id
+            )
+            
+            return jsonify({
+                "status": "success", 
+                "recommendations": result.get('recommendations', []),
+            }), 200
+
+        except ValueError as e:
+            return jsonify({"message": str(e)}), 400
+            
+        except Exception as e:
+            print(f"Error interno al generar recomendaciones: {e}")
+            return jsonify({
+                "message": "Fallo en el servicio de recomendaciones. Intente más tarde.",
+                "error": str(e)
+            }), 503
+
+    @user_api_bp.route('/recommendations/client/<int:client_id>', methods=['GET'])
+    def get_all_suggestions_for_client_endpoint(client_id):
+        """
+        Retorna todas las sugerencias de productos guardadas históricamente 
+        para un cliente específico (client_id).
+        """
+        if not client_id or client_id <= 0:
+             return jsonify({
+                "message": "ID de cliente inválido."
+            }), 400
+
+        try:
+            suggestions = generate_recommendations_uc.get_all_suggestions_for_client(
+                client_id=client_id
+            )
+
+            if not suggestions:
+                return jsonify({
+                    "status": "success",
+                    "message": f"No se encontraron sugerencias históricas para el cliente {client_id}.",
+                    "suggestions": []
+                }), 404 
+
+            return jsonify({
+                "status": "success", 
+                "client_id": client_id,
+                "suggestions": suggestions
+            }), 200
+
+        except Exception as e:
+            print(f"Error interno al obtener sugerencias históricas: {e}")
+            return jsonify({
+                "message": f"Error al recuperar las sugerencias históricas para el cliente {client_id}.",
                 "error": str(e)
             }), 500
 

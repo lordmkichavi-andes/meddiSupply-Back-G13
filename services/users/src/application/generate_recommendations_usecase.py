@@ -1,12 +1,19 @@
+from src.domain.interfaces import UserRepository
+import logging
+from typing import List, Any, Dict, Optional
+
+logger = logging.getLogger(__name__)
+
 class GenerateRecommendationsUseCase:
     """
     Caso de Uso para generar recomendaciones de productos.
     Orquesta la llamada al RecommendationAgent.
     """
-    def __init__(self, recommendation_agent):
+    def __init__(self, recommendation_agent, user_repository: UserRepository):
         self.recommendation_agent = recommendation_agent
+        self.repository = user_repository
 
-    def execute(self, client_id: int, regional_setting: str = 'CO') -> dict:
+    def execute(self, client_id: int, regional_setting: str = 'CO', visit_id: int = None) -> dict:
         """
         Ejecuta el proceso de recomendación.
         """
@@ -18,10 +25,41 @@ class GenerateRecommendationsUseCase:
             regional_setting=regional_setting
         )
 
-        if recommendation_response is None:
-            raise Exception("Fallo en el Agente de Razonamiento (LLM).")
+        if not recommendation_response or not recommendation_response.get('recommendations'):
+            raise ValueError("El Agente LLM no pudo generar recomendaciones válidas.")
+
+        all_products_list = self.repository.get_products() 
+
+        final_recommendations = []
+        all_products_map = {p['sku']: p for p in all_products_list}
+
+        for rec in recommendation_response['recommendations']:
+            sku = rec.get('product_sku')
+            product_data = all_products_map.get(sku)
+            
+            if product_data:
+                rec['product_id'] = product_data['product_id']
+                rec['product_name'] = product_data['name'] 
+                self.repository.save_suggestion(
+                    visit_id=visit_id,
+                    product_id=rec['product_id']
+                )
+                
+                final_recommendations.append(rec)
+            else:
+                logger.warning(f"LLM recomendó SKU desconocido: {sku}")
 
         return {
             "status": "success",
-            "recommendations": recommendation_response.get('recommendations', [])
+            "recommendations": final_recommendations
         }
+
+    def get_all_suggestions_for_client(self, client_id: int) -> List[Dict[str, Any]]:
+        """
+        Obtiene todas las sugerencias de productos históricas para un cliente
+        y las retorna como una lista de diccionarios (JSON-ready).
+        """
+
+        suggestions_data = self.repository.get_suggestions_by_client(client_id)
+        
+        return suggestions_data

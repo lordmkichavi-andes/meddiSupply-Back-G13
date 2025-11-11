@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   db:
     image: postgres:14-alpine
@@ -18,11 +16,17 @@ services:
       retries: 5
     networks:
       - offer_manager_net
+    volumes:
+      # 🚨 1. VOLUMEN PERSISTENTE: Asegura que los datos no se borren.
+      - postgres_data:/var/lib/postgresql/data 
+      # 🚨 2. INICIALIZACIÓN DE ESQUEMA: Monta tus scripts SQL aquí.
+      - ./db/init:/docker-entrypoint-initdb.d 
 
   app:
     build:
       context: .
       dockerfile: Dockerfile
+    image: offer_manager:local
     container_name: offer_manager
     restart: always
     depends_on:
@@ -36,18 +40,28 @@ services:
       DB_PASSWORD: postgres
       PGSSLMODE: disable
       DB_SSLMODE: disable
-      # URL del microservicio de products dentro de su red existente
+      # URL del microservicio de products local (Docker a Docker)
       PRODUCTS_SERVICE_URL: http://products:8080
+      ORDERS_SERVICE_URL: http://MediSu-MediS-5XPY2MhrDivI-109634141.us-east-1.elb.amazonaws.com/
       PRODUCTS_SERVICE_TIMEOUT: 10
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_REGION: ${AWS_REGION}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
     ports:
       - "8082:8080"
     networks:
       - offer_manager_net
       - products_default
 
+# 🚨 3. DEFINICIÓN DEL VOLUMEN (NIVEL RAÍZ) 🚨
+volumes:
+  postgres_data:
+
+# 🚨 4. DEFINICIÓN DE REDES (NIVEL RAÍZ) 🚨
+# Esto resuelve el error "undefined network offer_manager_net".
 networks:
   offer_manager_net:
     driver: bridge
   products_default:
     external: true
-

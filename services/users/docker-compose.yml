@@ -9,10 +9,10 @@ services:
     container_name: users
     # Ya NO necesitamos 'depends_on' ni 'db' si la DB no está definida aquí.
     # ELIMINAR depends_on COMPLETAMENTE.
-
+    
     environment:
       # Conectar a la misma base de datos de Products (expuesta en el host en 5432)
-      DB_HOST: host.docker.internal
+      DB_HOST: host.docker.internal 
       DB_PORT: 5433
       DB_NAME: medisupplydb
       DB_USER: postgres
@@ -25,10 +25,10 @@ services:
       COGNITO_USER_POOL_ID: ${COGNITO_USER_POOL_ID:-us-east-1_3n4C8QOve}
       COGNITO_CLIENT_ID: ${COGNITO_CLIENT_ID:-113qhpd3hktvupdbhpi5361h90}
       PYTHONUNBUFFERED: 1
-
-
+      
+    
     ports:
       - "8083:8083"
-
+    
     # El comando se simplifica al no esperar una dependencia interna.
     command: ["sh", "-c", "python app.py"]

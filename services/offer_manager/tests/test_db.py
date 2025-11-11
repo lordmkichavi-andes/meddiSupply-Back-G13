@@ -187,9 +187,9 @@ class TestCreateSalesPlan:
     @patch('src.db.execute_query')
     def test_create_sales_plan_success(self, mock_exec):
         mock_exec.side_effect = [
-            {'plan_id': 50},  # INSERT plan
-            None,             # INSERT product 1
-            None              # INSERT product 2
+            {'plan_id': 50},  # INSERT plan (fetch_one=True retorna dict)
+            1,                # INSERT product 1 (sin fetch_one/fetch_all retorna rowcount)
+            1                 # INSERT product 2 (sin fetch_one/fetch_all retorna rowcount)
         ]
         
         plan_data = {

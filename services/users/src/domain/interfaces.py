@@ -28,7 +28,7 @@ class UserRepository(ABC):
     @abstractmethod
     def get_recent_evidences_by_client(self, client_id: int) -> List[Dict[str, str]]:
         """
-        Obtiene las URLs y tipos de archivos de evidencia visual (media)
+        Obtiene las URLs y tipos de archivos de evidencia visual (media) 
         asociados a las visitas recientes de un cliente.
         """
         pass

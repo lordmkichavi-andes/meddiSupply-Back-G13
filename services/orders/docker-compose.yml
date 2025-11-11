@@ -31,19 +31,17 @@ services:
       db:
         condition: service_healthy
     environment:
-      # Variables de entorno para la aplicación (deben coincidir con config.py)
-      # DB_HOST debe ser el nombre del servicio de la DB (db)
-      DB_HOST: db
-      DB_PORT: 5432
+      # Conectar a la misma base de datos de Products (host en 5433)
+      DB_HOST: host.docker.internal 
+      DB_PORT: 5433
       DB_NAME: medisupplydb
       DB_USER: postgres
       DB_PASSWORD: postgres
-      # Asegura que la inicialización se ejecute
       RUN_DB_INIT_ON_STARTUP: "True"
+      PORT: 8084
+    
     ports:
-      - "8080:8080"
-    # Este comando es una práctica de robustez para esperar que la DB esté lista.
-    # Le da a PostgreSQL tiempo para inicializarse antes de que Python intente conectarse.
-    command: ["sh", "-c", "sleep 5 && python app.py"]
-
-
+      - "8084:8084"
+    
+    # El comando se simplifica al no esperar una dependencia interna.
+    command: ["sh", "-c", "python app.py"]

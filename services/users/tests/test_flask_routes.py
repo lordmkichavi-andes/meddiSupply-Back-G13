@@ -72,9 +72,12 @@ class UserAPITestCase(unittest.TestCase):
         """Prueba la generación exitosa de recomendaciones (código 200)."""
         
         expected_recommendations = [
+            # El ID no es el que retorna el LLM, sino el mapeado por el Caso de Uso.
             {"product_id": 101, "product_sku": "SKU-001", "product_name": "Test Product", "score": 0.9, "reasoning": "High demand"},
         ]
         
+        # 1. 🐍 CORRECCIÓN: El UC debe devolver el resultado final, 
+        # que contiene la clave 'recommendations' con los datos mapeados.
         self.mock_recommendations_uc.execute.return_value = {
             "status": "success",
             "recommendations": expected_recommendations
@@ -82,39 +85,65 @@ class UserAPITestCase(unittest.TestCase):
         
         response = self.client.post(
             '/recommendations',
-            json={"client_id": 1, "regional_setting": "CO"}
+            json={"client_id": 1, "regional_setting": "CO", "visit_id": 10}
         )
 
-        response_data = self._get_json(response)
+        # 2. 🐍 CORRECCIÓN: Usar json.loads(response.get_data()) para la respuesta
+        try:
+            response_data = json.loads(response.get_data(as_text=True))
+        except json.JSONDecodeError:
+            self.fail("La respuesta 200 no devolvió un cuerpo JSON válido.")
         
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response_data['status'], 'success')
+        self.assertEqual(response_data['recommendations'], expected_recommendations) # Aseguramos que la lista completa coincida
         self.assertEqual(response_data['recommendations'][0]['product_id'], 101)
         
         self.mock_recommendations_uc.execute.assert_called_once_with(
             client_id=1, 
-            regional_setting="CO"
+            regional_setting="CO",
+            visit_id=10
         )
     
+    # ---
 
     def test_post_recommendations_llm_failure(self):
         """Prueba la falla cuando el Caso de Uso lanza una excepción (ej. fallo del LLM) (código 503)."""
         
-        # Simular una excepción de servicio externo
+        # 1. Configurar el mock para lanzar una excepción genérica
         self.mock_recommendations_uc.execute.side_effect = Exception("Fallo en el Agente de Razonamiento (LLM).")
         
         response = self.client.post(
             '/recommendations',
-            json={"client_id": 1, "regional_setting": "CO"}
+            # 🚨 Incluir todos los campos obligatorios para pasar la validación 400 del endpoint
+            json={"client_id": 1, "regional_setting": "CO", "visit_id": 10} 
         )
 
-        response_data = self._get_json(response)
+        # 2. Verificar el Código de Estado (503)
+        self.assertEqual(response.status_code, 503, "Debe devolver 503 Service Unavailable en caso de fallo LLM/UC.")
         
-        self.assertEqual(response.status_code, 503) # 503 Service Unavailable es apropiado para LLM
-        self.assertIn("Fallo en el servicio de recomendaciones", response_data['message'])
-        self.mock_recommendations_uc.execute.assert_called_once()
+        # 3. Obtener el JSON de la respuesta de error
+        try:
+            response_data = json.loads(response.get_data(as_text=True))
+        except json.JSONDecodeError:
+            self.fail("La respuesta 503 no devolvió un cuerpo JSON válido.")
         
-    # ----------------------------------------------------------------------
+        # 4. Verificar el Contenido del Mensaje
+        expected_message = "Fallo en el servicio de recomendaciones. Intente más tarde."
+        self.assertIn(expected_message, response_data['message'])
+        
+        # 5. Verificar el detalle del error
+        self.assertIn("Fallo en el Agente de Razonamiento (LLM).", response_data['error'])
+
+        # 6. Verificar que el Caso de Uso fue llamado con los parámetros correctos
+        self.mock_recommendations_uc.execute.assert_called_once_with(
+            client_id=1,
+            regional_setting="CO",
+            visit_id=10
+        )
+        
+        
+        # ----------------------------------------------------------------------
     ## Tests para la ruta GET /clients
     # ----------------------------------------------------------------------
 

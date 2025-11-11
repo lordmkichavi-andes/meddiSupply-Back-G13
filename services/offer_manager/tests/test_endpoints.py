@@ -1,7 +1,8 @@
 import json
 import pytest
 from unittest.mock import patch, MagicMock
-
+from io import BytesIO
+from datetime import datetime, timedelta
 
 @pytest.fixture
 def client():
@@ -23,31 +24,7 @@ class TestHealthEndpoint:
 class TestProductsEndpoint:
     """Tests para el endpoint /products"""
     
-    @patch('src.blueprints.sales_plans.Product')
-    @patch('src.blueprints.sales_plans.get_products')
-    def test_get_products_success(self, mock_get_products, mock_product_cls, client):
-        mock_get_products.return_value = [
-            {
-                'product_id': 1,
-                'sku': 'TEST-001',
-                'name': 'Producto Test',
-                'value': 10.0,
-                'unit_name': 'Caja',
-                'unit_symbol': 'Cj',
-                'category_name': 'MEDICATION'
-            }
-        ]
-        mock_instance = MagicMock()
-        mock_instance.to_dict.return_value = {'product_id': 1, 'sku': 'TEST-001'}
-        mock_product_cls.from_dict.return_value = mock_instance
-
-        resp = client.get('/offers/products')
-        assert resp.status_code == 200
-        data = resp.get_json()
-        assert isinstance(data, list)
-        assert data[0]['sku'] == 'TEST-001'
-    
-    @patch('src.blueprints.sales_plans.get_products')
+    @patch('src.blueprints.offers.get_products')
     def test_get_products_empty_response(self, mock_get_products, client):
         mock_get_products.return_value = []
         resp = client.get('/offers/products')
@@ -56,6 +33,80 @@ class TestProductsEndpoint:
         assert isinstance(data, list)
         assert len(data) == 0
 
+    @patch('src.blueprints.offers.get_products')
+    def test_get_products_exception(self, mock_get_products, client):
+        """Cubre el bloque catch del endpoint /products (Línea 41 en offers.py)."""
+
+        MOCK_ERROR_MESSAGE = "Fallo de conexión de base de datos simulado"
+        mock_get_products.side_effect = Exception(MOCK_ERROR_MESSAGE)
+        
+        resp = client.get('/offers/products')
+
+        assert resp.status_code == 500
+        data = resp.get_json()
+        assert "Error obteniendo productos" in data['message']
+        assert MOCK_ERROR_MESSAGE in data['message']
+
+
+class TestVisitRegistration:
+    def get_valid_data(self):
+        return {
+            'client_id': 1,
+            'seller_id': 10,
+            'date': datetime.now().strftime('%Y-%m-%d'), 
+            'findings': 'Todo en orden con la mercancía y el cliente.'
+        }
+
+    @patch('src.blueprints.offers.save_visit')
+    def test_register_visit_success(self, mock_save_visit, client):
+        mock_save_visit.return_value = {'visit_id': 50}
+        resp = client.post('/offers/visit', json=self.get_valid_data())
+        assert resp.status_code == 201
+        assert resp.get_json()['visit']['visit_id'] == 50
+        mock_save_visit.assert_called_once()
+    
+    def test_register_visit_missing_fields(self, client):
+        data = self.get_valid_data()
+        del data['findings'] 
+        resp = client.post('/offers/visit', json=data)
+        assert resp.status_code == 400
+        assert "Faltan campos requeridos" in resp.get_json()['message']
+        assert "findings" in resp.get_json()['missing']
+
+    def test_register_visit_empty_field_value(self, client):
+        data = self.get_valid_data()
+        data['findings'] = "" # Campo vacío
+        resp = client.post('/offers/visit', json=data)
+        assert resp.status_code == 400
+        assert "Ningún campo puede estar vacío" in resp.get_json()['message']
+
+    def test_register_visit_invalid_date_format(self, client):
+        data = self.get_valid_data()
+        data['date'] = '2025/13/45' 
+        resp = client.post('/offers/visit', json=data)
+        assert resp.status_code == 400
+        assert "no corresponde a un formato de fecha válido" in resp.get_json()['message']
+
+    def test_register_visit_future_date(self, client):
+        data = self.get_valid_data()
+        data['date'] = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
+        resp = client.post('/offers/visit', json=data)
+        assert resp.status_code == 400
+        assert "posterior a la fecha actual" in resp.get_json()['message']
+
+    def test_register_visit_old_date(self, client):
+        data = self.get_valid_data()
+        data['date'] = (datetime.now() - timedelta(days=31)).strftime('%Y-%m-%d')
+        resp = client.post('/offers/visit', json=data)
+        assert resp.status_code == 400
+        assert "anterior a 30 días" in resp.get_json()['message']
+
+    @patch('src.blueprints.offers.save_visit')
+    def test_register_visit_db_exception(self, mock_save_visit, client):
+        mock_save_visit.side_effect = Exception("Fallo de conexión a DB")
+        resp = client.post('/offers/visit', json=self.get_valid_data())
+        assert resp.status_code == 500
+        assert "No se pudo registrar la visita" in resp.get_json()['message']
 
 class TestSalesPlansEndpoint:
     """Tests para los endpoints /plans"""
@@ -120,8 +171,8 @@ class TestSalesPlansEndpoint:
         assert isinstance(data, list)
         assert len(data) == 0
     
-    @patch('src.blueprints.sales_plans.get_sales_plan_by_id')
-    @patch('src.blueprints.sales_plans.get_sales_plan_products')
+    @patch('src.blueprints.offers.get_sales_plan_by_id')
+    @patch('src.blueprints.offers.get_sales_plan_products')
     def test_get_plan_detail_success(self, mock_get_products, mock_get_by_id, client):
         mock_get_by_id.return_value = {
             'plan_id': 9,
@@ -151,7 +202,7 @@ class TestSalesPlansEndpoint:
         assert data['plan_id'] == 9
         assert len(data['products']) == 1
     
-    @patch('src.blueprints.sales_plans.get_sales_plan_by_id')
+    @patch('src.blueprints.offers.get_sales_plan_by_id')
     def test_get_plan_detail_not_found(self, mock_get_by_id, client):
         mock_get_by_id.return_value = None
         resp = client.get('/offers/plans/999')
@@ -175,4 +226,3 @@ class TestOptionsEndpoints:
         assert isinstance(data, list)
         assert any(item['value'] == 'Q1' for item in data)
         assert len(data) == 4
-

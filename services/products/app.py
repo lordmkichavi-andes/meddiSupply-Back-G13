@@ -196,6 +196,15 @@ def validate_products_data(products_data):
             except (ValueError, TypeError):
                 product_errors.append(f"Fila {row_num}: El warehouse_id debe ser un número entero válido")
         
+        # Validaciones de ubicación física (opcionales - si están todos, deben ser válidos)
+        location_fields = ['section', 'aisle', 'shelf', 'level']
+        location_present = [field for field in location_fields if field in product and product[field] and str(product[field]).strip()]
+        
+        # Si algunos campos de ubicación están presentes, todos deben estar
+        if len(location_present) > 0 and len(location_present) < len(location_fields):
+            missing_fields = [field for field in location_fields if field not in location_present]
+            product_errors.append(f"Fila {row_num}: Si se especifica ubicación física, todos los campos son requeridos (section, aisle, shelf, level). Faltan: {', '.join(missing_fields)}")
+        
         # Si hay errores en este producto, agregarlos a la lista general
         if product_errors:
             errors.extend(product_errors)
@@ -249,7 +258,7 @@ def validate_products_data(products_data):
     return is_valid, errors, warnings, validated_products
 
 
-def insert_products(products_data, conn, cursor, data_string):
+def insert_products(products_data, conn, cursor, data_string, file_name='json_upload', file_type='csv'):
     """
     Inserta los productos validados en la base de datos.
     
@@ -258,6 +267,8 @@ def insert_products(products_data, conn, cursor, data_string):
         conn: Conexión a la base de datos
         cursor: Cursor de la conexión
         data_string: String original de los datos (para file_size)
+        file_name: Nombre del archivo (default: 'json_upload')
+        file_type: Tipo de archivo - debe ser 'csv', 'xlsx' o 'xls' (default: 'csv')
         
     Returns:
         Tupla: (successful_records: int, failed_records: int, errors: list, upload_id: int, warnings: list)
@@ -272,6 +283,14 @@ def insert_products(products_data, conn, cursor, data_string):
     processed_errors = []
     warnings = []
     
+    # Validar file_type contra el constraint (solo permite 'csv', 'xlsx', 'xls')
+    allowed_file_types = ['csv', 'xlsx', 'xls']
+    if file_type.lower() not in allowed_file_types:
+        file_type = 'csv'  # Default a 'csv' si no es válido
+    
+    # Truncar file_type a 10 caracteres (límite de la columna VARCHAR(10))
+    file_type = file_type[:10]
+    
     # 1. Crear registro en product_uploads
     upload_insert = """
         INSERT INTO products.product_uploads 
@@ -281,8 +300,8 @@ def insert_products(products_data, conn, cursor, data_string):
     """
     
     cursor.execute(upload_insert, (
-        'string_upload',
-        'string',
+        file_name,
+        file_type,
         len(data_string),
         len(products_data),
         0,  # successful_records
@@ -316,8 +335,8 @@ def insert_products(products_data, conn, cursor, data_string):
                 print("Rollback completo ejecutado debido a error en savepoint")
                 # Reinsertar el upload_id después del rollback si es necesario
                 cursor.execute(upload_insert, (
-                    'string_upload',
-                    'string',
+                    file_name,
+                    file_type,
                     len(data_string),
                     len(products_data),
                     0,
@@ -389,21 +408,69 @@ def insert_products(products_data, conn, cursor, data_string):
             product_id = cursor.fetchone()['product_id']
             print(f"Producto creado: {product['sku']} (ID: {product_id})")
             
-            # Insertar stock
-            stock_insert = """
-                INSERT INTO products.productstock 
-                (product_id, quantity, lote, warehouse_id, provider_id, country)
-                VALUES (%s, %s, %s, %s, %s, %s)
-            """
+            # Obtener o crear location_id si se proporciona ubicación física
+            location_id = None
+            if all(field in product and product[field] and str(product[field]).strip() 
+                   for field in ['section', 'aisle', 'shelf', 'level']):
+                section = str(product['section']).strip()
+                aisle = str(product['aisle']).strip()
+                shelf = str(product['shelf']).strip()
+                level = str(product['level']).strip()
+                warehouse_id = int(product['warehouse_id'])
+                
+                # Buscar ubicación existente
+                cursor.execute("""
+                    SELECT location_id FROM products.warehouse_locations
+                    WHERE warehouse_id = %s AND section = %s AND aisle = %s 
+                    AND shelf = %s AND level = %s
+                """, (warehouse_id, section, aisle, shelf, level))
+                
+                location_result = cursor.fetchone()
+                
+                if location_result:
+                    location_id = location_result['location_id']
+                    print(f"Ubicación encontrada: {section}-{aisle}-{shelf}-{level} (ID: {location_id})")
+                else:
+                    # Crear nueva ubicación
+                    cursor.execute("""
+                        INSERT INTO products.warehouse_locations 
+                        (warehouse_id, section, aisle, shelf, level, active)
+                        VALUES (%s, %s, %s, %s, %s, true)
+                        RETURNING location_id
+                    """, (warehouse_id, section, aisle, shelf, level))
+                    location_id = cursor.fetchone()['location_id']
+                    print(f"Nueva ubicación creada: {section}-{aisle}-{shelf}-{level} (ID: {location_id})")
             
-            cursor.execute(stock_insert, (
-                product_id,
-                int(product['quantity']),
-                f"LOTE-{product['sku']}-{datetime.now().strftime('%Y%m%d')}",  # lote generado
-                int(product['warehouse_id']),
-                1,  # provider_id
-                'COL'  # country (hardcoded)
-            ))
+            # Insertar stock
+            if location_id:
+                stock_insert = """
+                    INSERT INTO products.productstock 
+                    (product_id, quantity, lote, warehouse_id, provider_id, country, location_id)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """
+                cursor.execute(stock_insert, (
+                    product_id,
+                    int(product['quantity']),
+                    f"LOTE-{product['sku']}-{datetime.now().strftime('%Y%m%d')}",  # lote generado
+                    int(product['warehouse_id']),
+                    1,  # provider_id
+                    'COL',  # country (hardcoded)
+                    location_id
+                ))
+            else:
+                stock_insert = """
+                    INSERT INTO products.productstock 
+                    (product_id, quantity, lote, warehouse_id, provider_id, country)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                """
+                cursor.execute(stock_insert, (
+                    product_id,
+                    int(product['quantity']),
+                    f"LOTE-{product['sku']}-{datetime.now().strftime('%Y%m%d')}",  # lote generado
+                    int(product['warehouse_id']),
+                    1,  # provider_id
+                    'COL'  # country (hardcoded)
+                ))
             print(f"Stock creado para producto {product_id}")
             
             # Insertar en product_history
@@ -461,6 +528,10 @@ def insert_products(products_data, conn, cursor, data_string):
                     error_msg = f"Fila {row_num} (SKU: {product_sku}, Nombre: {product_name}): El SKU '{duplicate_sku}' ya existe en la base de datos"
                 else:
                     error_msg = f"Fila {row_num} (SKU: {product_sku}, Nombre: {product_name}): SKU duplicado - el producto ya existe en la base de datos"
+            # Detectar errores de FOREIGN KEY para warehouse_id inexistente
+            elif 'foreign key' in error_str.lower() and 'warehouse' in error_str.lower():
+                warehouse_id = product.get('warehouse_id', 'N/A')
+                error_msg = f"Fila {row_num} (SKU: {product_sku}, Nombre: {product_name}): El warehouse_id '{warehouse_id}' no existe en la base de datos"
             else:
                 # Para otros errores, incluir información del producto
                 error_msg = f"Fila {row_num} (SKU: {product_sku}, Nombre: {product_name}): {error_str}"
@@ -500,8 +571,8 @@ def insert_products(products_data, conn, cursor, data_string):
                 try:
                     conn.rollback()
                     cursor.execute(upload_insert, (
-                        'string_upload',
-                        'string',
+                        file_name,
+                        file_type,
                         len(data_string),
                         len(products_data),
                         0,
@@ -673,13 +744,32 @@ def insert_products_endpoint():
                 "warnings": []
             }), 400
         
-        # 3. Conectar a la base de datos e insertar
+        # 3. Determinar file_name y file_type desde headers o usar defaults
+        # Si viene del frontend con headers, usarlos; si no, usar defaults
+        file_name = request.headers.get('X-File-Name')
+        file_type = request.headers.get('X-File-Type', 'csv')
+        
+        # Validar que file_type sea uno de los valores permitidos por el constraint
+        # Constraint permite: 'csv', 'xlsx', 'xls'
+        allowed_file_types = ['csv', 'xlsx', 'xls']
+        if file_type.lower() not in allowed_file_types:
+            file_type = 'csv'  # Default a 'csv' si no es válido
+        else:
+            file_type = file_type.lower()
+        
+        # Si no hay file_name, usar uno basado en timestamp
+        if not file_name:
+            from datetime import datetime
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            file_name = f'json_upload_{timestamp}'
+        
+        # 4. Conectar a la base de datos e insertar
         conn, cursor = product_repository._get_connection()
         print("Conexión a BD establecida")
         
         # Insertar productos
         successful_records, failed_records, processed_errors, upload_id, insert_warnings = insert_products(
-            products_data, conn, cursor, data_string
+            products_data, conn, cursor, data_string, file_name=file_name, file_type=file_type
         )
         
         # Commit de la transacción
@@ -725,6 +815,132 @@ def insert_products_endpoint():
         if conn:
             conn.close()
         print("Conexiones cerradas")
+
+
+@app.route('/products/insert', methods=['POST'])
+def insert_single_product_endpoint():
+    """
+    Endpoint para insertar un solo producto con validación.
+    Reutiliza validate_products_data e insert_products.
+    Soporta ubicación física (section, aisle, shelf, level) opcional.
+    """
+    print("=== INICIO INSERCIÓN DE PRODUCTO INDIVIDUAL ===")
+    conn = None
+    cursor = None
+    
+    try:
+        # 1. Obtener datos del producto
+        product_data = request.get_json()
+        
+        if not product_data:
+            return jsonify({
+                "success": False,
+                "message": "No se recibieron datos del producto",
+                "errors": ["Datos del producto requeridos"]
+            }), 400
+        
+        # Convertir a lista para reutilizar las funciones existentes
+        products_list = [product_data]
+        data_string = json.dumps(products_list)
+        
+        # 2. Validar producto
+        is_valid, errors, warnings, validated_products = validate_products_data(products_list)
+        
+        if not is_valid:
+            return jsonify({
+                "success": False,
+                "message": "Error de validación",
+                "errors": errors,
+                "warnings": warnings
+            }), 400
+        
+        # 3. Insertar producto
+        conn, cursor = product_repository._get_connection()
+        
+        successful, failed, insert_errors, upload_id, insert_warnings = insert_products(
+            validated_products,
+            conn,
+            cursor,
+            data_string,
+            file_name='single_product_insert',
+            file_type='json'
+        )
+        
+        conn.commit()
+        
+        if successful > 0:
+            # Obtener el product_id del producto insertado
+            cursor.execute("SELECT product_id FROM products.products WHERE sku = %s", (product_data['sku'],))
+            result = cursor.fetchone()
+            product_id = result['product_id'] if result else None
+            
+            # Obtener información de ubicación si se proporcionó
+            location_info = None
+            if all(field in product_data and product_data[field] and str(product_data[field]).strip() 
+                   for field in ['section', 'aisle', 'shelf', 'level']):
+                cursor.execute("""
+                    SELECT location_id, section, aisle, shelf, level 
+                    FROM products.warehouse_locations
+                    WHERE warehouse_id = %s AND section = %s AND aisle = %s 
+                    AND shelf = %s AND level = %s
+                """, (
+                    int(product_data['warehouse_id']),
+                    str(product_data['section']).strip(),
+                    str(product_data['aisle']).strip(),
+                    str(product_data['shelf']).strip(),
+                    str(product_data['level']).strip()
+                ))
+                location = cursor.fetchone()
+                if location:
+                    location_info = {
+                        "location_id": location['location_id'],
+                        "section": location['section'],
+                        "aisle": location['aisle'],
+                        "shelf": location['shelf'],
+                        "level": location['level']
+                    }
+            
+            cursor.close()
+            conn.close()
+            
+            response = {
+                "success": True,
+                "message": "Producto insertado exitosamente",
+                "product_id": product_id,
+                "warnings": warnings + insert_warnings
+            }
+            
+            if location_info:
+                response["location"] = location_info
+            
+            return jsonify(response), 201
+        else:
+            cursor.close()
+            conn.close()
+            
+            return jsonify({
+                "success": False,
+                "message": "Error al insertar producto",
+                "errors": insert_errors,
+                "warnings": warnings + insert_warnings
+            }), 400
+            
+    except Exception as e:
+        if conn:
+            conn.rollback()
+            if cursor:
+                cursor.close()
+            conn.close()
+        
+        print(f"ERROR en inserción individual: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        
+        return jsonify({
+            "success": False,
+            "message": "Error interno del servidor",
+            "errors": [f"Error interno: {str(e)}"]
+        }), 500
 
 
 ## Endpoint /products/upload3 eliminado
@@ -1012,7 +1228,7 @@ def health():
 
 ## Endpoint /debug-upload eliminado
 
-@app.route('/cities', methods=['GET'])
+@app.route('/products/cities', methods=['GET'])
 def get_all_cities():
     """Obtener todas las ciudades"""
     try:
@@ -1042,7 +1258,7 @@ def get_all_cities():
             conn.close()
 
 
-@app.route('/warehouses', methods=['GET'])
+@app.route('/products/warehouses', methods=['GET'])
 def get_all_warehouses():
     """Obtener todas las bodegas con información de ciudad"""
     try:
@@ -1052,7 +1268,7 @@ def get_all_warehouses():
             SELECT 
                 w.warehouse_id,
                 w.name,
-                w.address,
+                w.location,
                 w.phone,
                 w.manager_name,
                 w.active,
@@ -1082,7 +1298,7 @@ def get_all_warehouses():
             conn.close()
 
 
-@app.route('/warehouses/by-city/<int:city_id>', methods=['GET'])
+@app.route('/products/warehouses/by-city/<int:city_id>', methods=['GET'])
 def get_warehouses_by_city(city_id):
     """Obtener bodegas por ciudad"""
     try:
@@ -1178,6 +1394,7 @@ def get_products_by_city_id(city_id):
 
 
 @app.route('/products/by-warehouse/<int:warehouse_id>', methods=['GET'])
+@cache_control_header(timeout=120, key="")
 def get_products_by_warehouse_id(warehouse_id):
     """Obtener productos disponibles por bodega (con stock o sin stock según parámetro)"""
     try:
@@ -1185,6 +1402,7 @@ def get_products_by_warehouse_id(warehouse_id):
 
         # Verificar si se quiere incluir productos con stock = 0
         include_zero = request.args.get('include_zero', 'false').lower() == 'true'
+        include_locations = request.args.get('include_locations', 'false').lower() == 'true'
 
         # Construir la query según si se incluyen productos con stock = 0
         if include_zero:
@@ -1192,112 +1410,129 @@ def get_products_by_warehouse_id(warehouse_id):
         else:
             quantity_filter = "AND ps.quantity > 0"
 
-        query = f"""
-            SELECT 
-                p.product_id,
-                p.sku,
-                p.name,
-                p.value,
-                p.status,
-                c.name as category_name,
-                w.name as warehouse_name,
-                ci.name as city_name,
-                ci.city_id,
-                ci.country,
-                ps.quantity,
-                ps.lote,
-                ps.country as stock_country,
-                ps.expiry_date,
-                ps.reserved_quantity,
-                wl.section,
-                wl.aisle,
-                wl.shelf,
-                wl."level"
-            FROM products.products p
-            JOIN products.productstock ps ON p.product_id = ps.product_id
-            JOIN products.warehouses w ON ps.warehouse_id = w.warehouse_id
-            JOIN products.cities ci ON w.city_id = ci.city_id
-            JOIN products.category c ON p.category_id = c.category_id
-            LEFT JOIN products.warehouse_locations wl ON ps.location_id = wl.location_id
-            WHERE ps.warehouse_id = %s AND p.status = 'activo' {quantity_filter}
-            ORDER BY ps.quantity DESC
-        """
-
-        cursor.execute(query, (warehouse_id,))
-
-        products = cursor.fetchall()
-
-        # Verificar si se quiere incluir las ubicaciones (locations) de cada producto
-        include_locations = request.args.get('include_locations', 'false').lower() == 'true'
-
-        # Si se requiere incluir locations, agrupar por producto y calcular totales
+        # OPTIMIZACIÓN: Si include_locations=true, traer todo en una sola query para evitar N+1
         if include_locations:
-            # Agrupar productos y calcular total por producto en esta bodega
+            # Query única optimizada que trae todo en un solo query
+            query = f"""
+                SELECT 
+                    p.product_id,
+                    p.sku,
+                    p.name,
+                    p.value,
+                    p.status,
+                    c.name as category_name,
+                    w.name as warehouse_name,
+                    ci.name as city_name,
+                    ci.city_id,
+                    ci.country,
+                    ps.quantity,
+                    ps.lote,
+                    ps.country as stock_country,
+                    ps.expiry_date,
+                    ps.reserved_quantity,
+                    wl.section,
+                    wl.aisle,
+                    wl.shelf,
+                    wl."level"
+                FROM products.products p
+                JOIN products.productstock ps ON p.product_id = ps.product_id
+                JOIN products.warehouses w ON ps.warehouse_id = w.warehouse_id
+                JOIN products.cities ci ON w.city_id = ci.city_id
+                JOIN products.category c ON p.category_id = c.category_id
+                LEFT JOIN products.warehouse_locations wl ON ps.location_id = wl.location_id
+                WHERE ps.warehouse_id = %s AND p.status = 'activo' {quantity_filter}
+                ORDER BY p.product_id, ps.quantity DESC
+            """
+
+            cursor.execute(query, (warehouse_id,))
+            all_rows = cursor.fetchall()
+
+            # Agrupar por producto y construir locations
             products_dict = {}
-            for product in products:
-                product_id = product['product_id']
+            for row in all_rows:
+                product_id = row['product_id']
+                
                 if product_id not in products_dict:
                     products_dict[product_id] = {
-                        'product_id': product['product_id'],
-                        'sku': product['sku'],
-                        'name': product['name'],
-                        'value': product['value'],
-                        'status': product['status'],
-                        'category_name': product['category_name'],
-                        'warehouse_name': product['warehouse_name'],
-                        'city_name': product['city_name'],
-                        'city_id': product['city_id'],
-                        'country': product['country'],
-                        'stock_country': product['stock_country'],
+                        'product_id': row['product_id'],
+                        'sku': row['sku'],
+                        'name': row['name'],
+                        'value': row['value'],
+                        'status': row['status'],
+                        'category_name': row['category_name'],
+                        'warehouse_name': row['warehouse_name'],
+                        'city_name': row['city_name'],
+                        'city_id': row['city_id'],
+                        'country': row['country'],
+                        'stock_country': row['stock_country'],
                         'total_quantity': 0,
                         'locations': []
                     }
+                
                 # Sumar la cantidad
-                products_dict[product_id]['total_quantity'] += product['quantity']
+                products_dict[product_id]['total_quantity'] += row['quantity']
+                
+                # Agregar location si tiene datos
+                location_data = {
+                    'warehouse_id': warehouse_id,
+                    'warehouse_name': row['warehouse_name'],
+                    'city_id': row['city_id'],
+                    'city_name': row['city_name'],
+                    'country': row['country'],
+                    'quantity': row['quantity'],
+                    'lote': row['lote'],
+                    'expiry_date': str(row['expiry_date']) if row['expiry_date'] else None,
+                    'reserved_quantity': row['reserved_quantity'],
+                    'section': row['section'],
+                    'aisle': row['aisle'],
+                    'shelf': row['shelf'],
+                    'level': row['level']
+                }
+                products_dict[product_id]['locations'].append(location_data)
 
-            # Ahora buscar todos los lotes para cada producto (solo de esta bodega)
-            products_with_locations = []
+            # Convertir a lista y agregar total_quantity como quantity
+            products_list = []
             for product_id, product_info in products_dict.items():
-                # Buscar todas las ubicaciones donde este producto tiene stock EN ESTA BODEGA
-                locations_query = """
-                    SELECT 
-                        w.warehouse_id,
-                        w.name as warehouse_name,
-                        ci.city_id,
-                        ci.name as city_name,
-                        ci.country,
-                        ps.quantity,
-                        ps.lote,
-                        ps.expiry_date,
-                        ps.reserved_quantity,
-                        wl.section,
-                        wl.aisle,
-                        wl.shelf,
-                        wl."level"
-                    FROM products.productstock ps
-                    JOIN products.warehouses w ON ps.warehouse_id = w.warehouse_id
-                    JOIN products.cities ci ON w.city_id = ci.city_id
-                    LEFT JOIN products.warehouse_locations wl ON ps.location_id = wl.location_id
-                    WHERE ps.product_id = %s AND ps.warehouse_id = %s AND w.active = true
-                    ORDER BY ps.quantity DESC
-                """
-
-                cursor.execute(locations_query, (product_id, warehouse_id))
-                locations = cursor.fetchall()
-
-                # Agregar el array locations al producto
-                product_info['locations'] = [dict(loc) for loc in locations]
-                # Usar total_quantity como quantity principal
                 product_info['quantity'] = product_info['total_quantity']
-                products_with_locations.append(product_info)
+                products_list.append(product_info)
 
             return jsonify({
                 "success": True,
                 "warehouse_id": warehouse_id,
-                "products": products_with_locations
+                "products": products_list
             })
         else:
-            # Sin locations: agrupar por producto y sumar cantidades
+            # Sin locations: query más simple
+            query = f"""
+                SELECT 
+                    p.product_id,
+                    p.sku,
+                    p.name,
+                    p.value,
+                    p.status,
+                    c.name as category_name,
+                    w.name as warehouse_name,
+                    ci.name as city_name,
+                    ci.city_id,
+                    ci.country,
+                    ps.quantity,
+                    ps.lote,
+                    ps.country as stock_country,
+                    ps.expiry_date,
+                    ps.reserved_quantity
+                FROM products.products p
+                JOIN products.productstock ps ON p.product_id = ps.product_id
+                JOIN products.warehouses w ON ps.warehouse_id = w.warehouse_id
+                JOIN products.cities ci ON w.city_id = ci.city_id
+                JOIN products.category c ON p.category_id = c.category_id
+                WHERE ps.warehouse_id = %s AND p.status = 'activo' {quantity_filter}
+                ORDER BY ps.quantity DESC
+            """
+
+            cursor.execute(query, (warehouse_id,))
+            products = cursor.fetchall()
+
+            # Agrupar por producto y sumar cantidades
             products_dict = {}
             for product in products:
                 product_id = product['product_id']

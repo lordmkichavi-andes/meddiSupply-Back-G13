@@ -6,6 +6,7 @@ from psycopg2.extras import RealDictCursor
 from typing import Any, Optional, List, Dict
 import logging
 from src.clients.products_client import products_client
+from src.clients.orders_client import orders_client
 
 logger = logging.getLogger(__name__)
 
@@ -13,13 +14,21 @@ logger = logging.getLogger(__name__)
 def get_connection():
     """Obtiene conexión a la base de datos."""
     try:
+        host = os.getenv('DB_HOST')
+        # Si es RDS (contiene .rds.amazonaws.com), usar SSL por defecto
+        sslmode = os.getenv('DB_SSLMODE')
+        if not sslmode and host and '.rds.amazonaws.com' in host:
+            sslmode = 'require'
+        elif not sslmode:
+            sslmode = 'disable'
+        
         conn = psycopg2.connect(
-            host=os.getenv('DB_HOST'),
+            host=host,
             port=os.getenv('DB_PORT', 5432),
             database=os.getenv('DB_NAME', 'postgres'),
             user=os.getenv('DB_USER', 'postgres'),
             password=os.getenv('DB_PASSWORD'),
-            sslmode=os.getenv('DB_SSLMODE', 'disable')
+            sslmode=sslmode
         )
         return conn
     except Exception as e:
@@ -75,49 +84,61 @@ def get_products() -> List[Dict[str, Any]]:
 
 def create_sales_plan(plan_data: Dict[str, Any]) -> Optional[int]:
     """Crea un nuevo plan de venta y retorna el ID del plan creado."""
-    # Crear el plan principal
-    plan_query = """
-    INSERT INTO sales_plans.sales_plans 
-    (region, quarter, year, total_goal, created_by)
-    VALUES (%s, %s, %s, %s, %s)
-    RETURNING plan_id
-    """
-    
-    plan_params = (
-        plan_data['region'],
-        plan_data['quarter'],
-        plan_data['year'],
-        plan_data['total_goal'],
-        plan_data['created_by']
-    )
-    
-    plan_result = execute_query(plan_query, plan_params, fetch_one=True)
-    if not plan_result:
-        return None
-    
-    plan_id = plan_result['plan_id']
-    
-    # Crear los productos del plan
-    for product in plan_data['products']:
-        product_query = """
-        INSERT INTO sales_plans.sales_plan_products 
-        (plan_id, product_id, individual_goal)
-        VALUES (%s, %s, %s)
+    try:
+        # Crear el plan principal
+        plan_query = """
+        INSERT INTO offers.sales_plans 
+        (region, quarter, year, total_goal, created_by)
+        VALUES (%s, %s, %s, %s, %s)
+        RETURNING plan_id
         """
         
-        product_params = (
-            plan_id,
-            product['product_id'],
-            product['individual_goal']
+        plan_params = (
+            plan_data['region'],
+            plan_data['quarter'],
+            plan_data['year'],
+            plan_data['total_goal'],
+            plan_data['created_by']
         )
         
-        execute_query(product_query, product_params)
-    
-    return plan_id
+        plan_result = execute_query(plan_query, plan_params, fetch_one=True)
+        if not plan_result:
+            logger.error("Error: plan_result es None después de insertar plan principal")
+            return None
+        
+        plan_id = plan_result['plan_id']
+        logger.info(f"Plan creado con ID: {plan_id}")
+        
+        # Crear los productos del plan
+        for product in plan_data['products']:
+            product_query = """
+            INSERT INTO offers.sales_plan_products 
+            (plan_id, product_id, individual_goal)
+            VALUES (%s, %s, %s)
+            """
+            
+            product_params = (
+                plan_id,
+                product['product_id'],
+                product['individual_goal']
+            )
+            
+            result = execute_query(product_query, product_params)
+            if result is None:
+                logger.error(f"Error insertando producto {product['product_id']} para plan {plan_id}")
+                return None
+            
+        logger.info(f"Plan {plan_id} creado exitosamente con {len(plan_data['products'])} productos")
+        return plan_id
+    except Exception as e:
+        logger.error(f"Error en create_sales_plan: {str(e)}", exc_info=True)
+        return None
 
 
-def get_sales_plans(region: Optional[str] = None) -> List[Dict[str, Any]]:
-    """Obtiene los planes de venta, opcionalmente filtrados por región."""
+def get_sales_plans(region: Optional[str] = None,
+                    quarter: Optional[str] = None,
+                    year: Optional[int] = None) -> List[Dict[str, Any]]:
+    """Obtiene los planes de venta, filtrando por región/quarter/año si se especifican."""
     base_query = """
     SELECT 
         sp.plan_id,
@@ -127,17 +148,29 @@ def get_sales_plans(region: Optional[str] = None) -> List[Dict[str, Any]]:
         sp.total_goal,
         sp.is_active,
         sp.creation_date
-    FROM sales_plans.sales_plans sp
+    FROM offers.sales_plans sp
     """
-    
+
+    clauses = []
+    params: List[Any] = []  # type: ignore
+
     if region:
-        query = base_query + " WHERE sp.region = %s ORDER BY sp.creation_date DESC"
-        params = (region,)
+        clauses.append("sp.region = %s")
+        params.append(region)
+    if quarter:
+        clauses.append("sp.quarter = %s")
+        params.append(quarter)
+    if year is not None:
+        clauses.append("sp.year = %s")
+        params.append(year)
+
+    if clauses:
+        query = base_query + " WHERE " + " AND ".join(clauses) + " ORDER BY sp.creation_date DESC"
     else:
         query = base_query + " ORDER BY sp.creation_date DESC"
-        params = None
-    
-    result = execute_query(query, params, fetch_all=True)
+        params = []
+
+    result = execute_query(query, tuple(params) if params else None, fetch_all=True)
     return result or []
 
 
@@ -148,7 +181,7 @@ def get_sales_plan_products(plan_id: int) -> List[Dict[str, Any]]:
         spp.plan_product_id,
         spp.product_id,
         spp.individual_goal
-    FROM sales_plans.sales_plan_products spp
+    FROM offers.sales_plan_products spp
     WHERE spp.plan_id = %s
     ORDER BY spp.plan_product_id
     """
@@ -198,9 +231,135 @@ def get_sales_plan_by_id(plan_id: int) -> Optional[Dict[str, Any]]:
         sp.is_active,
         sp.creation_date,
         sp.created_by
-    FROM sales_plans.sales_plans sp
+    FROM offers.sales_plans sp
     WHERE sp.plan_id = %s
     """
 
     result = execute_query(query, (plan_id,), fetch_one=True)
     return result
+   
+def save_visit(client_id: int, seller_id: int, date: str, findings: str):
+    """
+    Guarda la información de una nueva visita en la base de datos.
+
+    :param visit_data: Diccionario con client_id, seller_id, date y findings.
+    :return: Una instancia de la Visita recién creada con su visit_id.
+    """
+    conn = None
+    new_visit_id = None
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Consulta SQL para insertar la nueva visita
+    # RETURNING visit_id es crucial para obtener el ID generado automáticamente
+    query = """
+        INSERT INTO users.Visits (client_id, seller_id, date, findings)
+        VALUES (%s, %s, %s, %s)
+        RETURNING visit_id;
+    """
+
+
+
+    # 1. Ejecutamos la inserción
+    new_visit_id = execute_query(query, (
+        client_id,
+        seller_id,
+        date,  # La fecha ya viene validada como objeto date o similar
+        findings,
+    ), fetch_one=True)
+
+
+    # 4. Creamos y devolvemos el objeto de dominio (Visita)
+    # Asumiendo que existe una clase 'Visit' para mapear el registro.
+    # Si no tienes una clase, simplemente devuelve el diccionario con el ID:
+    return {
+        "visit_id": new_visit_id.get('visit_id'),
+        "client_id": client_id,
+        "seller_id": seller_id,
+        "date": date,
+        "findings":findings,
+    }
+    # Si tienes una clase Visit, sería:
+    # return Visit(visit_id=new_visit_id, client_id=..., seller_id=..., findings=...)
+
+def db_get_visit_by_id(visit_id: int) -> Optional[Dict[str, Any]]:
+    """
+    Verifica la existencia de una visita por su ID en la tabla users.visits.
+    Retorna el registro de la visita si existe.
+    """
+    query = """
+    SELECT 
+        v.visit_id,
+        v.seller_id,
+        v.client_id,
+        v.date,
+        v.findings
+    FROM users.visits v
+    WHERE v.visit_id = %s
+    """
+
+    result = execute_query(query, (visit_id,), fetch_one=True)
+    
+    return result
+
+def get_client_history(client_id: int) -> List[Dict[str, Any]]:
+    """
+    Función helper para obtener el historial de compras usando el cliente.
+    """
+    try:
+        return orders_client.get_client_purchase_history(client_id)
+    except Exception as e:
+        logger.error(f"Fallo grave al usar el cliente de órdenes: {e}")
+        return []
+
+def get_client_data(client_id: int) -> List[Dict[str, Any]]:
+    """
+    Función helper para obtener la data del cliente.
+    """
+    try:
+        return orders_client.get_client_detail(client_id)
+    except Exception as e:
+        logger.error(f"Fallo grave al usar el cliente: {e}")
+        return []
+
+def db_get_recent_evidences_by_client(client_id: int) -> List[Dict[str, str]]:
+    """
+    Obtiene las URLs y tipos de archivos de evidencia visual (media) asociados a las 
+    visitas recientes de un cliente.
+    
+    Retorna una lista de diccionarios con las claves 'url' y 'type'.
+    """
+    
+    # Consulta que une Clientes -> Visitas -> Evidencias
+    # Limita la búsqueda a las últimas 10 evidencias como un filtro de "reciente".
+    query = """
+    SELECT
+        ve.url_file AS url,
+        ve.type
+    FROM
+        users.visual_evidences ve
+    JOIN
+        users.visits v ON ve.visit_id = v.visit_id
+    WHERE
+        v.client_id = %s
+    ORDER BY
+        v.date DESC, ve.evidence_id DESC 
+    LIMIT 10;
+    """
+    
+    # Usamos execute_query con fetch_all=True
+    result = execute_query(query, (client_id,), fetch_all=True)
+    
+    if not result:
+        return []
+
+    # Mapeamos los resultados para asegurar que las claves coincidan con el mock/cliente esperado
+    mapped_result = []
+    for row in result:
+        mapped_result.append({
+            "url": row['url'],
+            "type": row['type']
+        })
+
+    return mapped_result
