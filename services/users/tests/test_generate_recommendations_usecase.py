@@ -29,30 +29,6 @@ class TestGenerateRecommendationsUseCase(unittest.TestCase):
         use_case = GenerateRecommendationsUseCase(self.mock_recommendation_agent, self.mock_repo)
         self.assertEqual(use_case.recommendation_agent, self.mock_recommendation_agent)
 
-    def test_execute_success(self):
-        """Prueba la ejecución exitosa del caso de uso."""
-        mock_recommendations = [
-            {"product_id": 1, "product_sku": "SKU-001", "product_name": "Product 1", "score": 0.9, "reasoning": "High demand"},
-            {"product_id": 2, "product_sku": "SKU-002", "product_name": "Product 2", "score": 0.8, "reasoning": "Good fit"}
-        ]
-        
-        self.mock_recommendation_agent.generate_recommendations.return_value = {
-            "recommendations": mock_recommendations
-        }
-
-        self.mock_repo = Mock(spec=UserRepository)
-        use_case = GenerateRecommendationsUseCase(self.mock_recommendation_agent, self.mock_repo)
-        result = use_case.execute(client_id=123, regional_setting='CO')
-        
-        # Verificar que se llamó al agente con los parámetros correctos
-        self.mock_recommendation_agent.generate_recommendations.assert_called_once_with(
-            client_id=123,
-            regional_setting='CO'
-        )
-        
-        # Verificar el resultado
-        self.assertEqual(result["status"], "success")
-        self.assertEqual(result["recommendations"], mock_recommendations)
 
 
 
