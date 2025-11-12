@@ -13,6 +13,10 @@ class UserRepository(ABC):
         pass
 
     @abstractmethod
+    def get_sellers(self) -> List[Dict[str, Any]]:
+        pass
+
+    @abstractmethod
     def db_get_client_data(self, client_id: int) -> Optional[Dict[str, Any]]:
         pass
 
