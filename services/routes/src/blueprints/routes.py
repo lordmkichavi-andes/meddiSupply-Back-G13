@@ -46,8 +46,8 @@ def get_seller_daily_routes(seller_ID):
     if route_result and "error" in route_result:
         # Si la función retornó un error
         return jsonify({
-            "visits": route_result[:-1],
-            "number_visits": len(route_result[:-1]),
+            "visits": route_result if len(clients_data) < 4 else route_result[:-1],
+            "number_visits": len(route_result)if len(clients_data) < 4 else len(route_result[:-1]),
         }), 500
 
     # Si fue exitoso, retornar el resultado de la ruta optimizada
