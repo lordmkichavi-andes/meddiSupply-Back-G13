@@ -76,14 +76,14 @@ def create_user_api_blueprint(
                 "message": "No se pudieron obtener los clientes. Intenta nuevamente.",
                 "error": str(e)
             }), 500
-    
+
     @user_api_bp.route('/detail/<int:client_id>', methods=['GET'])
     def get_user_by_id(client_id):
         """
         Maneja la solicitud HTTP para obtener un usuario individual por su user_id.
         """
         try:
-            user_data = use_case.get_user_by_id(client_id=client_id) 
+            user_data = use_case.get_user_by_id(client_id=client_id)
 
             if not user_data:
                 return jsonify({
@@ -97,8 +97,8 @@ def create_user_api_blueprint(
                 "message": "Error al obtener la información del usuario. Intenta nuevamente.",
                 "error": str(e)
             }), 500
-    
-    
+
+
     @user_api_bp.route('/visits/<int:visit_id>/evidences', methods=['POST'])
     def upload_visit_evidences_endpoint(visit_id):
         """
@@ -107,7 +107,7 @@ def create_user_api_blueprint(
         """
         try:
             uploaded_files = request.files.getlist('files')
-            
+
             if not uploaded_files or uploaded_files[0].filename == '':
                 return jsonify({
                     "message": "No se adjuntaron archivos para la evidencia."
@@ -127,8 +127,8 @@ def create_user_api_blueprint(
             return jsonify({
                 "message": "Error: La visita no existe o el sistema de archivos falló.",
                 "error": str(e)
-            }), 404 
-        
+            }), 404
+
         except ValueError as e:
             return jsonify({
                 "message": str(e)

@@ -39,8 +39,7 @@ class UserAPITestCase(unittest.TestCase):
         user_api_bp = create_user_api_blueprint(
             self.mock_get_users_uc,
             self.mock_register_visit_uc,
-            # 🛑 ¡CORRECCIÓN DEL TypeError! 🛑
-            self.mock_recommendations_uc 
+            self.mock_recommendations_uc
         )
 
         # Registrar el Blueprint en la app base

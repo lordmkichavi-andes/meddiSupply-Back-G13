@@ -82,6 +82,7 @@ class GetClientUsersUseCase:
         """
         visit = self.repository.get_by_id(visit_id)
         return visit
+
     
     def upload_visit_evidences(self, visit_id: int, files: List[FileStorage]) -> List[Dict[str, Any]]:
         """
@@ -102,6 +103,7 @@ class GetClientUsersUseCase:
                 file_type = "video"
             elif 'image' in content_type:
                 file_type = "photo"
+
                 
             logger.info(f"Procesando archivo {i+1}/{len(files)}: '{file_name}' (Tipo: {file_type}, Content-Type: {content_type}).")
 
@@ -119,6 +121,7 @@ class GetClientUsersUseCase:
                     "url_file": url_file,
                     "description": file_name,
                 }
+
                 
                 new_evidence_data = self.repository.save_evidence(
                     visit_id=db_data['visit_id'],
@@ -130,5 +133,6 @@ class GetClientUsersUseCase:
             except Exception as e:
                 logger.error(f"Fallo en el almacenamiento o registro del archivo '{file_name}'.", exc_info=True)
                 raise Exception(f"Fallo en el almacenamiento del archivo {file_name}") from e
+
                 
         return saved_evidences
