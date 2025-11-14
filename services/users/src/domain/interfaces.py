@@ -25,6 +25,14 @@ class UserRepository(ABC):
         pass
 
     @abstractmethod
+    def get_client_additional_info(self, user_id: int) -> Optional[Dict[str, Any]]:
+        pass
+
+    @abstractmethod
+    def get_seller_additional_info(self, user_id: int) -> Optional[Dict[str, Any]]:
+        pass
+
+    @abstractmethod
     def save_visit(self, client_id: int, seller_id: int, date: str, findings: str):
         """Registra visitas"""
         pass
