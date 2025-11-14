@@ -46,6 +46,62 @@ def create_user_api_blueprint(
                 "error": str(e)
             }), 500
 
+    @user_api_bp.route('/clients/<int:user_id>/info', methods=['GET'])
+    def get_client_info(user_id):
+        """
+        Maneja la solicitud HTTP para obtener usuarios CLIENT,
+        llama al Caso de Uso y retorna la respuesta.
+        """
+        try:
+            # 1. Llamar al Caso de Uso (Lógica de Negocio)
+            client = use_case.get_client_additional_info(user_id)
+
+            # 2. Manejo de mensajes específicos
+            if not client:
+                return jsonify({
+                    "message": "No se encontraron datos.",
+                }), 404
+
+            # 3. Retornar la respuesta exitosa
+            return jsonify({
+                "client_info": client
+            }), 200
+
+        except Exception as e:
+            # Si el sistema no puede recuperar la información
+            return jsonify({
+                "message": "No se pudieron obtener lo datos. Intenta nuevamente.",
+                "error": str(e)
+            }), 500
+
+    @user_api_bp.route('/seller/<int:user_id>/info', methods=['GET'])
+    def get_client_info(user_id):
+        """
+        Maneja la solicitud HTTP para obtener usuarios CLIENT,
+        llama al Caso de Uso y retorna la respuesta.
+        """
+        try:
+            # 1. Llamar al Caso de Uso (Lógica de Negocio)
+            seller = use_case.get_seller_additional_info(user_id)
+
+            # 2. Manejo de mensajes específicos
+            if not seller:
+                return jsonify({
+                    "message": "No se encontraron datos.",
+                }), 404
+
+            # 3. Retornar la respuesta exitosa
+            return jsonify({
+                "seller_info": seller
+            }), 200
+
+        except Exception as e:
+            # Si el sistema no puede recuperar la información
+            return jsonify({
+                "message": "No se pudieron obtener lo datos. Intenta nuevamente.",
+                "error": str(e)
+            }), 500
+
     @user_api_bp.route('/clients/<int:seller_id>', methods=['GET'])
     def get_client_users_by_seller(seller_id):
         """

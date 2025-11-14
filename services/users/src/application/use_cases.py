@@ -83,6 +83,19 @@ class GetClientUsersUseCase:
         visit = self.repository.get_by_id(visit_id)
         return visit
 
+    def get_client_additional_info(self, user_id: int):
+        """
+         Recupera una la información adicional de un cliente
+        """
+        client_info = self.repository.get_client_additional_info(user_id)
+        return client_info
+
+    def get_seller_additional_info(self, user_id: int):
+        """
+         Recupera una la información adicional de un cliente
+        """
+        seller_info = self.repository.get_seller_additional_info(user_id)
+        return seller_info
     
     def upload_visit_evidences(self, visit_id: int, files: List[FileStorage]) -> List[Dict[str, Any]]:
         """
