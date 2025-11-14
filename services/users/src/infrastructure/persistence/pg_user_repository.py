@@ -213,6 +213,7 @@ class PgUserRepository(UserRepository):
             # Ejecutamos la consulta
             cursor.execute(query, (client_id,))
             result = cursor.fetchone()
+
             
             if result:
                 # Convertimos el DictRow de psycopg2 a un dict estándar de Python
@@ -405,6 +406,7 @@ class PgUserRepository(UserRepository):
         try:
             conn = get_connection()
             cursor = conn.cursor()
+
             
             query = """
                 SELECT DISTINCT ON (p.product_id)
@@ -555,18 +557,22 @@ class PgUserRepository(UserRepository):
             ORDER BY
                 p.sku;
             """
-            
+
             cursor.execute(query)
             results = cursor.fetchall()
-            
+
+            # Mapeamos los resultados (DictRow) a una lista de diccionarios Python estándar
             products = [dict(row) for row in results]
-            
+
+            # logger.info(f"Catálogo cargado: {len(products)} productos disponibles.")
             return products
 
         except psycopg2.Error as e:
+            # Aquí puedes registrar el error de DB para debugging
             logger.error(f"ERROR de base de datos al recuperar el catálogo de productos: {e}")
             return []
         except Exception as e:
+            # Aquí puedes registrar cualquier otro error inesperado
             logger.error(f"ERROR INESPERADO AL OBTENER CATÁLOGO: {e}")
             return []
         finally:
