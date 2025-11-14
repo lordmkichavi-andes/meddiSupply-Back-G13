@@ -645,3 +645,50 @@ class PgUserRepository(UserRepository):
         finally:
             if conn:
                 release_connection(conn)
+
+    def get_sellers(self) -> List[Dict[str, Any]]:
+        """
+        Obtiene todos los vendedores disponibles.
+        Retorna una lista de diccionarios con la información de los vendedores.
+        """
+        conn = None
+        sellers = []
+        try:
+            conn = get_connection()
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            
+            query = """
+                SELECT
+                    s.seller_id AS id,
+                    u.name || ' ' || u.last_name AS name,
+                    u.email AS email,
+                    s.zone AS region,
+                    u.active AS active
+                FROM
+                    users.sellers s
+                JOIN
+                    users.users u ON s.user_id = u.user_id
+                ORDER BY
+                    name
+            """
+            
+            cursor.execute(query)
+            results = cursor.fetchall()
+            
+            for row in results:
+                sellers.append({
+                    'id': row['id'],
+                    'name': row['name'],
+                    'email': row['email'],
+                    'region': row['region'],
+                    'active': row['active']
+                })
+            
+            return sellers
+            
+        except psycopg2.Error as e:
+            logger.error(f"ERROR de base de datos al recuperar vendedores: {e}")
+            raise Exception("Database error retrieving sellers.")
+        finally:
+            if conn:
+                release_connection(conn)

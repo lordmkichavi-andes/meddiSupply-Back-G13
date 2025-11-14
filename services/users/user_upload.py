@@ -230,12 +230,63 @@ def _sync_user_id_sequence(conn, cursor):
         else:
             max_id = max_id_result[0] if max_id_result else 0
         
-        # Sincronizar la secuencia (false = no usar ese valor como próximo, true = usarlo como próximo)
-        cursor.execute("SELECT setval('users.users_user_id_seq', %s, true)", (max_id,))
+        # Sincronizar la secuencia
+        # setval(sequence, value, true): establece que el último valor usado fue 'value',
+        # por lo que el próximo nextval() devolverá 'value + 1'
+        # Nota: El nombre de la secuencia es users_users_user_id_seq (con guion bajo, no punto)
+        cursor.execute("SELECT setval('users_users_user_id_seq', %s, true)", (max_id,))
         print(f"✅ Secuencia de user_id sincronizada a {max_id}")
     except Exception as e:
         print(f"⚠️  Advertencia: No se pudo sincronizar la secuencia: {str(e)}")
         # No fallar si no se puede sincronizar, continuar con la inserción
+
+
+def _sync_seller_id_sequence(conn, cursor):
+    """
+    Sincroniza la secuencia de seller_id con el máximo valor actual en la tabla.
+    Esto previene errores de 'duplicate key' cuando la secuencia está desincronizada.
+    """
+    try:
+        # Obtener el máximo seller_id actual
+        cursor.execute("SELECT COALESCE(MAX(seller_id), 0) AS max_id FROM users.sellers")
+        max_id_result = cursor.fetchone()
+        
+        if isinstance(max_id_result, dict):
+            max_id = max_id_result.get('max_id', 0)
+        else:
+            max_id = max_id_result[0] if max_id_result else 0
+        
+        # Sincronizar la secuencia
+        # Nota: El nombre real en producción es users.sellers_seller_id_seq (con punto)
+        # Probamos sin ::regclass, usando el nombre completo directamente
+        cursor.execute("SELECT setval(%s, %s, true)", ('users.sellers_seller_id_seq', max_id))
+        print(f"✅ Secuencia de seller_id sincronizada a {max_id}")
+    except Exception as e:
+        print(f"⚠️  Advertencia: No se pudo sincronizar la secuencia de seller_id: {str(e)}")
+
+
+def _sync_provider_id_sequence(conn, cursor):
+    """
+    Sincroniza la secuencia de provider_id con el máximo valor actual en la tabla.
+    Esto previene errores de 'duplicate key' cuando la secuencia está desincronizada.
+    """
+    try:
+        # Obtener el máximo provider_id actual
+        cursor.execute("SELECT COALESCE(MAX(provider_id), 0) AS max_id FROM products.providers")
+        max_id_result = cursor.fetchone()
+        
+        if isinstance(max_id_result, dict):
+            max_id = max_id_result.get('max_id', 0)
+        else:
+            max_id = max_id_result[0] if max_id_result else 0
+        
+        # Sincronizar la secuencia
+        # Nota: El nombre real en producción es products.providers_provider_id_seq (con punto)
+        # Probamos sin ::regclass, usando el nombre completo directamente
+        cursor.execute("SELECT setval(%s, %s, true)", ('products.providers_provider_id_seq', max_id))
+        print(f"✅ Secuencia de provider_id sincronizada a {max_id}")
+    except Exception as e:
+        print(f"⚠️  Advertencia: No se pudo sincronizar la secuencia de provider_id: {str(e)}")
 
 
 def insert_users(users_data: List[Dict[str, Any]], conn, cursor, data_string: str, file_name: str = 'json_upload', file_type: str = 'csv') -> Tuple[int, int, List[str], Optional[int], List[str]]:
@@ -532,8 +583,11 @@ def insert_sellers(sellers_data: List[Dict[str, Any]], conn, cursor, data_string
         file_type = 'csv'
     file_type = file_type[:10]
     
-    # Sincronizar secuencia de user_id antes de insertar
+    # Sincronizar secuencias antes de insertar
     _sync_user_id_sequence(conn, cursor)
+    _sync_seller_id_sequence(conn, cursor)
+    # Hacer commit de la sincronización para que se persista antes de insertar
+    conn.commit()
     
     # Procesar cada vendedor con SAVEPOINT para permitir inserción parcial
     for index, seller in enumerate(sellers_data):
@@ -809,8 +863,11 @@ def insert_providers(providers_data: List[Dict[str, Any]], conn, cursor, data_st
         file_type = 'csv'
     file_type = file_type[:10]
     
-    # Sincronizar secuencia de user_id antes de insertar
+    # Sincronizar secuencias antes de insertar
     _sync_user_id_sequence(conn, cursor)
+    _sync_provider_id_sequence(conn, cursor)
+    # Hacer commit de la sincronización para que se persista antes de insertar
+    conn.commit()
     
     # Procesar cada proveedor con SAVEPOINT para permitir inserción parcial
     for index, provider in enumerate(providers_data):

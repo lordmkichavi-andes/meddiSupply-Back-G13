@@ -382,6 +382,38 @@ jobs:
                     end
                 )' stripped.json > rendered.json
             fi
+            # Agregar credenciales AWS para el servicio users (necesarias para Cognito)
+            if [ "$SERVICE_SLUG" == "users" ]; then
+              echo "🔐 Agregando credenciales AWS para servicio users (Cognito)..."
+              jq --arg S "$SERVICE_SLUG" --arg IMG "$IMAGE" \
+                 --arg AWS_ACCESS_KEY_ID "${{ secrets.AWS_ACCESS_KEY_ID }}" \
+                 --arg AWS_SECRET_ACCESS_KEY "${{ secrets.AWS_SECRET_ACCESS_KEY }}" '
+                .containerDefinitions |= map(
+                    if (.name | test($S; "i")) then 
+                        .image = $IMG |
+                        # Filtrar variables de entorno existentes (excluyendo AWS credentials) y agregar/actualizar
+                        .environment = (
+                            (.environment // []) | 
+                            map(select(.name != "AWS_ACCESS_KEY_ID" and .name != "AWS_SECRET_ACCESS_KEY"))
+                        ) + [
+                            {name: "AWS_ACCESS_KEY_ID", value: $AWS_ACCESS_KEY_ID},
+                            {name: "AWS_SECRET_ACCESS_KEY", value: $AWS_SECRET_ACCESS_KEY}
+                        ]
+                    else 
+                        . 
+                    end
+                )' stripped.json > rendered.json
+            else
+              jq --arg S "$SERVICE_SLUG" --arg IMG "$IMAGE" '
+                .containerDefinitions |= map(
+                    # 🟢 MODIFICACIÓN CLAVE: Usamos 'test' con el flag 'i' para una coincidencia flexible
+                    if (.name | test($S; "i")) then 
+                        .image = $IMG 
+                    else 
+                        . 
+                    end
+                )' stripped.json > rendered.json
+            fi
             
             NEW_TD_ARN=$(aws ecs register-task-definition --cli-input-json file://rendered.json --query 'taskDefinition.taskDefinitionArn' --output text --region "$AWS_REGION")
             
