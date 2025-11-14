@@ -75,7 +75,7 @@ def create_user_api_blueprint(
             }), 500
 
     @user_api_bp.route('/seller/<int:user_id>/info', methods=['GET'])
-    def get_client_info(user_id):
+    def get_seller_info(user_id):
         """
         Maneja la solicitud HTTP para obtener usuarios CLIENT,
         llama al Caso de Uso y retorna la respuesta.
