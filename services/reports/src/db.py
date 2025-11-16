@@ -292,7 +292,15 @@ def _http_get(url: str, params: Dict[str, Any] = None, timeout: int = 10) -> Opt
 def _get_plan_by_id(plan_id: int) -> Optional[Dict[str, Any]]:
     base = _get_offer_manager_base_url().rstrip('/')
     url = f"{base}/offers/plans/{plan_id}"
-    return _http_get(url)
+    result = _http_get(url)
+    if result:
+        products_count = len(result.get('products', []))
+        logger.info(f"Plan obtenido por ID {plan_id}: tiene {products_count} productos")
+        if products_count > 0:
+            logger.info(f"Productos del plan {plan_id}: {[{'product_id': p.get('product_id'), 'individual_goal': p.get('individual_goal')} for p in result.get('products', [])]}")
+    else:
+        logger.warning(f"No se pudo obtener plan {plan_id} desde {url}")
+    return result
 
 
 def _get_plan_by_params(region: str, quarter: str, year: int) -> Optional[Dict[str, Any]]:
@@ -300,26 +308,48 @@ def _get_plan_by_params(region: str, quarter: str, year: int) -> Optional[Dict[s
     url = f"{base}/offers/plans"
     data = _http_get(url, params={"region": region, "quarter": quarter, "year": year})
     if not data:
+        logger.warning(f"No se encontraron planes para región={region}, quarter={quarter}, year={year}")
         return None
     # Si la respuesta es lista, filtrar por quarter/year exactos y priorizar activo
+    selected_plan = None
     if isinstance(data, list):
         filtered = [
             item for item in data
             if str(item.get('quarter')).upper() == str(quarter).upper()
             and int(item.get('year')) == int(year)
         ]
-        # Priorizar activo entre los filtrados; si no hay, tomar el primero filtrado
-        for item in filtered:
-            if item.get('is_active') is True:
-                return item
-        if filtered:
-            return filtered[0]
+        # Priorizar activo entre los filtrados, y si hay múltiples, el más reciente (mayor plan_id)
+        active_filtered = [item for item in filtered if item.get('is_active') is True]
+        if active_filtered:
+            # Ordenar por plan_id descendente para obtener el más reciente
+            active_filtered.sort(key=lambda x: x.get('plan_id', 0), reverse=True)
+            selected_plan = active_filtered[0]
+        elif filtered:
+            # Si no hay activos, tomar el primero filtrado
+            selected_plan = filtered[0]
         # Como último recurso, mantener la lógica previa (activo primero)
-        for item in data:
-            if item.get('is_active') is True:
-                return item
-        return data[0] if data else None
-    return data
+        if not selected_plan:
+            active_all = [item for item in data if item.get('is_active') is True]
+            if active_all:
+                active_all.sort(key=lambda x: x.get('plan_id', 0), reverse=True)
+                selected_plan = active_all[0]
+        if not selected_plan and data:
+            selected_plan = data[0]
+    else:
+        selected_plan = data
+    
+    # Si se encontró un plan, SIEMPRE obtener sus productos usando el endpoint completo
+    if selected_plan and selected_plan.get('plan_id'):
+        plan_id = selected_plan.get('plan_id')
+        logger.info(f"Obteniendo plan completo con productos para plan_id={plan_id}")
+        full_plan = _get_plan_by_id(plan_id)
+        if full_plan:
+            logger.info(f"Plan completo obtenido: plan_id={full_plan.get('plan_id')}, productos={len(full_plan.get('products', []))}")
+            return full_plan
+        else:
+            logger.warning(f"No se pudo obtener plan completo para plan_id={plan_id}, usando plan básico")
+    
+    return selected_plan
 
 
 def _quarter_to_dates(quarter: str, year: int) -> Optional[Dict[str, date]]:
@@ -461,7 +491,10 @@ def get_sales_compliance(vendor_id: int,
     # 4) Metas por producto y total
     # Estructura esperada desde Offer Manager: products: [{product_id, individual_goal}], total_goal
     plan_products = plan.get('products') or plan.get('plan_products') or []
+    logger.info(f"Plan obtenido - plan_id: {plan.get('plan_id')}, total_goal: {plan.get('total_goal')}, productos en plan: {len(plan_products)}")
+    logger.info(f"Productos del plan: {plan_products}")
     goals_by_product = {int(p.get('product_id')): float(p.get('individual_goal', 0)) for p in plan_products if p.get('product_id') is not None}
+    logger.info(f"Metas por producto mapeadas: {goals_by_product}")
     total_goal = float(plan.get('total_goal') or 0)
 
     # 5) Calcular cumplimiento por producto
