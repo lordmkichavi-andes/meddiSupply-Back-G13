@@ -11,6 +11,9 @@ import io
 import re
 import pandas as pd
 from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 REDIS_HOST = os.environ.get('CACHE_HOST')
 REDIS_PORT = os.environ.get('CACHE_PORT', '6379')
@@ -78,6 +81,14 @@ def get_products():
     products_list = [p.__dict__ for p in products]
     return jsonify(products_list)
 
+
+@app.route('/products/list', methods=['GET'])
+def get_products_list():
+    """Endpoint para listar productos disponibles."""
+    products = product_service.list_available_products()
+    # Convertir la lista de objetos Product en un formato serializable (dict)
+    products_list = [p.__dict__ for p in products]
+    return jsonify(products_list)
 
 @app.route('/products/update/<int:product_id>', methods=['PUT'])
 def update_product(product_id):
@@ -1785,6 +1796,26 @@ def search_products():
     finally:
         cursor.close()
         conn.close()
+
+@app.route('/products/update-stock', methods=['PUT'])
+def update_product_stock():
+    data = request.get_json()
+
+    if not data or "products" not in data:
+        return jsonify({"error": "Formato inválido, se requiere 'products'"}), 400
+
+    products = data["products"]
+
+    try:
+        updated_count = product_service.update_product_quantities(products)
+        return jsonify({
+            "message": f"Stock actualizado para {updated_count} productos",
+            "updated": updated_count
+        }), 200
+    except Exception as e:
+        logger.exception("Error al actualizar stock")
+        return jsonify({"error": str(e)}), 500
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080, debug=True)
