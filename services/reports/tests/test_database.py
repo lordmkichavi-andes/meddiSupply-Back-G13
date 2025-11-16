@@ -603,7 +603,16 @@ class TestGetPlanByParams:
     def test_get_plan_by_params_success_dict(self):
         """Test obtener plan por parámetros exitoso (dict)."""
         with patch.object(db_module, '_http_get') as mock_http_get:
-            mock_http_get.return_value = {'plan_id': 1, 'region': 'Norte', 'quarter': 'Q1', 'year': 2024}
+            # Primera llamada: obtener lista de planes, segunda: obtener plan completo
+            def side_effect(url, params=None, timeout=10):
+                if params is not None:
+                    # Llamada a _get_plan_by_params (tiene params)
+                    return {'plan_id': 1, 'region': 'Norte', 'quarter': 'Q1', 'year': 2024}
+                else:
+                    # Llamada a _get_plan_by_id (no tiene params, URL contiene /plans/{id})
+                    return {'plan_id': 1, 'region': 'Norte', 'quarter': 'Q1', 'year': 2024, 'products': []}
+            
+            mock_http_get.side_effect = side_effect
             
             result = db_module._get_plan_by_params('Norte', 'Q1', 2024)
             
@@ -613,10 +622,19 @@ class TestGetPlanByParams:
     def test_get_plan_by_params_success_list_active(self):
         """Test obtener plan por parámetros exitoso (lista con activo)."""
         with patch.object(db_module, '_http_get') as mock_http_get:
-            mock_http_get.return_value = [
-                {'plan_id': 1, 'region': 'Norte', 'quarter': 'Q1', 'year': 2024, 'is_active': True},
-                {'plan_id': 2, 'region': 'Norte', 'quarter': 'Q1', 'year': 2024, 'is_active': False}
-            ]
+            # Primera llamada: obtener lista de planes, segunda: obtener plan completo
+            def side_effect(url, params=None, timeout=10):
+                if params is not None:
+                    # Llamada a _get_plan_by_params (tiene params)
+                    return [
+                        {'plan_id': 1, 'region': 'Norte', 'quarter': 'Q1', 'year': 2024, 'is_active': True},
+                        {'plan_id': 2, 'region': 'Norte', 'quarter': 'Q1', 'year': 2024, 'is_active': False}
+                    ]
+                else:
+                    # Llamada a _get_plan_by_id (no tiene params, URL contiene /plans/{id})
+                    return {'plan_id': 1, 'region': 'Norte', 'quarter': 'Q1', 'year': 2024, 'is_active': True, 'products': []}
+            
+            mock_http_get.side_effect = side_effect
             
             result = db_module._get_plan_by_params('Norte', 'Q1', 2024)
             
@@ -627,10 +645,19 @@ class TestGetPlanByParams:
     def test_get_plan_by_params_success_list_filtered(self):
         """Test obtener plan por parámetros exitoso (lista filtrada)."""
         with patch.object(db_module, '_http_get') as mock_http_get:
-            mock_http_get.return_value = [
-                {'plan_id': 1, 'region': 'Norte', 'quarter': 'Q1', 'year': 2024, 'is_active': False},
-                {'plan_id': 2, 'region': 'Norte', 'quarter': 'Q2', 'year': 2024, 'is_active': False}
-            ]
+            # Primera llamada: obtener lista de planes, segunda: obtener plan completo
+            def side_effect(url, params=None, timeout=10):
+                if params is not None:
+                    # Llamada a _get_plan_by_params (tiene params)
+                    return [
+                        {'plan_id': 1, 'region': 'Norte', 'quarter': 'Q1', 'year': 2024, 'is_active': False},
+                        {'plan_id': 2, 'region': 'Norte', 'quarter': 'Q2', 'year': 2024, 'is_active': False}
+                    ]
+                else:
+                    # Llamada a _get_plan_by_id (no tiene params, URL contiene /plans/{id})
+                    return {'plan_id': 1, 'region': 'Norte', 'quarter': 'Q1', 'year': 2024, 'is_active': False, 'products': []}
+            
+            mock_http_get.side_effect = side_effect
             
             result = db_module._get_plan_by_params('Norte', 'Q1', 2024)
             
