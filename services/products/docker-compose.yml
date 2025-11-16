@@ -1,52 +1,25 @@
-version: '3.8'
-
 services:
-  # Servicio de Base de Datos PostgreSQL
-  db:
-    image: postgres:14-alpine
-    container_name: postgres_rdw
-    restart: always
-    environment:
-      # Variables usadas por la imagen oficial de PostgreSQL
-      POSTGRES_DB: medisupplydb
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-    ports:
-      # Mapea el puerto del contenedor (5432) al puerto local (5432)
-      - "5432:5432"
-    healthcheck: # <--- Esto es lo que falta
-      test: [ "CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB" ]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-
-  # Servicio del Microservicio Flask
   app:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: products
-    depends_on: # <--- La dependencia debe ser condicional
-      db:
-        condition: service_healthy
     environment:
-      # Variables de entorno para la aplicación (deben coincidir con config.py)
-      # DB_HOST apunta a medisupplydb (CoreDB) en el host
-      DB_HOST: host.docker.internal
-      DB_PORT: 5433
+      DB_HOST: host.docker.internal      # 👈 nombre del contenedor de tu DB ya existente
+      DB_PORT: 5434
       DB_NAME: medisupplydb
       DB_USER: postgres
       DB_PASSWORD: postgres
       CACHE_DB: 0
       CACHE_HOST: med-me-mrp9qeogurvj.ozabfh.0001.use1.cache.amazonaws.com
       CACHE_PORT: 6379
-      # Asegura que la inicialización se ejecute
       RUN_DB_INIT_ON_STARTUP: "True"
     ports:
       - "8081:8080"
-    # Este comando es una práctica de robustez para esperar que la DB esté lista.
-    # Le da a PostgreSQL tiempo para inicializarse antes de que Python intente conectarse.
     command: ["sh", "-c", "sleep 5 && python app.py"]
+    networks:
+      - products_default   # 👈 usa la red donde ya está tu DB
 
-
+networks:
+  products_default:
+    external: true         # 👈 le decimos a Compose que la red ya existe
