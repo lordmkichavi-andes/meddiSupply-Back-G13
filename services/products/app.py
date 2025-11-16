@@ -1721,14 +1721,33 @@ def validate_stock_for_product(product_id):
     """
     try:
         # Obtener el parámetro individual_goal de la query string
-        individual_goal_param = request.args.get('individual_goal')
+        # Intentar múltiples formas por si el API Gateway pasa los parámetros de manera diferente
+        individual_goal_param = (
+            request.args.get('individual_goal') or 
+            request.values.get('individual_goal') or
+            request.form.get('individual_goal')
+        )
+        
+        # Debug: log de los parámetros recibidos (solo en desarrollo)
+        if not individual_goal_param:
+            # Intentar leer desde query_string directamente
+            query_string = request.query_string.decode('utf-8') if request.query_string else ''
+            import urllib.parse
+            parsed = urllib.parse.parse_qs(query_string)
+            if 'individual_goal' in parsed:
+                individual_goal_param = parsed['individual_goal'][0] if parsed['individual_goal'] else None
         
         if not individual_goal_param:
             return jsonify({
                 "valid": False,
                 "message": "El parámetro 'individual_goal' es requerido",
                 "product_id": product_id,
-                "error": "El parámetro 'individual_goal' debe ser proporcionado"
+                "error": "El parámetro 'individual_goal' debe ser proporcionado",
+                "debug": {
+                    "args": dict(request.args),
+                    "values": dict(request.values),
+                    "query_string": request.query_string.decode('utf-8') if request.query_string else ''
+                }
             }), 400
         
         # Validar que individual_goal sea un número válido
