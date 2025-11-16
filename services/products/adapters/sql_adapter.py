@@ -1,9 +1,12 @@
 import psycopg2
 from psycopg2.extras import RealDictCursor, register_uuid
-from typing import List, Optional
+from typing import List, Optional, Dict
 from repositories.product_repository import ProductRepository
 from domain.models import Product
 from config import Config
+import logging
+
+logger = logging.getLogger(__name__)
 
 class PostgreSQLProductAdapter(ProductRepository):
     """Implementación del repositorio de productos para PostgreSQL (RDS)."""
@@ -152,3 +155,83 @@ class PostgreSQLProductAdapter(ProductRepository):
         cursor.execute(queryStock, (stock, product_id, warehouse, ))
         conn.commit()
         conn.close()
+
+    def update_product_quantities(self, products: list) -> int:
+        conn, cursor = self._get_connection()
+        updated_products = 0
+
+        for product in products:
+            product_id = product["product_id"]
+            discount = product["quantity"]
+
+            logger.info(f"➡️ Procesando product_id={product_id}, descuento={discount}")
+
+            # 1. Obtener provider_id principal del producto
+            cursor.execute("SELECT provider_id FROM products.Products WHERE product_id = %s;", (product_id,))
+            row = cursor.fetchone()
+            if not row:
+                logger.warning(f"No se encontró provider_id para product_id={product_id}")
+                continue
+            main_provider_id = row['provider_id']
+            logger.info(f"   Provider principal={main_provider_id}")
+
+            # 2. Obtener todas las filas de stock del producto (sin filtrar por provider)
+            cursor.execute("""
+                SELECT stock_id, quantity, provider_id
+                FROM products.ProductStock
+                WHERE product_id = %s
+                ORDER BY provider_id, stock_id;
+            """, (product_id,))
+            rows = cursor.fetchall()
+            logger.info(f"   Filas encontradas: {rows}")
+
+            remaining = discount
+
+            # 3. Agrupar filas por provider_id
+            providers = {}
+            for r in rows:
+                providers.setdefault(r['provider_id'], []).append(r)
+
+            # 4. Ordenar: primero el provider principal, luego los demás
+            ordered_providers = [main_provider_id] + [pid for pid in providers if pid != main_provider_id]
+
+            # 5. Descontar escalonado
+            for pid in ordered_providers:
+                for r in providers[pid]:
+                    stock_id = r['stock_id']
+                    current_qty = r['quantity']
+                    logger.info(f"   Revisando stock_id={stock_id}, provider_id={pid}, qty_actual={current_qty}, remaining={remaining}")
+
+                    if remaining <= 0:
+                        break
+
+                    if current_qty >= remaining:
+                        new_qty = current_qty - remaining
+                        cursor.execute("""
+                            UPDATE products.ProductStock
+                            SET quantity = %s
+                            WHERE stock_id = %s;
+                        """, (new_qty, stock_id))
+                        logger.info(f"   ✅ Actualizado stock_id={stock_id} a {new_qty}")
+                        remaining = 0
+                    else:
+                        cursor.execute("""
+                            UPDATE products.ProductStock
+                            SET quantity = 0
+                            WHERE stock_id = %s;
+                        """, (stock_id,))
+                        logger.info(f"   ❌ Vaciado stock_id={stock_id}, antes tenía {current_qty}")
+                        remaining -= current_qty
+
+                if remaining <= 0:
+                    break
+
+            updated_products += 1
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+        logger.info("✔️ Commit realizado")
+
+        return updated_products
+
