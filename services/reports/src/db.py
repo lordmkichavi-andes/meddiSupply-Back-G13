@@ -276,6 +276,10 @@ def _get_products_base_url() -> str:
     """Obtiene la URL base del Products MS para enriquecimiento opcional."""
     return os.getenv('PRODUCTS_SERVICE_URL', 'http://MediSu-MediS-5XPY2MhrDivI-109634141.us-east-1.elb.amazonaws.com/')
 
+def _get_users_service_base_url() -> str:
+    """Obtiene la URL base del Users Service desde variables de entorno."""
+    return os.getenv('USERS_SERVICE_URL', 'http://MediSu-MediS-5XPY2MhrDivI-109634141.us-east-1.elb.amazonaws.com/')
+
 
 def _http_get(url: str, params: Dict[str, Any] = None, timeout: int = 10) -> Optional[Dict[str, Any]]:
     try:
@@ -408,14 +412,15 @@ def _status_from_pct(pct: float) -> str:
 
 
 def _get_vendor_region(vendor_id: int) -> Optional[str]:
-    """Obtiene la región (zone) del vendedor desde la base de datos."""
-    query = """
-    SELECT s.zone AS region
-    FROM users.sellers s
-    WHERE s.seller_id = %s
-    """
-    result = execute_query(query, (vendor_id,), fetch_one=True)
-    return result.get('region') if result else None
+    """Obtiene la región (zone) del vendedor desde el servicio Users mediante HTTP."""
+    base = _get_users_service_base_url().rstrip('/')
+    url = f"{base}/users/sellers/{vendor_id}"
+    result = _http_get(url)
+    if result and result.get('success') and result.get('data'):
+        # El endpoint devuelve: {"success": true, "data": {"id": 2, "name": "...", "region": "Norte", ...}}
+        return result['data'].get('region')
+    logger.warning(f"No se pudo obtener región del vendedor {vendor_id} desde {url}")
+    return None
 
 
 def get_sales_compliance(vendor_id: int,
