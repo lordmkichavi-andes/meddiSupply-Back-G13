@@ -515,8 +515,8 @@ class TestGetVendorRegion:
     
     def test_get_vendor_region_empty_result(self):
         """Test obtener región con resultado vacío."""
-        with patch.object(db_module, 'execute_query') as mock_execute:
-            mock_execute.return_value = {}
+        with patch.object(db_module, '_http_get') as mock_http_get:
+            mock_http_get.return_value = None
             
             result = db_module._get_vendor_region(1)
             
@@ -607,7 +607,7 @@ class TestGetPlanByParams:
             def side_effect(url, params=None, timeout=10):
                 if params is not None:
                     # Llamada a _get_plan_by_params (tiene params)
-                    return {'plan_id': 1, 'region': 'Norte', 'quarter': 'Q1', 'year': 2024}
+                    return {'plan_id': 1, 'region': 'Norte', 'quarter': 'Q1', 'year': 2024, 'is_active': True}
                 else:
                     # Llamada a _get_plan_by_id (no tiene params, URL contiene /plans/{id})
                     return {'plan_id': 1, 'region': 'Norte', 'quarter': 'Q1', 'year': 2024, 'products': []}
@@ -650,12 +650,12 @@ class TestGetPlanByParams:
                 if params is not None:
                     # Llamada a _get_plan_by_params (tiene params)
                     return [
-                        {'plan_id': 1, 'region': 'Norte', 'quarter': 'Q1', 'year': 2024, 'is_active': False},
+                        {'plan_id': 1, 'region': 'Norte', 'quarter': 'Q1', 'year': 2024, 'is_active': True},
                         {'plan_id': 2, 'region': 'Norte', 'quarter': 'Q2', 'year': 2024, 'is_active': False}
                     ]
                 else:
                     # Llamada a _get_plan_by_id (no tiene params, URL contiene /plans/{id})
-                    return {'plan_id': 1, 'region': 'Norte', 'quarter': 'Q1', 'year': 2024, 'is_active': False, 'products': []}
+                    return {'plan_id': 1, 'region': 'Norte', 'quarter': 'Q1', 'year': 2024, 'is_active': True, 'products': []}
             
             mock_http_get.side_effect = side_effect
             
@@ -755,63 +755,79 @@ class TestGetSalesCompliance:
         from datetime import date
         with patch.object(db_module, '_get_vendor_region') as mock_region:
             with patch.object(db_module, '_get_plan_by_id') as mock_plan:
-                with patch.object(db_module, '_query_sales_totals') as mock_totals:
-                    with patch.object(db_module, '_query_sales_by_product') as mock_by_product:
-                        mock_region.return_value = 'Norte'
-                        mock_plan.return_value = {
-                            'plan_id': 1,
-                            'region': 'Norte',
-                            'quarter': 'Q1',
-                            'year': 2024,
-                            'products': [
-                                {'product_id': 1, 'individual_goal': 100000.0},
-                                {'product_id': 2, 'individual_goal': 50000.0}
-                            ],
-                            'total_goal': 150000.0
-                        }
-                        mock_totals.return_value = {'pedidos': 10, 'ventas_totales': 150000.0}
-                        mock_by_product.return_value = [
-                            {'product_id': 1, 'ventas': 100000.0, 'cantidad': 50},
-                            {'product_id': 2, 'ventas': 50000.0, 'cantidad': 25}
-                        ]
-                        
-                        result = db_module.get_sales_compliance(vendor_id=1, plan_id=1)
-                        
-                        assert result is not None
-                        assert result['vendor_id'] == 1
-                        assert result['total_goal'] == 150000.0
-                        assert result['ventasTotales'] == 150000.0
-                        assert result['status'] == 'verde'
-                        assert len(result['detalle_productos']) == 2
+                with patch.object(db_module, '_get_sellers_by_region') as mock_sellers:
+                    with patch.object(db_module, '_query_sales_totals') as mock_totals:
+                        with patch.object(db_module, '_query_sales_by_product') as mock_by_product:
+                            with patch.object(db_module, '_query_sales_by_region') as mock_region_sales:
+                                mock_region.return_value = 'Norte'
+                                mock_sellers.return_value = [1]  # 1 seller en la región
+                                mock_plan.return_value = {
+                                    'plan_id': 1,
+                                    'region': 'Norte',
+                                    'quarter': 'Q1',
+                                    'year': 2024,
+                                    'products': [
+                                        {'product_id': 1, 'individual_goal': 100000.0},
+                                        {'product_id': 2, 'individual_goal': 50000.0}
+                                    ],
+                                    'total_goal': 150000.0
+                                }
+                                # Para que sea verde: ventasTotales >= total_goal_vendor * 100
+                                # total_goal_vendor = 150000.0 / 1 = 150000.0
+                                # total_goal_vendor_monetario = 150000.0 * 100 = 15,000,000
+                                # Para verde: ventasTotales >= 15,000,000
+                                mock_totals.return_value = {'pedidos': 10, 'ventas_totales': 15000000.0}
+                                mock_region_sales.return_value = {'pedidos': 10, 'ventas_totales': 15000000.0}
+                                mock_by_product.return_value = [
+                                    {'product_id': 1, 'ventas': 10000000.0, 'cantidad': 50},
+                                    {'product_id': 2, 'ventas': 5000000.0, 'cantidad': 25}
+                                ]
+                                
+                                result = db_module.get_sales_compliance(vendor_id=1, plan_id=1)
+                                
+                                assert result is not None
+                                assert result['vendor_id'] == 1
+                                assert result['total_goal'] == 150000.0
+                                assert result['ventasTotales'] == 15000000.0
+                                assert result['status'] == 'verde'
+                                assert len(result['detalle_productos']) == 2
     
     def test_get_sales_compliance_by_quarter_year_success(self):
         """Test obtener cumplimiento por quarter/year exitoso."""
         from datetime import date
         with patch.object(db_module, '_get_vendor_region') as mock_region:
             with patch.object(db_module, '_get_plan_by_params') as mock_plan:
-                with patch.object(db_module, '_query_sales_totals') as mock_totals:
-                    with patch.object(db_module, '_query_sales_by_product') as mock_by_product:
-                        mock_region.return_value = 'Norte'
-                        mock_plan.return_value = {
-                            'plan_id': 1,
-                            'region': 'Norte',
-                            'quarter': 'Q1',
-                            'year': 2024,
-                            'products': [
-                                {'product_id': 1, 'individual_goal': 100000.0}
-                            ],
-                            'total_goal': 100000.0
-                        }
-                        mock_totals.return_value = {'pedidos': 5, 'ventas_totales': 60000.0}
-                        mock_by_product.return_value = [
-                            {'product_id': 1, 'ventas': 60000.0, 'cantidad': 30}
-                        ]
-                        
-                        result = db_module.get_sales_compliance(vendor_id=1, quarter='Q1', year=2024)
-                        
-                        assert result is not None
-                        assert result['vendor_id'] == 1
-                        assert result['status'] == 'amarillo'
+                with patch.object(db_module, '_get_sellers_by_region') as mock_sellers:
+                    with patch.object(db_module, '_query_sales_totals') as mock_totals:
+                        with patch.object(db_module, '_query_sales_by_product') as mock_by_product:
+                            with patch.object(db_module, '_query_sales_by_region') as mock_region_sales:
+                                mock_region.return_value = 'Norte'
+                                mock_sellers.return_value = [1]  # 1 seller en la región
+                                mock_plan.return_value = {
+                                    'plan_id': 1,
+                                    'region': 'Norte',
+                                    'quarter': 'Q1',
+                                    'year': 2024,
+                                    'products': [
+                                        {'product_id': 1, 'individual_goal': 100000.0}
+                                    ],
+                                    'total_goal': 100000.0
+                                }
+                                # Para que sea amarillo (60-100%): ventasTotales >= 0.6 * total_goal_vendor * 100
+                                # total_goal_vendor = 100000.0 / 1 = 100000.0
+                                # total_goal_vendor_monetario = 100000.0 * 100 = 10,000,000
+                                # Para amarillo: 6,000,000 <= ventasTotales < 10,000,000
+                                mock_totals.return_value = {'pedidos': 5, 'ventas_totales': 6000000.0}
+                                mock_region_sales.return_value = {'pedidos': 5, 'ventas_totales': 6000000.0}
+                                mock_by_product.return_value = [
+                                    {'product_id': 1, 'ventas': 6000000.0, 'cantidad': 30}
+                                ]
+                                
+                                result = db_module.get_sales_compliance(vendor_id=1, quarter='Q1', year=2024)
+                                
+                                assert result is not None
+                                assert result['vendor_id'] == 1
+                                assert result['status'] == 'amarillo'
     
     def test_get_sales_compliance_vendor_not_found(self):
         """Test obtener cumplimiento cuando vendedor no existe."""
@@ -880,26 +896,34 @@ class TestGetSalesCompliance:
         from datetime import date
         with patch.object(db_module, '_get_vendor_region') as mock_region:
             with patch.object(db_module, '_get_plan_by_params') as mock_plan:
-                with patch.object(db_module, '_query_sales_totals') as mock_totals:
-                    with patch.object(db_module, '_query_sales_by_product') as mock_by_product:
-                        mock_region.return_value = 'Norte'
-                        mock_plan.return_value = {
-                            'plan_id': 1,
-                            'region': 'Norte',
-                            'quarter': 'Q1',
-                            'year': 2024,
-                            'products': [
-                                {'product_id': 1, 'individual_goal': 100000.0}
-                            ],
-                            'total_goal': 100000.0
-                        }
-                        mock_totals.return_value = {'pedidos': 2, 'ventas_totales': 30000.0}
-                        mock_by_product.return_value = [
-                            {'product_id': 1, 'ventas': 30000.0, 'cantidad': 15}
-                        ]
-                        
-                        result = db_module.get_sales_compliance(vendor_id=1, quarter='Q1', year=2024)
-                        
-                        assert result is not None
-                        assert result['status'] == 'rojo'
-                        assert result['cumplimiento_total_pct'] == 0.3
+                with patch.object(db_module, '_get_sellers_by_region') as mock_sellers:
+                    with patch.object(db_module, '_query_sales_totals') as mock_totals:
+                        with patch.object(db_module, '_query_sales_by_product') as mock_by_product:
+                            with patch.object(db_module, '_query_sales_by_region') as mock_region_sales:
+                                mock_region.return_value = 'Norte'
+                                mock_sellers.return_value = [1]  # 1 seller en la región
+                                mock_plan.return_value = {
+                                    'plan_id': 1,
+                                    'region': 'Norte',
+                                    'quarter': 'Q1',
+                                    'year': 2024,
+                                    'products': [
+                                        {'product_id': 1, 'individual_goal': 100000.0}
+                                    ],
+                                    'total_goal': 100000.0
+                                }
+                                # Para que sea rojo (< 60%): ventasTotales < 0.6 * total_goal_vendor * 100
+                                # total_goal_vendor = 100000.0 / 1 = 100000.0
+                                # total_goal_vendor_monetario = 100000.0 * 100 = 10,000,000
+                                # Para 0.3%: ventasTotales = 0.003 * 10,000,000 = 30,000
+                                mock_totals.return_value = {'pedidos': 2, 'ventas_totales': 30000.0}
+                                mock_region_sales.return_value = {'pedidos': 2, 'ventas_totales': 30000.0}
+                                mock_by_product.return_value = [
+                                    {'product_id': 1, 'ventas': 30000.0, 'cantidad': 15}
+                                ]
+                                
+                                result = db_module.get_sales_compliance(vendor_id=1, quarter='Q1', year=2024)
+                                
+                                assert result is not None
+                                assert result['status'] == 'rojo'
+                                assert result['cumplimiento_total_pct'] == 0.3
