@@ -9,7 +9,7 @@ import psycopg2.extras
 from cognito_service import create_user_in_cognito, map_role_to_cognito_group, get_username_from_email_or_identification
 
 # Roles válidos según el sistema
-VALID_ROLES = ['ADMIN', 'SELLER', 'CLIENT']
+VALID_ROLES = ['ADMIN', 'SELLER', 'CLIENT', 'PROVIDER']
 
 def validate_password_strength(password: str) -> Tuple[bool, Optional[str]]:
     """
