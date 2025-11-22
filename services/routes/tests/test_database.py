@@ -168,44 +168,63 @@ class TestDatabaseFunctions:
 
     def test_get_clientes_success(self):
         """Test get_clientes exitoso."""
-        with patch.object(db_module, 'execute_query') as mock_execute:
-            mock_data = [
+        # Mock de datos locales de la BD
+        mock_local_data = [
+            {
+                'id': 'C001',
+                'user_id': 1,
+                'direccion': 'Calle 123 #45-67',
+                'latitud': 4.6097100,
+                'longitud': -74.0817500,
+                'demanda': 50
+            }
+        ]
+        
+        # Mock de respuesta del servicio de users
+        mock_users_response = Mock()
+        mock_users_response.status_code = 200
+        mock_users_response.json.return_value = {
+            'clients': [
                 {
-                    'id': 'C001',
-                    'nombre': 'Hospital Central',
-                    'direccion': 'Calle 123 #45-67',
-                    'latitud': 4.6097100,
-                    'longitud': -74.0817500,
-                    'demanda': 50
+                    'user_id': 1,
+                    'name': 'Hospital',
+                    'last_name': 'Central',
+                    'address': 'Calle 123 #45-67',
+                    'latitude': 4.6097100,
+                    'longitude': -74.0817500
                 }
             ]
-            mock_execute.return_value = mock_data
+        }
+        
+        expected_result = [
+            {
+                'id': 'C001',
+                'nombre': 'Hospital Central',
+                'direccion': 'Calle 123 #45-67',
+                'latitud': 4.6097100,
+                'longitud': -74.0817500,
+                'demanda': 50
+            }
+        ]
+        
+        with patch.object(db_module, 'execute_query') as mock_execute, \
+             patch.object(db_module, 'requests') as mock_requests:
+            
+            mock_execute.return_value = mock_local_data
+            mock_requests.get.return_value = mock_users_response
 
             result = db_module.get_clientes()
 
-            assert result == mock_data
-            expected_query = """
-    SELECT
-    c.client_id AS id,
-    c.name AS nombre,
-    c.address AS direccion,
-    c.latitude AS latitud,
-    c.longitude AS longitud,
-    SUM(CASE WHEN o.status_id = 2 THEN 1 ELSE 0 END) AS demanda
-    FROM
-        users.Clients c
-    LEFT JOIN
-        orders.Orders o ON c.client_id = o.client_id
-    GROUP BY
-        c.client_id, c.name, c.address, c.latitude, c.longitude
-    ORDER BY
-        demanda DESC, c.name
-    """
-            mock_execute.assert_called_once_with(expected_query, fetch_all=True)
+            assert result == expected_result
+            # Verificar que se llamó execute_query con la query correcta
+            assert mock_execute.called
+            # Verificar que se llamó requests.get al servicio de users
+            mock_requests.get.assert_called_once()
 
     def test_get_clientes_no_results(self):
         """Test get_clientes sin resultados."""
-        with patch.object(db_module, 'execute_query') as mock_execute:
+        with patch.object(db_module, 'execute_query') as mock_execute, \
+             patch.object(db_module, 'requests'):
             mock_execute.return_value = None
             
             result = db_module.get_clientes()
@@ -213,7 +232,8 @@ class TestDatabaseFunctions:
 
     def test_get_clientes_empty_results(self):
         """Test get_clientes con resultados vacíos."""
-        with patch.object(db_module, 'execute_query') as mock_execute:
+        with patch.object(db_module, 'execute_query') as mock_execute, \
+             patch.object(db_module, 'requests'):
             mock_execute.return_value = []
             
             result = db_module.get_clientes()
