@@ -69,23 +69,23 @@ def get_clientes() -> List[Dict[str, Any]]:
     """
     try:
         # 1. Obtener datos locales de la base de datos (client_id, address, latitud, longitud, demanda)
-    query = """
-    SELECT
-    c.client_id AS id,
+        query = """
+        SELECT
+            c.client_id AS id,
             c.user_id,
-    c.address AS direccion,
-    c.latitude AS latitud,
-    c.longitude AS longitud,
-    SUM(CASE WHEN o.status_id = 2 THEN 1 ELSE 0 END) AS demanda
-    FROM
-        users.Clients c
-    LEFT JOIN
-        orders.Orders o ON c.client_id = o.client_id
-    GROUP BY
+            c.address AS direccion,
+            c.latitude AS latitud,
+            c.longitude AS longitud,
+            SUM(CASE WHEN o.status_id = 2 THEN 1 ELSE 0 END) AS demanda
+        FROM
+            users.Clients c
+        LEFT JOIN
+            orders.Orders o ON c.client_id = o.client_id
+        GROUP BY
             c.client_id, c.user_id, c.address, c.latitude, c.longitude
-    ORDER BY
+        ORDER BY
             demanda DESC, c.client_id
-    """
+        """
         local_data = execute_query(query, fetch_all=True)
         
         if not local_data:
