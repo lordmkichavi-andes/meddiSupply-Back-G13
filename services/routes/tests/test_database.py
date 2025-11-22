@@ -168,25 +168,14 @@ class TestDatabaseFunctions:
 
     def test_get_clientes_success(self):
         """Test get_clientes exitoso."""
-        # Mock de datos locales de la BD
-        mock_local_data = [
-            {
-                'id': 'C001',
-                'user_id': 1,
-                'direccion': 'Calle 123 #45-67',
-                'latitud': 4.6097100,
-                'longitud': -74.0817500,
-                'demanda': 50
-            }
-        ]
-        
-        # Mock de respuesta del servicio de users
+        # Mock de respuesta del servicio de users (incluye client_id)
         mock_users_response = Mock()
         mock_users_response.status_code = 200
         mock_users_response.json.return_value = {
             'clients': [
                 {
                     'user_id': 1,
+                    'client_id': 1,  # client_id ahora viene del MS
                     'name': 'Hospital',
                     'last_name': 'Central',
                     'address': 'Calle 123 #45-67',
@@ -196,9 +185,17 @@ class TestDatabaseFunctions:
             ]
         }
         
+        # Mock de datos de demanda desde orders.Orders
+        mock_demanda_data = [
+            {
+                'client_id': 1,
+                'demanda': 50
+            }
+        ]
+        
         expected_result = [
             {
-                'id': 'C001',
+                'id': 1,  # client_id del MS
                 'nombre': 'Hospital Central',
                 'direccion': 'Calle 123 #45-67',
                 'latitud': 4.6097100,
@@ -210,16 +207,22 @@ class TestDatabaseFunctions:
         with patch.object(db_module, 'execute_query') as mock_execute, \
              patch.object(db_module, 'requests') as mock_requests:
             
-            mock_execute.return_value = mock_local_data
+            # Configurar mock para que devuelva demanda cuando se consulta orders.Orders
+            def execute_query_side_effect(query, params=None, **kwargs):
+                if 'orders.Orders' in query and 'client_id' in query:
+                    return mock_demanda_data
+                return []
+            
+            mock_execute.side_effect = execute_query_side_effect
             mock_requests.get.return_value = mock_users_response
 
             result = db_module.get_clientes()
 
             assert result == expected_result
-            # Verificar que se llamó execute_query con la query correcta
-            assert mock_execute.called
             # Verificar que se llamó requests.get al servicio de users
             mock_requests.get.assert_called_once()
+            # Verificar que se llamó execute_query para calcular demanda
+            assert mock_execute.called
 
     def test_get_clientes_no_results(self):
         """Test get_clientes sin resultados."""
