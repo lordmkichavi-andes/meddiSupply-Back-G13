@@ -146,17 +146,17 @@ def get_clientes_by_seller(seller_id: int) -> List[Dict[str, Any]]:
     """
     try:
         # 1. Obtener datos locales de la base de datos (client_id, address, latitud, longitud)
-    query = """
-    SELECT
-    c.client_id AS id,
+        query = """
+        SELECT
+            c.client_id AS id,
             c.user_id,
-    c.address AS address,
-    c.latitude AS latitude,
-    c.longitude AS longitude
-    FROM
-        users.Clients c
-    WHERE
-        c.seller_id = %s
+            c.address AS address,
+            c.latitude AS latitude,
+            c.longitude AS longitude
+        FROM
+            users.Clients c
+        WHERE
+            c.seller_id = %s
         ORDER BY
             c.client_id
         """
