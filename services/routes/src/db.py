@@ -65,33 +65,10 @@ def get_vehiculos() -> List[Dict[str, Any]]:
 
 def get_clientes() -> List[Dict[str, Any]]:
     """Obtiene todos los clientes.
-    Consulta usuarios del servicio de users y los combina con datos locales.
+    Consulta usuarios del servicio de users. La demanda se calcula desde orders local.
     """
     try:
-        # 1. Obtener datos locales de la base de datos (client_id, address, latitud, longitud, demanda)
-        query = """
-        SELECT
-            c.client_id AS id,
-            c.user_id,
-            c.address AS direccion,
-            c.latitude AS latitud,
-            c.longitude AS longitud,
-            SUM(CASE WHEN o.status_id = 2 THEN 1 ELSE 0 END) AS demanda
-        FROM
-            users.Clients c
-        LEFT JOIN
-            orders.Orders o ON c.client_id = o.client_id
-        GROUP BY
-            c.client_id, c.user_id, c.address, c.latitude, c.longitude
-        ORDER BY
-            demanda DESC, c.client_id
-        """
-        local_data = execute_query(query, fetch_all=True)
-        
-        if not local_data:
-            return []
-        
-        # 2. Consultar usuarios del servicio de users
+        # 1. Consultar usuarios del servicio de users (obtiene todos los datos del cliente)
         users_service_url = os.getenv('USERS_SERVICE_URL', 'http://MediSu-MediS-5XPY2MhrDivI-109634141.us-east-1.elb.amazonaws.com')
         users_endpoint = f"{users_service_url}/users/clients"
         
@@ -106,32 +83,50 @@ def get_clientes() -> List[Dict[str, Any]]:
             logger.error(f"Error consultando servicio de users: {e}")
             users_data = []
         
-        # 3. Crear diccionario de usuarios por user_id para búsqueda rápida
-        users_dict = {user.get('user_id'): user for user in users_data}
+        if not users_data:
+            return []
         
-        # 4. Combinar datos locales con datos de usuarios
+        # 2. Obtener demanda desde orders local usando client_id del MS
+        client_ids = [user.get('client_id') for user in users_data if user.get('client_id')]
+        
+        demanda_dict = {}
+        if client_ids:
+            # Consultar demanda desde orders.Orders usando client_id
+            placeholders = ','.join(['%s'] * len(client_ids))
+            query = f"""
+            SELECT
+                client_id,
+                SUM(CASE WHEN status_id = 2 THEN 1 ELSE 0 END) AS demanda
+            FROM
+                orders.Orders
+            WHERE
+                client_id IN ({placeholders})
+            GROUP BY
+                client_id
+            """
+            demanda_data = execute_query(query, tuple(client_ids), fetch_all=True)
+            demanda_dict = {item.get('client_id'): item.get('demanda', 0) for item in (demanda_data or [])}
+        
+        # 3. Construir resultado con datos del servicio de users
         result = []
-        for client in local_data:
-            user_id = client.get('user_id')
-            user_info = users_dict.get(user_id) if user_id else None
+        for user in users_data:
+            client_id = user.get('client_id')
             
-            # Construir nombre desde el servicio de users
-            nombre = 'Cliente sin nombre'  # Fallback si no hay usuario
-            if user_info:
-                name = user_info.get('name', '')
-                last_name = user_info.get('last_name', '')
-                nombre = f"{name} {last_name}".strip() if name or last_name else nombre
+            # Construir nombre completo
+            name = user.get('name', '')
+            last_name = user.get('last_name', '')
+            nombre = f"{name} {last_name}".strip() if name or last_name else 'Cliente sin nombre'
             
             result.append({
-                'id': client.get('id'),
+                'id': client_id or user.get('user_id'),  # Usar client_id si está disponible
                 'nombre': nombre,
-                'direccion': client.get('direccion'),
-                'latitud': client.get('latitud'),
-                'longitud': client.get('longitud'),
-                'demanda': client.get('demanda', 0)
+                'direccion': user.get('address'),
+                'latitud': user.get('latitude'),
+                'longitud': user.get('longitude'),
+                'demanda': demanda_dict.get(client_id, 0) if client_id else 0
             })
         
-        # 5. Ordenar por demanda y nombre
+        # 4. Ordenar por demanda y nombre
         result.sort(key=lambda x: (-x['demanda'], x['nombre']))
         
         return result
@@ -142,30 +137,11 @@ def get_clientes() -> List[Dict[str, Any]]:
 
 def get_clientes_by_seller(seller_id: int) -> List[Dict[str, Any]]:
     """Obtiene todos los clientes filtrados por seller_id.
-    Consulta usuarios del servicio de users y los combina con datos locales.
+    Consulta usuarios del servicio de users (obtiene todos los datos del cliente).
     """
     try:
-        # 1. Obtener datos locales de la base de datos (client_id, address, latitud, longitud)
-        query = """
-        SELECT
-            c.client_id AS id,
-            c.user_id,
-            c.address AS address,
-            c.latitude AS latitude,
-            c.longitude AS longitude
-        FROM
-            users.Clients c
-        WHERE
-            c.seller_id = %s
-        ORDER BY
-            c.client_id
-        """
-        local_data = execute_query(query, (seller_id,), fetch_all=True)
-        
-        if not local_data:
-            return []
-        
-        # 2. Consultar usuarios del servicio de users filtrados por seller_id
+        # 1. Consultar usuarios del servicio de users filtrados por seller_id
+        # Este endpoint ya devuelve client_id, address, latitude, longitude, name
         users_service_url = os.getenv('USERS_SERVICE_URL', 'http://MediSu-MediS-5XPY2MhrDivI-109634141.us-east-1.elb.amazonaws.com')
         users_endpoint = f"{users_service_url}/users/clients/{seller_id}"
         
@@ -180,39 +156,23 @@ def get_clientes_by_seller(seller_id: int) -> List[Dict[str, Any]]:
             logger.error(f"Error consultando servicio de users: {e}")
             users_data = []
         
-        # 3. Crear diccionario de usuarios por client_id para búsqueda rápida
-        users_dict = {user.get('client_id'): user for user in users_data}
+        if not users_data:
+            return []
         
-        # 4. Combinar datos locales con datos de usuarios
+        # 2. El servicio de users ya devuelve todos los datos necesarios:
+        # client_id, name (perfil), address, latitude, longitude
         result = []
-        for client in local_data:
-            client_id = client.get('id')
-            user_info = users_dict.get(client_id) if client_id else None
-            
-            # Usar datos del servicio de users si están disponibles, sino usar datos locales
-            if user_info:
-                # El servicio de users devuelve 'name' que es el perfil del cliente
-                name = user_info.get('name', 'Cliente sin nombre')
-                client_name = name
-                # Preferir address, latitude, longitude del servicio de users si están disponibles
-                address = user_info.get('address') or client.get('address')
-                latitude = user_info.get('latitude') or client.get('latitude')
-                longitude = user_info.get('longitude') or client.get('longitude')
-            else:
-                # Fallback a datos locales si no hay información del servicio de users
-                name = 'Cliente sin nombre'
-                client_name = name
-                address = client.get('address')
-                latitude = client.get('latitude')
-                longitude = client.get('longitude')
+        for user in users_data:
+            name = user.get('name', 'Cliente sin nombre')
+            client_name = name  # El servicio devuelve 'name' que es el perfil
             
             result.append({
-                'id': client_id,
+                'id': user.get('client_id'),
                 'name': name,
                 'client': client_name,
-                'address': address,
-                'latitude': latitude,
-                'longitude': longitude
+                'address': user.get('address'),
+                'latitude': user.get('latitude'),
+                'longitude': user.get('longitude')
             })
         
         return result
