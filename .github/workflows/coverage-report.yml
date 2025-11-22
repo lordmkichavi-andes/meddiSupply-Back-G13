@@ -87,16 +87,8 @@ jobs:
                 # Si no se encontró en el log, intentar desde el XML
                 if [ -z "$COVERAGE_PCT" ] || [ "$COVERAGE_PCT" == "0" ]; then
                   if [ -f "reports/coverage.xml" ]; then
-                    COVERAGE_PCT=$(python3 -c "
-import xml.etree.ElementTree as ET
-try:
-    tree = ET.parse('reports/coverage.xml')
-    root = tree.getroot()
-    line_rate = float(root.attrib.get('line-rate', 0)) * 100
-    print(f'{line_rate:.1f}')
-except:
-    print('0')
-" 2>/dev/null || echo "0")
+                    python3 -c 'import xml.etree.ElementTree as ET; tree = ET.parse("reports/coverage.xml"); root = tree.getroot(); print(f"{float(root.attrib.get(\"line-rate\", 0)) * 100:.1f}")' 2>/dev/null > /tmp/coverage_pct_${service}.txt || echo "0" > /tmp/coverage_pct_${service}.txt
+                    COVERAGE_PCT=$(cat /tmp/coverage_pct_${service}.txt)
                   fi
                 fi
                 
