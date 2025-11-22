@@ -243,6 +243,109 @@ class TestDatabaseFunctions:
             assert result == []
 
 
+class TestDbAdditionalCases:
+    """Tests adicionales para casos edge en db.py."""
+
+    @patch.object(db_module, 'requests')
+    @patch.object(db_module, 'execute_query')
+    def test_get_clientes_with_demanda_sorting(self, mock_execute, mock_requests):
+        """Test get_clientes ordena correctamente por demanda."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'clients': [
+                {
+                    'user_id': 1,
+                    'client_id': 1,
+                    'name': 'Client A',
+                    'last_name': 'Low',
+                    'address': 'Address 1',
+                    'latitude': '4.60971',
+                    'longitude': '-74.08175'
+                },
+                {
+                    'user_id': 2,
+                    'client_id': 2,
+                    'name': 'Client B',
+                    'last_name': 'High',
+                    'address': 'Address 2',
+                    'latitude': '4.61000',
+                    'longitude': '-74.08200'
+                }
+            ]
+        }
+        mock_requests.get.return_value = mock_response
+        
+        # Mock demanda: Client 2 tiene más demanda
+        mock_execute.return_value = [
+            {'client_id': 1, 'demanda': 5},
+            {'client_id': 2, 'demanda': 10}
+        ]
+        
+        result = db_module.get_clientes()
+        assert len(result) == 2
+        # Debe estar ordenado por demanda descendente
+        assert result[0]['demanda'] == 10
+        assert result[1]['demanda'] == 5
+
+    @patch.object(db_module, 'requests')
+    @patch.object(db_module, 'execute_query')
+    def test_get_clientes_with_no_client_ids(self, mock_execute, mock_requests):
+        """Test get_clientes cuando no hay client_ids para consultar demanda."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'clients': [
+                {
+                    'user_id': 1,
+                    # Sin client_id
+                    'name': 'Client',
+                    'last_name': 'Test',
+                    'address': 'Address',
+                    'latitude': '4.60971',
+                    'longitude': '-74.08175'
+                }
+            ]
+        }
+        mock_requests.get.return_value = mock_response
+        
+        result = db_module.get_clientes()
+        assert len(result) == 1
+        assert result[0]['demanda'] == 0
+        # No debería llamar execute_query si no hay client_ids
+        mock_execute.assert_not_called()
+
+    @patch.object(db_module, 'requests')
+    def test_get_clientes_by_seller_with_multiple_clients(self, mock_requests):
+        """Test get_clientes_by_seller con múltiples clientes."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'clients': [
+                {
+                    'client_id': 1,
+                    'name': 'Client 1',
+                    'address': 'Address 1',
+                    'latitude': '4.60971',
+                    'longitude': '-74.08175'
+                },
+                {
+                    'client_id': 2,
+                    'name': 'Client 2',
+                    'address': 'Address 2',
+                    'latitude': '4.61000',
+                    'longitude': '-74.08200'
+                }
+            ]
+        }
+        mock_requests.get.return_value = mock_response
+        
+        result = db_module.get_clientes_by_seller(1)
+        assert len(result) == 2
+        assert result[0]['id'] == 1
+        assert result[1]['id'] == 2
+
+
 class TestAdditionalCoverage:
     """Tests adicionales para completar cobertura."""
 
@@ -281,3 +384,67 @@ class TestAdditionalCoverage:
         # Verificar que el logger esté disponible en db_module
         assert hasattr(db_module, 'logger')
         assert db_module.logger is not None
+
+    def test_execute_query_fetch_one(self):
+        """Test execute_query con fetch_one=True."""
+        with patch.object(db_module, 'get_connection') as mock_get_conn:
+            mock_conn = Mock()
+            mock_cursor = Mock()
+            mock_cursor.__enter__ = Mock(return_value=mock_cursor)
+            mock_cursor.__exit__ = Mock(return_value=None)
+            mock_cursor.fetchone.return_value = {'id': 1, 'name': 'Test'}
+            mock_conn.cursor.return_value = mock_cursor
+            mock_get_conn.return_value = mock_conn
+            
+            result = db_module.execute_query("SELECT * FROM test", fetch_one=True)
+            assert result == {'id': 1, 'name': 'Test'}
+            mock_cursor.execute.assert_called_once()
+            mock_cursor.fetchone.assert_called_once()
+
+    def test_execute_query_fetch_all(self):
+        """Test execute_query con fetch_all=True."""
+        with patch.object(db_module, 'get_connection') as mock_get_conn:
+            mock_conn = Mock()
+            mock_cursor = Mock()
+            mock_cursor.__enter__ = Mock(return_value=mock_cursor)
+            mock_cursor.__exit__ = Mock(return_value=None)
+            mock_cursor.fetchall.return_value = [{'id': 1}, {'id': 2}]
+            mock_conn.cursor.return_value = mock_cursor
+            mock_get_conn.return_value = mock_conn
+            
+            result = db_module.execute_query("SELECT * FROM test", fetch_all=True)
+            assert len(result) == 2
+            mock_cursor.execute.assert_called_once()
+            mock_cursor.fetchall.assert_called_once()
+
+    def test_execute_query_commit(self):
+        """Test execute_query sin fetch (hace commit)."""
+        with patch.object(db_module, 'get_connection') as mock_get_conn:
+            mock_conn = Mock()
+            mock_cursor = Mock()
+            mock_cursor.__enter__ = Mock(return_value=mock_cursor)
+            mock_cursor.__exit__ = Mock(return_value=None)
+            mock_cursor.rowcount = 5
+            mock_conn.cursor.return_value = mock_cursor
+            mock_get_conn.return_value = mock_conn
+            
+            result = db_module.execute_query("UPDATE test SET name='test'")
+            assert result == 5
+            mock_cursor.execute.assert_called_once()
+            mock_conn.commit.assert_called_once()
+
+    def test_execute_query_exception_with_rollback(self):
+        """Test execute_query con excepción que requiere rollback."""
+        with patch.object(db_module, 'get_connection') as mock_get_conn:
+            mock_conn = Mock()
+            mock_cursor = Mock()
+            mock_cursor.__enter__ = Mock(return_value=mock_cursor)
+            mock_cursor.__exit__ = Mock(return_value=None)
+            mock_cursor.execute.side_effect = Exception("SQL Error")
+            mock_conn.cursor.return_value = mock_cursor
+            mock_get_conn.return_value = mock_conn
+            
+            result = db_module.execute_query("SELECT * FROM test", fetch_all=True)
+            assert result is None
+            mock_conn.rollback.assert_called_once()
+            mock_conn.close.assert_called_once()
