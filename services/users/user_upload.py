@@ -425,7 +425,6 @@ def insert_user_json(user: Dict[str, Any], conn, cursor) -> Tuple[bool, Optional
     """
     warnings = []
     try:
-        # Separar nombre completo en name y last_name
         nombre_completo = user.get('nombre', '').strip()
         nombre_partes = nombre_completo.split(maxsplit=1)
         name = nombre_partes[0] if nombre_partes else nombre_completo
