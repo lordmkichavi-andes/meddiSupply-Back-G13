@@ -1269,6 +1269,63 @@ def create_app():
                 'message': f'Error obteniendo vendedores: {str(e)}'
             }), 500
 
+
+    @app.route('/users/create', methods=['POST'])
+    def create_user():
+        """
+        Crea un usuario individual en DB y en Cognito.
+        """
+        data = request.get_json()
+        user = {
+            "nombre": f"{data.get('name')} {data.get('lastname')}".strip(),
+            "contraseña": data.get("password"),
+            "identification": data.get("identification"),
+            "phone": data.get("phone"),
+            "correo": data.get("email"),
+            "rol": data.get("role")
+        }
+
+        logger.info(f"EMPIEZA {user}")
+
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        successful, failed, errors, _, warnings = insert_users([user], conn, cursor, json.dumps([user]), file_name="single_user", file_type="json")
+
+        conn.commit()
+        cursor.close()
+        release_connection(conn)
+
+        if failed > 0:
+            return jsonify({"success": False, "errors": errors}), 400
+        return jsonify({"success": True, "message": "Usuario creado"}), 201
+
+    @app.route('/clients/create', methods=['POST'])
+    def create_client():
+        """
+        Crea un cliente asociado a un usuario existente.
+        """
+        data = request.get_json()
+        user_id = data.get("user_id")
+        nit = data.get("nit")
+        name = data.get("name")
+
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            INSERT INTO users.clients (user_id, nit, balance, name)
+            VALUES (%s, %s, %s, %s)
+            RETURNING client_id
+        """, (user_id, nit, 0.00, name))
+
+        client_id = cursor.fetchone()[0]
+        conn.commit()
+        cursor.close()
+        release_connection(conn)
+
+        return jsonify({"success": True, "client_id": client_id, "user_id": user_id}), 201
+        
     @app.route('/users/sellers/<int:seller_id>', methods=['GET'])
     def get_seller_by_id_endpoint(seller_id: int):
         """
