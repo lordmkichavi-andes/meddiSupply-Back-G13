@@ -1325,6 +1325,7 @@ def create_app():
         release_connection(conn)
 
         return jsonify({"success": True, "client_id": client_id, "user_id": user_id}), 201
+        
     @app.route('/users/sellers/<int:seller_id>', methods=['GET'])
     def get_seller_by_id_endpoint(seller_id: int):
         """

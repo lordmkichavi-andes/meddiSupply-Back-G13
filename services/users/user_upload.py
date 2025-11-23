@@ -7,10 +7,6 @@ from typing import List, Dict, Any, Tuple, Optional
 from src.infrastructure.persistence.db_connector import get_connection, release_connection
 import psycopg2.extras
 from cognito_service import create_user_in_cognito, map_role_to_cognito_group, get_username_from_email_or_identification
-import logging, time
-
-logger = logging.getLogger("users-service")
-logger.setLevel(logging.DEBUG)
 
 # Roles válidos según el sistema
 VALID_ROLES = ['ADMIN', 'SELLER', 'CLIENT', 'PROVIDER']
@@ -312,7 +308,11 @@ def insert_users(users_data: List[Dict[str, Any]], conn, cursor, data_string: st
     failed_records = 0
     processed_errors = []
     warnings = []
+<<<<<<< HEAD
 
+=======
+    
+>>>>>>> origin
     # Validar file_type
     allowed_file_types = ['csv', 'xlsx', 'xls', 'json']
     if file_type.lower() not in allowed_file_types:
@@ -861,7 +861,6 @@ def insert_providers(providers_data: List[Dict[str, Any]], conn, cursor, data_st
     processed_errors = []
     warnings = []
     
-
     # Validar file_type
     allowed_file_types = ['csv', 'xlsx', 'xls', 'json']
     if file_type.lower() not in allowed_file_types:
@@ -878,12 +877,11 @@ def insert_providers(providers_data: List[Dict[str, Any]], conn, cursor, data_st
     for index, provider in enumerate(providers_data):
         row_num = index + 1
         savepoint_name = f"sp_provider_{index}"
-        logger.info(f"[Fila {row_num}] ➡️ Procesando usuario: {user}")
         
         try:
             # Crear SAVEPOINT para esta inserción individual
             cursor.execute(f"SAVEPOINT {savepoint_name}")
-            logger.debug(f"[Fila {row_num}] SAVEPOINT creado")
+            
             name = str(provider['nombre']).strip()
             last_name = str(provider['apellido']).strip()
             identification = str(provider['identificacion']).strip()
@@ -954,7 +952,6 @@ def insert_providers(providers_data: List[Dict[str, Any]], conn, cursor, data_st
                 print(f"✅ Empresa proveedora creada: {company_name} (provider_id: {company_provider_id})")
             
             # 3. Crear usuario en Cognito
-            logger.info(f"[Fila {row_num}] ⏱ Inserción en DB tardó {time.time() - start_db:.2f}s (user_id={user_id})")
             try:
                 username = get_username_from_email_or_identification(provider['correo'], identification)
                 group_name = map_role_to_cognito_group('PROVIDER')  # Siempre 'compras' para proveedores
@@ -968,16 +965,12 @@ def insert_providers(providers_data: List[Dict[str, Any]], conn, cursor, data_st
                     group_name=group_name
                 )
                 
-                logger.info(f"[Fila {row_num}] ⏱ Cognito tardó {time.time() - start_cognito:.2f}s")
                 if not cognito_success:
-                    logger.warning(f"[Fila {row_num}] Usuario en BD pero fallo Cognito: {cognito_error}")
                     print(f"⚠️  Advertencia: Proveedor insertado en BD pero falló en Cognito: {cognito_error}")
                     warnings.append(f"Fila {row_num}: Proveedor creado en BD pero no en Cognito - {cognito_error}")
                 else:
-                    logger.info(f"[Fila {row_num}] ✅ Usuario creado en Cognito: {username}")
                     print(f"✅ Proveedor creado en Cognito: {username}")
             except Exception as cognito_ex:
-                logger.error(f"[Fila {row_num}] Error creando usuario en Cognito: {str(cognito_ex)}")
                 print(f"⚠️  Error creando proveedor en Cognito: {str(cognito_ex)}")
                 warnings.append(f"Fila {row_num}: Error creando en Cognito - {str(cognito_ex)}")
             
@@ -991,11 +984,9 @@ def insert_providers(providers_data: List[Dict[str, Any]], conn, cursor, data_st
             try:
                 cursor.execute(f"ROLLBACK TO SAVEPOINT {savepoint_name}")
             except Exception as rollback_error:
-                logger.warning(f"[Fila {row_num}] No se pudo hacer rollback al savepoint: {str(rollback_error)}")
                 print(f"⚠️  Advertencia: No se pudo hacer rollback al savepoint: {str(rollback_error)}")
             
             error_msg = f"Fila {row_num}: Error al insertar proveedor - {str(e)}"
-            logger.error(error_msg)
             print(f"Error insertando proveedor {row_num}: {str(e)}")
             processed_errors.append(error_msg)
             failed_records += 1
