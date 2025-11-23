@@ -1331,27 +1331,34 @@ def create_app():
         conn = get_connection()
         cursor = conn.cursor()
 
-        cursor.execute("SELECT seller_id FROM users.sellers")
-        sellers = cursor.fetchall()
+        try:
+            cursor.execute("SELECT seller_id FROM users.sellers")
+            sellers = cursor.fetchall()
 
-        if not sellers:
-            return jsonify({"success": False, "error": "No hay vendedores disponibles"}), 400
+            if not sellers:
+                return jsonify({"success": False, "error": "No hay vendedores disponibles"}), 400
 
-        seller_id = random.choice([row[0] for row in sellers])
+            seller_id = random.choice([row[0] for row in sellers])
 
-        cursor.execute("""
-            INSERT INTO users.clients (user_id, nit, balance, name, seller_id, address, latitude, longitude)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            RETURNING client_id
-        """, (user_id, nit, 0.00, name, seller_id, address, latitude, longitude))
+            cursor.execute("""
+                INSERT INTO users.clients (user_id, nit, balance, name, seller_id, address, latitude, longitude)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING client_id
+            """, (user_id, nit, 0.00, name, seller_id, address, latitude, longitude))
 
-        client_id = cursor.fetchone()[0]
-        conn.commit()
-        cursor.close()
-        release_connection(conn)
+            client_id = cursor.fetchone()[0]
+            conn.commit()
 
-        return jsonify({"success": True, "client_id": client_id, "user_id": user_id}), 201
-        
+            return jsonify({"success": True, "client_id": client_id, "user_id": user_id}), 201
+
+        except Exception as e:
+            conn.rollback()
+            return jsonify({"success": False, "error": f"Error al crear cliente: {str(e)}"}), 500
+
+        finally:
+            cursor.close()
+            release_connection(conn)
+   
     @app.route('/users/sellers/<int:seller_id>', methods=['GET'])
     def get_seller_by_id_endpoint(seller_id: int):
         """
