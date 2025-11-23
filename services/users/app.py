@@ -1290,7 +1290,6 @@ def create_app():
         conn = get_connection()
         cursor = conn.cursor()
 
-        # Reutilizar lógica de insert_users pero para un solo usuario
         successful, failed, errors, _, warnings = insert_users([user], conn, cursor, json.dumps([user]), file_name="single_user", file_type="json")
 
         conn.commit()

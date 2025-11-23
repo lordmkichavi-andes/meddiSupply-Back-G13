@@ -313,8 +313,6 @@ def insert_users(users_data: List[Dict[str, Any]], conn, cursor, data_string: st
     processed_errors = []
     warnings = []
 
-    logger.info(f"INSERTAAAAAA")
-    
     # Validar file_type
     allowed_file_types = ['csv', 'xlsx', 'xls', 'json']
     if file_type.lower() not in allowed_file_types:
