@@ -411,6 +411,71 @@ def insert_users(users_data: List[Dict[str, Any]], conn, cursor, data_string: st
     return successful_records, failed_records, processed_errors, None, warnings
 
 
+def insert_user_json(user: Dict[str, Any], conn, cursor) -> Tuple[bool, Optional[int], List[str]]:
+    """
+    Inserta un único usuario desde un JSON en la base de datos y devuelve su user_id.
+
+    Args:
+        user: Diccionario con los datos del usuario
+        conn: Conexión a la base de datos
+        cursor: Cursor de la conexión
+
+    Returns:
+        (success: bool, user_id: Optional[int], warnings: list)
+    """
+    warnings = []
+    try:
+        # Separar nombre completo en name y last_name
+        nombre_completo = user.get('nombre', '').strip()
+        nombre_partes = nombre_completo.split(maxsplit=1)
+        name = nombre_partes[0] if nombre_partes else nombre_completo
+        last_name = nombre_partes[1] if len(nombre_partes) > 1 else name
+
+        identification = user.get('identification') or user.get('correo', '').split('@')[0]
+
+        user_insert = """
+            INSERT INTO users.users
+            (name, last_name, password, identification, phone, email, active, role)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING user_id
+        """
+        cursor.execute(user_insert, (
+            name,
+            last_name,
+            user['contraseña'],
+            identification,
+            user.get('phone'),
+            user['correo'],
+            True,
+            user['rol']
+        ))
+
+        user_result = cursor.fetchone()
+        user_id = user_result[0] if user_result else None
+
+        try:
+            username = get_username_from_email_or_identification(user['correo'], identification)
+            group_name = map_role_to_cognito_group(user['rol'])
+            password_for_cognito = user['contraseña']
+
+            cognito_success, cognito_user_id, cognito_error = create_user_in_cognito(
+                username=username,
+                email=user['correo'],
+                password=password_for_cognito,
+                group_name=group_name
+            )
+            if not cognito_success:
+                warnings.append(f"Usuario creado en BD pero no en Cognito - {cognito_error}")
+        except Exception as cognito_ex:
+            warnings.append(f"Error creando en Cognito - {str(cognito_ex)}")
+
+        return True, user_id, warnings
+
+    except Exception as e:
+        print(f"❌ Error insertando usuario JSON: {str(e)}")
+        return False, None, [str(e)]
+
+
 def validate_sellers_data(sellers_data: List[Dict[str, Any]]) -> Tuple[bool, List[str], List[str], List[Dict[str, Any]]]:
     """
     Valida los vendedores antes de insertarlos en la base de datos.
