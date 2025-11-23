@@ -51,12 +51,13 @@ jobs:
             BASE="${{ github.base_ref }}"
             echo "📋 Comparando con base branch: $BASE"
             # Asegura que exista la rama base localmente
-            git fetch origin "$BASE:$BASE" --depth=1
+              git fetch origin "$BASE" --depth=1
+              COMPARE="origin/$BASE"
           else
             BASE="HEAD~1"
             echo "📋 Comparando contra commit anterior"
           fi
-          CHANGED_FILES=$(git diff --name-only "$BASE"...HEAD || true)
+          CHANGED_FILES=$(git diff --name-only "$COMPARE"...HEAD || true)
           SERVICES_JSON='[]'
           for dir in services/*/; do
             [[ -d "$dir" ]] || continue
