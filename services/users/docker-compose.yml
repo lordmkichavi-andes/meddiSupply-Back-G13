@@ -13,7 +13,7 @@ services:
     environment:
       # Conectar a la misma base de datos de Products (expuesta en el host en 5432)
       DB_HOST: host.docker.internal 
-      DB_PORT: 5432
+      DB_PORT: 5433
       DB_NAME: medisupplydb
       DB_USER: postgres
       DB_PASSWORD: postgres
