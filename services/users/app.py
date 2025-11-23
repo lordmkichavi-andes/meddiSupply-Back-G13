@@ -1303,6 +1303,16 @@ def create_app():
         Crea un cliente asociado a un usuario existente.
         """
         data = request.get_json()
+
+        required_fields = ["user_id", "nit", "name", "address", "latitude", "longitude"]
+        missing_fields = [field for field in required_fields if not data.get(field)]
+
+        if missing_fields:
+            return jsonify({
+                "success": False,
+                "error": f"Faltan campos obligatorios: {', '.join(missing_fields)}"
+            }), 400
+
         user_id = data.get("user_id")
         nit = data.get("nit")
         name = data.get("name")
