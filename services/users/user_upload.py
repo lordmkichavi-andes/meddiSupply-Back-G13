@@ -15,9 +15,6 @@ VALID_ROLES = ['ADMIN', 'SELLER', 'CLIENT', 'PROVIDER']
 def is_valid_email(email: str) -> bool:
     return re.match(r"^[^@]+@[^@]+\.[^@]+$", email) is not None
 
-if not is_valid_email(user['correo']):
-    return False, None, [f"Formato de correo inválido: {user['correo']}"]
-
 def validate_password_strength(password: str) -> Tuple[bool, Optional[str]]:
     """
     Valida la fortaleza de una contraseña en texto plano (Opción 1: Cognito maneja el hashing).
@@ -428,6 +425,9 @@ def insert_user_json(user: Dict[str, Any], conn, cursor) -> Tuple[bool, Optional
 
         email = user.get('correo') or user.get('email')
         identification = user.get('identification') or (email.split('@')[0] if email else None)
+
+        if not is_valid_email(user['correo']):
+            return False, None, [f"Formato de correo inválido: {user['correo']}"]
 
         if not email:
             return False, None, ["Falta campo obligatorio: email/correo"]
