@@ -1273,12 +1273,20 @@ def create_app():
     @app.route('/users/create', methods=['POST'])
     def create_user():
         data = request.get_json()
+        required_fields = ["name", "lastname", "password", "identification", "phone", "phone", "role"]
+        missing_fields = [field for field in required_fields if not data.get(field)]
+
+        if missing_fields:
+            return jsonify({
+                "success": False,
+                "error": f"Faltan campos obligatorios: {', '.join(missing_fields)}"
+            }), 400
         user = {
             "nombre": f"{data.get('name')} {data.get('lastname')}".strip(),
             "contraseña": data.get("password"),
             "identification": data.get("identification"),
             "phone": data.get("phone"),
-            "correo": data.get("email"),
+            "correo": data.get("phone"),
             "rol": data.get("role")
         }
 
