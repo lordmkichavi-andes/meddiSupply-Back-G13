@@ -24,6 +24,10 @@ services:
       AWS_REGION: ${AWS_REGION:-us-east-1}
       COGNITO_USER_POOL_ID: ${COGNITO_USER_POOL_ID:-us-east-1_3n4C8QOve}
       COGNITO_CLIENT_ID: ${COGNITO_CLIENT_ID:-113qhpd3hktvupdbhpi5361h90}
+      # Variables LLM para recommendation_agent
+      LLM_API_KEY: ${LLM_API_KEY:-AIzaSyDBM4aXt4948DT9Z_JkKmLKOvgRb19IZGA}
+      ACTIVE_LLM: ${ACTIVE_LLM:-GEMINI}
+      LLM_MODEL: ${LLM_MODEL:-gemini-2.5-flash}
       PYTHONUNBUFFERED: 1
       
     

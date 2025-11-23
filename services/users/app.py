@@ -1326,6 +1326,56 @@ def create_app():
         release_connection(conn)
 
         return jsonify({"success": True, "client_id": client_id, "user_id": user_id}), 201
+    @app.route('/users/sellers/<int:seller_id>', methods=['GET'])
+    def get_seller_by_id_endpoint(seller_id: int):
+        """
+        Endpoint para obtener la información detallada de un vendedor específico.
+        Esto permite que otros servicios (como reports) consulten la zona oficial
+        del vendedor sin necesidad de compartir base de datos.
+        """
+        conn = None
+        try:
+            conn = get_connection()
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            query = """
+                SELECT
+                    s.seller_id AS id,
+                    u.name || ' ' || u.last_name AS name,
+                    u.email AS email,
+                    s.zone AS region,
+                    u.active AS active
+                FROM users.sellers s
+                JOIN users.users u ON s.user_id = u.user_id
+                WHERE s.seller_id = %s
+            """
+            cursor.execute(query, (seller_id,))
+            row = cursor.fetchone()
+            if not row:
+                return jsonify({
+                    'success': False,
+                    'message': f'Vendedor con ID {seller_id} no encontrado'
+                }), 404
+
+            seller_data = {
+                'id': row['id'],
+                'name': row['name'],
+                'email': row['email'],
+                'region': row['region'],
+                'active': row['active']
+            }
+            return jsonify({
+                'success': True,
+                'data': seller_data
+            }), 200
+        except Exception as e:
+            logger.error(f"Error obteniendo vendedor {seller_id}: {str(e)}")
+            return jsonify({
+                'success': False,
+                'message': f'Error obteniendo vendedor: {str(e)}'
+            }), 500
+        finally:
+            if conn:
+                release_connection(conn)
 
     return app
 

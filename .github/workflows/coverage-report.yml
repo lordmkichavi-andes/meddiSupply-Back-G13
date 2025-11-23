@@ -1,0 +1,164 @@
+name: Coverage Report - All Microservices
+
+on:
+  workflow_dispatch:  # Permite ejecución manual
+  schedule:
+    # Ejecuta cada domingo a las 2 AM UTC
+    - cron: '0 2 * * 0'
+  push:
+    branches: [ main ]
+    paths:
+      - 'services/**/*.py'
+      - 'services/**/tests/**'
+      - '.github/workflows/coverage-report.yml'
+
+jobs:
+  coverage-report:
+    runs-on: ubuntu-latest
+    name: Generate Coverage Report for All Services
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pytest-cov
+
+      - name: Generate Coverage Reports
+        run: |
+          echo "📊 Generando reportes de cobertura para todos los microservicios..."
+          echo ""
+          
+          # Lista de servicios
+          SERVICES=("users" "routes" "products" "reports" "offer_manager" "orders")
+          
+          # Crear directorio para el resumen
+          mkdir -p coverage-summary
+          
+          # Archivo para el resumen
+          SUMMARY_FILE="coverage-summary/coverage_summary.md"
+          echo "# 📊 Resumen de Cobertura de Código" > "$SUMMARY_FILE"
+          echo "" >> "$SUMMARY_FILE"
+          echo "Fecha: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> "$SUMMARY_FILE"
+          echo "" >> "$SUMMARY_FILE"
+          echo "| Servicio | Cobertura | Estado |" >> "$SUMMARY_FILE"
+          echo "|----------|-----------|--------|" >> "$SUMMARY_FILE"
+          
+          TOTAL_COVERAGE=0
+          SERVICE_COUNT=0
+          
+          for service in "${SERVICES[@]}"; do
+            if [ -d "services/$service" ] && [ -d "services/$service/tests" ]; then
+              echo ""
+              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+              echo "📦 Procesando: $service"
+              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+              
+              cd "services/$service"
+              
+              # Instalar dependencias del servicio si existe requirements.txt
+              if [ -f "requirements.txt" ]; then
+                pip install -q -r requirements.txt 2>/dev/null || true
+              fi
+              
+              # Crear directorio de reportes
+              mkdir -p reports/html
+              
+              # Ejecutar tests con cobertura
+              if PYTHONPATH="$PWD:$PWD/src:$PYTHONPATH" pytest \
+                --cov=src \
+                --cov-config=/dev/null \
+                --cov-report=html:reports/html \
+                --cov-report=xml:reports/coverage.xml \
+                --cov-report=term \
+                --junitxml=reports/junit.xml \
+                -q 2>&1 | tee /tmp/coverage_${service}.log; then
+                
+                # Extraer porcentaje de cobertura
+                COVERAGE_PCT=$(grep -E "^TOTAL" /tmp/coverage_${service}.log | awk '{print $NF}' | sed 's/%//' || echo "0")
+                
+                # Si no se encontró en el log, intentar desde el XML
+                if [ -z "$COVERAGE_PCT" ] || [ "$COVERAGE_PCT" == "0" ]; then
+                  if [ -f "reports/coverage.xml" ]; then
+                    python3 -c 'import xml.etree.ElementTree as ET; tree = ET.parse("reports/coverage.xml"); root = tree.getroot(); print(f"{float(root.attrib.get(\"line-rate\", 0)) * 100:.1f}")' 2>/dev/null > /tmp/coverage_pct_${service}.txt || echo "0" > /tmp/coverage_pct_${service}.txt
+                    COVERAGE_PCT=$(cat /tmp/coverage_pct_${service}.txt)
+                  fi
+                fi
+                
+                # Determinar estado
+                if (( $(echo "$COVERAGE_PCT >= 70" | bc -l) )); then
+                  STATUS="✅ Excelente"
+                elif (( $(echo "$COVERAGE_PCT >= 60" | bc -l) )); then
+                  STATUS="✅ Bueno"
+                else
+                  STATUS="⚠️  Bajo"
+                fi
+                
+                echo "✅ $service: ${COVERAGE_PCT}% - $STATUS"
+                echo "| $service | ${COVERAGE_PCT}% | $STATUS |" >> "../../$SUMMARY_FILE"
+                
+                # Acumular para promedio
+                if [ "$COVERAGE_PCT" != "0" ]; then
+                  TOTAL_COVERAGE=$(echo "$TOTAL_COVERAGE + $COVERAGE_PCT" | bc -l)
+                  SERVICE_COUNT=$((SERVICE_COUNT + 1))
+                fi
+              else
+                echo "❌ $service: Error al ejecutar tests"
+                echo "| $service | Error | ❌ |" >> "../../$SUMMARY_FILE"
+              fi
+              
+              cd ../..
+            else
+              echo "⏭️  $service: Sin tests o directorio no encontrado"
+            fi
+          done
+          
+          # Calcular promedio
+          if [ $SERVICE_COUNT -gt 0 ]; then
+            AVG_COVERAGE=$(echo "scale=1; $TOTAL_COVERAGE / $SERVICE_COUNT" | bc -l)
+            echo "" >> "$SUMMARY_FILE"
+            echo "**Cobertura promedio: ${AVG_COVERAGE}%**" >> "$SUMMARY_FILE"
+          fi
+          
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "✅ Resumen generado en: $SUMMARY_FILE"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+      - name: Upload Coverage HTML Reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-html-reports
+          path: |
+            services/*/reports/html
+            services/*/reports/coverage.xml
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload Coverage Summary
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-summary
+          path: coverage-summary/coverage_summary.md
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Display Coverage Summary
+        if: always()
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "📊 RESUMEN DE COBERTURA"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          cat coverage-summary/coverage_summary.md || echo "No se pudo generar el resumen"
+          echo ""
+          echo "📁 Reportes HTML disponibles en los artifacts"
+

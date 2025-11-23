@@ -1712,6 +1712,147 @@ def get_active_products():
         cursor.close()
         conn.close()
 
+@app.route('/products/<int:product_id>/validate-stock', methods=['GET'])
+def validate_stock_for_product(product_id):
+    """
+    Endpoint para validar que un producto no exceda el stock disponible.
+    
+    Parámetros de query:
+    - individual_goal: cantidad solicitada para el producto (obligatorio)
+    
+    Retorna:
+    - valid: boolean indicando si el producto tiene stock suficiente
+    - message: mensaje descriptivo
+    - product_id: ID del producto validado
+    - product_name: nombre del producto
+    - product_sku: SKU del producto
+    - individual_goal: cantidad solicitada
+    - available_stock: stock disponible del producto
+    - error: mensaje de error si no es válido
+    """
+    try:
+        # Obtener el parámetro individual_goal de la query string
+        # Intentar múltiples formas por si el API Gateway pasa los parámetros de manera diferente
+        individual_goal_param = (
+            request.args.get('individual_goal') or 
+            request.values.get('individual_goal') or
+            request.form.get('individual_goal')
+        )
+        
+        # Debug: log de los parámetros recibidos (solo en desarrollo)
+        if not individual_goal_param:
+            # Intentar leer desde query_string directamente
+            query_string = request.query_string.decode('utf-8') if request.query_string else ''
+            import urllib.parse
+            parsed = urllib.parse.parse_qs(query_string)
+            if 'individual_goal' in parsed:
+                individual_goal_param = parsed['individual_goal'][0] if parsed['individual_goal'] else None
+        
+        if not individual_goal_param:
+            return jsonify({
+                "valid": False,
+                "message": "El parámetro 'individual_goal' es requerido",
+                "product_id": product_id,
+                "error": "El parámetro 'individual_goal' debe ser proporcionado",
+                "debug": {
+                    "args": dict(request.args),
+                    "values": dict(request.values),
+                    "query_string": request.query_string.decode('utf-8') if request.query_string else ''
+                }
+            }), 400
+        
+        # Validar que individual_goal sea un número válido
+        try:
+            individual_goal = int(individual_goal_param)
+            if individual_goal <= 0:
+                return jsonify({
+                    "valid": False,
+                    "message": "La meta individual debe ser mayor a 0",
+                    "product_id": product_id,
+                    "individual_goal": individual_goal,
+                    "error": "La meta individual debe ser mayor a 0"
+                }), 400
+        except (ValueError, TypeError):
+            return jsonify({
+                "valid": False,
+                "message": "La meta individual debe ser un número válido",
+                "product_id": product_id,
+                "individual_goal": individual_goal_param,
+                "error": "La meta individual debe ser un número válido"
+            }), 400
+        
+        # Obtener conexión a la base de datos
+        conn, cursor = product_repository._get_connection()
+        
+        try:
+            # Obtener stock disponible del producto
+            stock_query = """
+                SELECT 
+                    p.product_id,
+                    p.name,
+                    p.sku,
+                    COALESCE(SUM(ps.quantity), 0) as total_stock
+                FROM products.products p
+                LEFT JOIN products.productstock ps ON p.product_id = ps.product_id 
+                    AND ps.quantity > 0
+                WHERE p.product_id = %s
+                GROUP BY p.product_id, p.name, p.sku
+            """
+            
+            cursor.execute(stock_query, (product_id,))
+            stock_result = cursor.fetchone()
+            
+            if not stock_result:
+                return jsonify({
+                    "valid": False,
+                    "message": "Producto no encontrado en el catálogo",
+                    "product_id": product_id,
+                    "individual_goal": individual_goal,
+                    "available_stock": 0,
+                    "error": "Producto no encontrado"
+                }), 404
+            
+            available_stock = stock_result['total_stock'] or 0
+            product_name = stock_result.get('name')
+            product_sku = stock_result.get('sku')
+            
+            # Validar que el stock sea suficiente
+            if individual_goal > available_stock:
+                return jsonify({
+                    "valid": False,
+                    "message": f"Stock insuficiente. Disponible: {available_stock}, Solicitado: {individual_goal}",
+                    "product_id": product_id,
+                    "product_name": product_name,
+                    "product_sku": product_sku,
+                    "individual_goal": individual_goal,
+                    "available_stock": available_stock,
+                    "error": f"Stock insuficiente. Disponible: {available_stock}, Solicitado: {individual_goal}"
+                }), 400
+            else:
+                return jsonify({
+                    "valid": True,
+                    "message": "Stock suficiente disponible",
+                    "product_id": product_id,
+                    "product_name": product_name,
+                    "product_sku": product_sku,
+                    "individual_goal": individual_goal,
+                    "available_stock": available_stock
+                }), 200
+            
+        finally:
+            cursor.close()
+            conn.close()
+            
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            "valid": False,
+            "message": "Error interno del servidor durante la validación",
+            "product_id": product_id,
+            "error": f"Error interno: {str(e)}"
+        }), 500
+
 @app.route('/products/search', methods=['GET'])
 @cache_control_header(timeout=180, key="products_search")
 def search_products():

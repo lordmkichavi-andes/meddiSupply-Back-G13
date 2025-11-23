@@ -276,6 +276,10 @@ def _get_products_base_url() -> str:
     """Obtiene la URL base del Products MS para enriquecimiento opcional."""
     return os.getenv('PRODUCTS_SERVICE_URL', 'http://MediSu-MediS-5XPY2MhrDivI-109634141.us-east-1.elb.amazonaws.com/')
 
+def _get_users_service_base_url() -> str:
+    """Obtiene la URL base del Users Service desde variables de entorno."""
+    return os.getenv('USERS_SERVICE_URL', 'http://MediSu-MediS-5XPY2MhrDivI-109634141.us-east-1.elb.amazonaws.com/')
+
 
 def _http_get(url: str, params: Dict[str, Any] = None, timeout: int = 10) -> Optional[Dict[str, Any]]:
     try:
@@ -292,34 +296,114 @@ def _http_get(url: str, params: Dict[str, Any] = None, timeout: int = 10) -> Opt
 def _get_plan_by_id(plan_id: int) -> Optional[Dict[str, Any]]:
     base = _get_offer_manager_base_url().rstrip('/')
     url = f"{base}/offers/plans/{plan_id}"
-    return _http_get(url)
+    result = _http_get(url)
+    if result:
+        products_count = len(result.get('products', []))
+        logger.info(f"Plan obtenido por ID {plan_id}: tiene {products_count} productos")
+        if products_count > 0:
+            logger.info(f"Productos del plan {plan_id}: {[{'product_id': p.get('product_id'), 'individual_goal': p.get('individual_goal')} for p in result.get('products', [])]}")
+    else:
+        logger.warning(f"No se pudo obtener plan {plan_id} desde {url}")
+    return result
 
 
-def _get_plan_by_params(region: str, quarter: str, year: int) -> Optional[Dict[str, Any]]:
+def _get_plans_active_by_params(region: str, quarter: str, year: int) -> List[Dict[str, Any]]:
+    """Obtiene todos los planes activos que coinciden con los parámetros."""
     base = _get_offer_manager_base_url().rstrip('/')
     url = f"{base}/offers/plans"
     data = _http_get(url, params={"region": region, "quarter": quarter, "year": year})
     if not data:
-        return None
-    # Si la respuesta es lista, filtrar por quarter/year exactos y priorizar activo
+        logger.warning(f"No se encontraron planes para región={region}, quarter={quarter}, year={year}")
+        return []
+    
+    # Filtrar por quarter/year exactos y solo activos
     if isinstance(data, list):
         filtered = [
             item for item in data
             if str(item.get('quarter')).upper() == str(quarter).upper()
             and int(item.get('year')) == int(year)
+            and item.get('is_active') is True
         ]
-        # Priorizar activo entre los filtrados; si no hay, tomar el primero filtrado
-        for item in filtered:
-            if item.get('is_active') is True:
-                return item
-        if filtered:
-            return filtered[0]
-        # Como último recurso, mantener la lógica previa (activo primero)
-        for item in data:
-            if item.get('is_active') is True:
-                return item
-        return data[0] if data else None
-    return data
+        return filtered
+    elif isinstance(data, dict) and data.get('is_active') is True:
+        return [data]
+    
+    return []
+
+
+def _totalize_plans(plans: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Totaliza múltiples planes activos en un solo plan consolidado.
+    
+    Retorna un diccionario con el plan totalizado y el número de planes.
+    """
+    if not plans:
+        return None
+    
+    num_plans = len(plans)
+    
+    if num_plans == 1:
+        # Si solo hay un plan, obtener sus productos y retornarlo
+        plan = plans[0]
+        if plan.get('plan_id'):
+            full_plan = _get_plan_by_id(plan.get('plan_id'))
+            if full_plan:
+                full_plan['_num_plans_active'] = 1
+                return full_plan
+        plan['_num_plans_active'] = 1
+        return plan
+    
+    # Totalizar múltiples planes
+    logger.info(f"Totalizando {num_plans} planes activos")
+    
+    # Obtener productos de todos los planes
+    all_products = {}  # {product_id: total_goal}
+    total_goal_sum = 0.0
+    plan_ids = []
+    
+    for plan in plans:
+        plan_id = plan.get('plan_id')
+        if plan_id:
+            plan_ids.append(plan_id)
+            full_plan = _get_plan_by_id(plan_id)
+            if full_plan:
+                total_goal_sum += float(full_plan.get('total_goal', 0))
+                products = full_plan.get('products', [])
+                for prod in products:
+                    pid = int(prod.get('product_id', 0))
+                    goal = float(prod.get('individual_goal', 0))
+                    if pid > 0:
+                        all_products[pid] = all_products.get(pid, 0.0) + goal
+            else:
+                # Si no se puede obtener el plan completo, usar el básico
+                total_goal_sum += float(plan.get('total_goal', 0))
+    
+    # Construir plan totalizado
+    totalized_plan = {
+        'plan_id': plan_ids[0] if plan_ids else None,
+        'region': plans[0].get('region'),
+        'quarter': plans[0].get('quarter'),
+        'year': plans[0].get('year'),
+        'total_goal': total_goal_sum,
+        'is_active': True,
+        'products': [
+            {'product_id': pid, 'individual_goal': goal}
+            for pid, goal in all_products.items()
+        ],
+        '_num_plans_active': num_plans
+    }
+    
+    logger.info(f"Plan totalizado: total_goal={total_goal_sum}, productos={len(all_products)}, num_plans={num_plans}")
+    return totalized_plan
+
+
+def _get_plan_by_params(region: str, quarter: str, year: int) -> Optional[Dict[str, Any]]:
+    """Obtiene y totaliza todos los planes activos que coinciden con los parámetros."""
+    active_plans = _get_plans_active_by_params(region, quarter, year)
+    if not active_plans:
+        return None
+    
+    # Totalizar todos los planes activos
+    return _totalize_plans(active_plans)
 
 
 def _quarter_to_dates(quarter: str, year: int) -> Optional[Dict[str, date]]:
@@ -370,6 +454,7 @@ def _query_sales_by_product(vendor_id: int, start_date: date, end_date: date) ->
 
 
 def _status_from_pct(pct: float) -> str:
+    """Calcula el status basado en el porcentaje de cumplimiento (0-1)."""
     if pct >= 1.0:
         return 'verde'
     if pct >= 0.6:
@@ -377,15 +462,80 @@ def _status_from_pct(pct: float) -> str:
     return 'rojo'
 
 
-def _get_vendor_region(vendor_id: int) -> Optional[str]:
-    """Obtiene la región (zone) del vendedor desde la base de datos."""
-    query = """
-    SELECT s.zone AS region
-    FROM users.sellers s
-    WHERE s.seller_id = %s
+def _status_from_contribution_pct(contribution_pct: float) -> str:
+    """Calcula el status basado en el porcentaje de contribución a la región (0-1).
+    
+    Umbrales:
+    - Verde: >= 0.5 (>= 50% de contribución a la región)
+    - Amarillo: >= 0.3 y < 0.5 (>= 30% y < 50%)
+    - Rojo: < 0.3 (< 30%)
     """
-    result = execute_query(query, (vendor_id,), fetch_one=True)
-    return result.get('region') if result else None
+    if contribution_pct >= 0.5:
+        return 'verde'
+    if contribution_pct >= 0.3:
+        return 'amarillo'
+    return 'rojo'
+
+
+def _normalize_region(region: str) -> str:
+    """Normaliza una región para comparación (case-insensitive, sin espacios)."""
+    if not region:
+        return ""
+    return region.strip().upper()
+
+
+def _get_vendor_region(vendor_id: int) -> Optional[str]:
+    """Obtiene la región (zone) del vendedor desde el servicio Users mediante HTTP."""
+    base = _get_users_service_base_url().rstrip('/')
+    url = f"{base}/users/sellers/{vendor_id}"
+    result = _http_get(url)
+    if result and result.get('success') and result.get('data'):
+        # El endpoint devuelve: {"success": true, "data": {"id": 2, "name": "...", "region": "Norte", ...}}
+        return result['data'].get('region')
+    logger.warning(f"No se pudo obtener región del vendedor {vendor_id} desde {url}")
+    return None
+
+
+def _get_sellers_by_region(region: str) -> List[int]:
+    """Obtiene los seller_ids de todos los vendedores de una región específica."""
+    base = _get_users_service_base_url().rstrip('/')
+    url = f"{base}/users/sellers"
+    result = _http_get(url)
+    if not result or not result.get('success') or not result.get('data'):
+        logger.warning(f"No se pudieron obtener sellers desde {url}")
+        return []
+    
+    sellers = result.get('data', [])
+    seller_ids = []
+    region_normalized = _normalize_region(region)
+    
+    for seller in sellers:
+        seller_region = seller.get('region')
+        if seller_region and _normalize_region(seller_region) == region_normalized:
+            seller_ids.append(int(seller.get('id')))
+    
+    logger.info(f"Encontrados {len(seller_ids)} sellers en región '{region}': {seller_ids}")
+    return seller_ids
+
+
+def _query_sales_by_region(seller_ids: List[int], start_date: date, end_date: date) -> Optional[Dict[str, Any]]:
+    """Consulta las ventas totales de una lista de sellers en un período."""
+    if not seller_ids:
+        return {"pedidos": 0, "ventas_totales": 0}
+    
+    # Construir la lista de placeholders para la consulta IN
+    placeholders = ','.join(['%s'] * len(seller_ids))
+    query = f"""
+    SELECT
+      COUNT(o.order_id)  AS pedidos,
+      COALESCE(SUM(o.total_value), 0) AS ventas_totales
+    FROM orders.orders o
+    WHERE o.status_id = 3
+      AND o.seller_id IN ({placeholders})
+      AND o.creation_date BETWEEN %s AND %s
+    """
+    params = tuple(seller_ids) + (start_date, end_date)
+    return execute_query(query, params, fetch_one=True)
 
 
 def get_sales_compliance(vendor_id: int,
@@ -454,44 +604,82 @@ def get_sales_compliance(vendor_id: int,
     start_date = dates['start']
     end_date = dates['end']
 
-    # 3) Ventas reales
+    # 3) Ventas reales del vendedor
     totals = _query_sales_totals(int(vendor_id), start_date, end_date) or {"pedidos": 0, "ventas_totales": 0}
     by_product = _query_sales_by_product(int(vendor_id), start_date, end_date)
+
+    # 3.1) Ventas por región (suma de todos los vendedores de la región)
+    region_seller_ids = _get_sellers_by_region(region)
+    region_totals = _query_sales_by_region(region_seller_ids, start_date, end_date) or {"pedidos": 0, "ventas_totales": 0}
+    num_sellers_region = len(region_seller_ids) if region_seller_ids else 1
 
     # 4) Metas por producto y total
     # Estructura esperada desde Offer Manager: products: [{product_id, individual_goal}], total_goal
     plan_products = plan.get('products') or plan.get('plan_products') or []
+    num_plans_active = plan.get('_num_plans_active', 1)
+    logger.info(f"Plan obtenido - plan_id: {plan.get('plan_id')}, total_goal: {plan.get('total_goal')}, productos en plan: {len(plan_products)}, num_plans: {num_plans_active}")
+    logger.info(f"Productos del plan: {plan_products}")
     goals_by_product = {int(p.get('product_id')): float(p.get('individual_goal', 0)) for p in plan_products if p.get('product_id') is not None}
+    logger.info(f"Metas por producto mapeadas: {goals_by_product}")
     total_goal = float(plan.get('total_goal') or 0)
+    
+    # 4.1) Calcular meta individual del vendedor
+    # total_goal está en centenas, dividir entre número de sellers
+    total_goal_vendor = total_goal / num_sellers_region if num_sellers_region > 0 else total_goal
 
     # 5) Calcular cumplimiento por producto
     compliance_products: List[Dict[str, Any]] = []
-    sum_sales = 0.0
     for row in by_product:
         pid = int(row['product_id'])
         sales_amount = float(row['ventas'] or 0)
         goal = float(goals_by_product.get(pid, 0))
-        sum_sales += sales_amount
-        pct = (sales_amount / goal) if goal > 0 else 0.0
+        # Calcular meta individual del producto para el vendedor
+        goal_vendor = goal / num_sellers_region if num_sellers_region > 0 and goal > 0 else 0.0
+        # Calcular ratio (0-1) para status, pero mostrar como valor absoluto en JSON (1.0 = 100%, 2.1 = 210%)
+        pct_ratio = (sales_amount / goal_vendor) if goal_vendor > 0 else 0.0
+        pct = pct_ratio  # Mantener formato actual (2.1 = 210%)
         compliance_products.append({
             'product_id': pid,
-            'goal': goal,
+            'goal': goal,  # Meta compartida del producto
+            'goal_vendor': goal_vendor,  # Meta individual del vendedor
             'ventas': sales_amount,
             'cumplimiento_pct': pct,
-            'status': _status_from_pct(pct)
+            'status': _status_from_pct(pct_ratio)  # Usar ratio (0-1) para status
         })
 
-    # 6) Cumplimiento total
-    total_pct = (sum_sales / total_goal) if total_goal > 0 else 0.0
+    # 6) Cumplimiento total del vendedor (usando ventasTotales vs meta individual)
+    ventas_totales_vendor = float(totals.get('ventas_totales') or 0)
+    # Calcular ratio (0-1) para status: (1384.75 / (60.0 * 100)) = 0.2308
+    total_pct_ratio = (ventas_totales_vendor / (total_goal_vendor * 100.0)) if total_goal_vendor > 0 else 0.0
+    # Mostrar como porcentaje en JSON: 0.2308 * 100 = 23.08
+    total_pct = total_pct_ratio * 100
+
+    # 7) Cumplimiento por región (ventas totales de la región vs meta total del plan)
+    # Obtener ventas totales de la región para el cálculo
+    ventas_region = float(region_totals.get('ventas_totales') or 0)
+    # El total_goal es la meta total de la región (suma de todos los planes)
+    # Calcular cumplimiento de la región completa comparado con la meta total del plan
+    # Ejemplo: (2664.55 / (300.0 * 100)) * 100 = 8.88%
+    region_pct_ratio = (ventas_region / (total_goal * 100.0)) if total_goal > 0 else 0.0
+    # Mostrar como porcentaje en JSON: 0.0888 * 100 = 8.88
+    region_pct = region_pct_ratio * 100
+
     result = {
         'vendor_id': int(vendor_id),
+        'region': region,
         'period_start': start_date.isoformat(),
         'period_end': end_date.isoformat(),
         'pedidos': int(totals.get('pedidos') or 0),
-        'ventasTotales': float(totals.get('ventas_totales') or 0),
+        'ventasTotales': ventas_totales_vendor,
+        'ventas_region': ventas_region,
         'total_goal': total_goal,
-        'cumplimiento_total_pct': total_pct,
-        'status': _status_from_pct(total_pct),
+        'total_goal_vendor': round(total_goal_vendor, 1),
+        'num_sellers_region': num_sellers_region,
+        'num_plans_active': num_plans_active,
+        'cumplimiento_total_pct': round(total_pct, 2),
+        'status': _status_from_pct(total_pct_ratio),  # Usar ratio (0-1) para status
+        'cumplimiento_region_pct': round(region_pct, 2),
+        'status_region': _status_from_pct(region_pct_ratio),  # Cumplimiento de la región vs meta total
         'detalle_productos': compliance_products
     }
 

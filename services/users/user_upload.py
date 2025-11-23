@@ -13,7 +13,7 @@ logger = logging.getLogger("users-service")
 logger.setLevel(logging.DEBUG)
 
 # Roles válidos según el sistema
-VALID_ROLES = ['ADMIN', 'SELLER', 'CLIENT']
+VALID_ROLES = ['ADMIN', 'SELLER', 'CLIENT', 'PROVIDER']
 
 def validate_password_strength(password: str) -> Tuple[bool, Optional[str]]:
     """
