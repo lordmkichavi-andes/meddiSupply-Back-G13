@@ -5,6 +5,7 @@ import datetime
 import logging
 import json
 import psycopg2.extras
+import random
 
 from src.infrastructure.web.flask_user_routes import create_user_api_blueprint
 from src.application.use_cases import GetClientUsersUseCase
@@ -17,7 +18,7 @@ from config import Config
 from src.services.storage_service import StorageService
 from src.services.recommendation_agent import RecommendationAgent
 from src.application.generate_recommendations_usecase import GenerateRecommendationsUseCase
-from user_upload import validate_users_data, insert_users, validate_sellers_data, insert_sellers, validate_providers_data, insert_providers
+from user_upload import validate_users_data, insert_users, validate_sellers_data, insert_sellers, validate_providers_data, insert_providers, insert_user_json
 from login_service import authenticate_user
 
 load_dotenv()
@@ -1269,12 +1270,8 @@ def create_app():
                 'message': f'Error obteniendo vendedores: {str(e)}'
             }), 500
 
-
     @app.route('/users/create', methods=['POST'])
     def create_user():
-        """
-        Crea un usuario individual en DB y en Cognito.
-        """
         data = request.get_json()
         user = {
             "nombre": f"{data.get('name')} {data.get('lastname')}".strip(),
@@ -1285,20 +1282,20 @@ def create_app():
             "rol": data.get("role")
         }
 
-        logger.info(f"EMPIEZA {user}")
-
         conn = get_connection()
         cursor = conn.cursor()
+        cursor.execute("SET search_path TO users, public;")
 
-        successful, failed, errors, _, warnings = insert_users([user], conn, cursor, json.dumps([user]), file_name="single_user", file_type="json")
+        success, user_id, warnings = insert_user_json(user, conn, cursor)
 
         conn.commit()
         cursor.close()
         release_connection(conn)
 
-        if failed > 0:
-            return jsonify({"success": False, "errors": errors}), 400
-        return jsonify({"success": True, "message": "Usuario creado"}), 201
+        if not success:
+            return jsonify({"success": False, "errors": warnings}), 400
+
+        return jsonify({"success": True, "user_id": user_id, "warnings": warnings}), 201
 
     @app.route('/clients/create', methods=['POST'])
     def create_client():
@@ -1309,15 +1306,26 @@ def create_app():
         user_id = data.get("user_id")
         nit = data.get("nit")
         name = data.get("name")
+        address = data.get("address")
+        latitude = data.get("latitude")
+        longitude = data.get("longitude")
 
         conn = get_connection()
         cursor = conn.cursor()
 
+        cursor.execute("SELECT seller_id FROM users.sellers")
+        sellers = cursor.fetchall()
+
+        if not sellers:
+            return jsonify({"success": False, "error": "No hay vendedores disponibles"}), 400
+
+        seller_id = random.choice([row[0] for row in sellers])
+
         cursor.execute("""
-            INSERT INTO users.clients (user_id, nit, balance, name)
-            VALUES (%s, %s, %s, %s)
+            INSERT INTO users.clients (user_id, nit, balance, name, seller_id, address, latitude, longitude)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING client_id
-        """, (user_id, nit, 0.00, name))
+        """, (user_id, nit, 0.00, name, seller_id, address, latitude, longitude))
 
         client_id = cursor.fetchone()[0]
         conn.commit()
