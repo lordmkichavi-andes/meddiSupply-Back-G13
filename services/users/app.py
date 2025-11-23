@@ -1305,7 +1305,7 @@ def create_app():
 
         return jsonify({"success": True, "user_id": user_id, "warnings": warnings}), 201
 
-    @app.route('/clients/create', methods=['POST'])
+    @app.route('/users/clients/create', methods=['POST'])
     def create_client():
         """
         Crea un cliente asociado a un usuario existente.
