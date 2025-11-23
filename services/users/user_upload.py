@@ -7,9 +7,16 @@ from typing import List, Dict, Any, Tuple, Optional
 from src.infrastructure.persistence.db_connector import get_connection, release_connection
 import psycopg2.extras
 from cognito_service import create_user_in_cognito, map_role_to_cognito_group, get_username_from_email_or_identification
+import re
 
 # Roles válidos según el sistema
 VALID_ROLES = ['ADMIN', 'SELLER', 'CLIENT', 'PROVIDER']
+
+def is_valid_email(email: str) -> bool:
+    return re.match(r"^[^@]+@[^@]+\.[^@]+$", email) is not None
+
+if not is_valid_email(user['correo']):
+    return False, None, [f"Formato de correo inválido: {user['correo']}"]
 
 def validate_password_strength(password: str) -> Tuple[bool, Optional[str]]:
     """
@@ -412,17 +419,6 @@ def insert_users(users_data: List[Dict[str, Any]], conn, cursor, data_string: st
 
 
 def insert_user_json(user: Dict[str, Any], conn, cursor) -> Tuple[bool, Optional[int], List[str]]:
-    """
-    Inserta un único usuario desde un JSON en la base de datos y devuelve su user_id.
-
-    Args:
-        user: Diccionario con los datos del usuario
-        conn: Conexión a la base de datos
-        cursor: Cursor de la conexión
-
-    Returns:
-        (success: bool, user_id: Optional[int], warnings: list)
-    """
     warnings = []
     try:
         nombre_completo = user.get('nombre', '').strip()
@@ -430,7 +426,21 @@ def insert_user_json(user: Dict[str, Any], conn, cursor) -> Tuple[bool, Optional
         name = nombre_partes[0] if nombre_partes else nombre_completo
         last_name = nombre_partes[1] if len(nombre_partes) > 1 else name
 
-        identification = user.get('identification') or user.get('correo', '').split('@')[0]
+        # Aceptar 'identification' o derivar del correo/email
+        email = user.get('correo') or user.get('email')
+        identification = user.get('identification') or (email.split('@')[0] if email else None)
+
+        # Validar que email exista
+        if not email:
+            return False, None, ["Falta campo obligatorio: email/correo"]
+
+        cursor.execute(
+            "SELECT user_id FROM users.users WHERE email = %s OR identification = %s",
+            (email, identification)
+        )
+        existing = cursor.fetchone()
+        if existing:
+            return False, None, [f"Ya existe un usuario con ese correo o identificación"]
 
         user_insert = """
             INSERT INTO users.users
@@ -444,7 +454,7 @@ def insert_user_json(user: Dict[str, Any], conn, cursor) -> Tuple[bool, Optional
             user['contraseña'],
             identification,
             user.get('phone'),
-            user['correo'],
+            email,
             True,
             user['rol']
         ))
@@ -453,13 +463,13 @@ def insert_user_json(user: Dict[str, Any], conn, cursor) -> Tuple[bool, Optional
         user_id = user_result[0] if user_result else None
 
         try:
-            username = get_username_from_email_or_identification(user['correo'], identification)
+            username = get_username_from_email_or_identification(email, identification)
             group_name = map_role_to_cognito_group(user['rol'])
             password_for_cognito = user['contraseña']
 
             cognito_success, cognito_user_id, cognito_error = create_user_in_cognito(
                 username=username,
-                email=user['correo'],
+                email=email,
                 password=password_for_cognito,
                 group_name=group_name
             )
