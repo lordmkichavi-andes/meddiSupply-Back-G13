@@ -1286,7 +1286,7 @@ def create_app():
             "contraseña": data.get("password"),
             "identification": data.get("identification"),
             "phone": data.get("phone"),
-            "correo": data.get("phone"),
+            "correo": data.get("email"),
             "rol": data.get("role")
         }
 
