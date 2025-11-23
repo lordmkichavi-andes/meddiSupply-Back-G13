@@ -426,11 +426,9 @@ def insert_user_json(user: Dict[str, Any], conn, cursor) -> Tuple[bool, Optional
         name = nombre_partes[0] if nombre_partes else nombre_completo
         last_name = nombre_partes[1] if len(nombre_partes) > 1 else name
 
-        # Aceptar 'identification' o derivar del correo/email
         email = user.get('correo') or user.get('email')
         identification = user.get('identification') or (email.split('@')[0] if email else None)
 
-        # Validar que email exista
         if not email:
             return False, None, ["Falta campo obligatorio: email/correo"]
 
