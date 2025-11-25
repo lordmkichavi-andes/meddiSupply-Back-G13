@@ -58,11 +58,12 @@ class CreateOrderUseCase:
     def __init__(self, order_repository: OrderRepository):
         self.repository = order_repository
 
-    def execute(self, order: Order, order_items: List[OrderItem]) -> Order:
+    def execute(self, order: Order, order_items: List[OrderItem], products_data: List[dict]) -> Order:
         """
-        Ejecuta la lógica para insertar una nueva orden.
+        Ejecuta la lógica para insertar una nueva orden y sincronizar productos.
         """
-        return self.repository.insert_order(order, order_items)
+        return self.repository.insert_order(order, order_items, 
+        products_data)
 
 class GetAllOrdersUseCase:
     """

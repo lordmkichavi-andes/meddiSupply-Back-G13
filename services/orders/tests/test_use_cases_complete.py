@@ -142,7 +142,8 @@ class TestCreateOrderUseCase(unittest.TestCase):
             order_value=100.0
         )
         order_items = []
-        
+        products_data = []  # 👈 añadido
+
         mock_return_order = Order(
             order_id=123,
             client_id=1,
@@ -155,10 +156,12 @@ class TestCreateOrderUseCase(unittest.TestCase):
             order_value=100.0
         )
         self.mock_repository.insert_order.return_value = mock_return_order
-        
-        result = self.use_case.execute(order, order_items)
-        
-        self.mock_repository.insert_order.assert_called_once_with(order, order_items)
+
+        # 👇 ahora pasamos products_data
+        result = self.use_case.execute(order, order_items, products_data)
+
+        # 👇 verificamos la llamada con los tres argumentos
+        self.mock_repository.insert_order.assert_called_once_with(order, order_items, products_data)
         assert result.order_id == 123
 
 

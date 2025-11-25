@@ -280,14 +280,17 @@ class RecommendationAgent:
         logger.error(f"media_data: {media_data}")
         client_purchase_history = self.user_repository.get_recent_purchase_history(client_id)
 
-        if client_profile is None or not catalog:
-             return None
+        if not catalog:
+            return None
         
         visit_evidences_tags = self._get_client_intelligence_tags(client_id, media_data) 
         
         full_prompt = self._build_agent_prompt(
-            tags=visit_evidences_tags, catalog=catalog, client_profile=client_profile, 
-            regional_setting=regional_setting, client_purchase_history=client_purchase_history
+            tags=visit_evidences_tags,
+            catalog=catalog,
+            client_profile=client_profile or {},
+            regional_setting=regional_setting,
+            client_purchase_history=client_purchase_history or {}
         )
         
         return self.invoke(full_prompt)
