@@ -50,24 +50,39 @@ def create_api_blueprint(
         if "client_id" not in data or "products" not in data:
             return jsonify({"error": "client_id and products are required"}), 400
 
-        # Procesar los productos
         order_items = []
+        products_data = []
         order_value = 0
+
         for item in data["products"]:
             product_id = item.get("product_id")
             quantity = item.get("quantity")
             price_unit = item.get("price_unit")
             order_value += quantity * price_unit
+
             if not product_id or not quantity:
                 return jsonify({"error": "Each product must have product_id and quantity"}), 400
+
+            # Línea de la orden
             order_item = OrderItem(
                 product_id=product_id,
                 quantity=quantity,
-                price_unit=price_unit,
-                # Puedes incluir price_at_purchase si tu modelo lo requiere
+                price_unit=price_unit
             )
             order_items.append(order_item)
-            # Crear la orden base
+
+            # Datos del producto como dict (no entidad)
+            products_data.append({
+                "product_id": product_id,
+                "name": item.get("name"),
+                "sku": item.get("sku"),
+                "category_name": item.get("category_name"),
+                "total_quantity": item.get("total_quantity"),
+                "value": item.get("value"),
+                "image_url": item.get("image_url")
+            })
+
+        # Cabecera de la orden
         order = Order(
             order_id=None,
             client_id=data["client_id"],
@@ -77,15 +92,16 @@ def create_api_blueprint(
             status_id=data.get("status_id"),
             estimated_delivery_date=data.get("estimated_delivery_time"),
             items=order_items,
-            order_value = order_value
+            order_value=order_value
         )
-        # Ejecutar el caso de uso para guardar la orden y los productos
-        created_order = create_case.execute(order, order_items)
+
+        # Caso de uso recibe también products_data
+        created_order = create_case.execute(order, order_items, products_data)
+
         return jsonify({
             "order_id": created_order.order_id,
             "message": "Order created successfully"
         }), 201
-
 
 
     @api_bp.route('/history/<int:client_id>', methods=['GET']) 

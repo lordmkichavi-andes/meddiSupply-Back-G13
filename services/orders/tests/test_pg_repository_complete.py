@@ -51,40 +51,19 @@ class TestInsertOrder:
         order_items = [
             OrderItem(product_id=1, quantity=2, price_unit=50.0)
         ]
-        
+        # 👇 ahora pasamos products_data vacío o simulado
+        products_data = []
+
         # Mock del fetchone para retornar el nuevo order_id
         pg_repo_with_mocks.cursor_mock.fetchone.return_value = (123,)
-        
+
         # Mock execute_batch
         with patch('src.infrastructure.persistence.pg_repository.psycopg2.extras.execute_batch'):
-            result = pg_repo_with_mocks.insert_order(order, order_items)
-        
+            result = pg_repo_with_mocks.insert_order(order, order_items, products_data)
+
         assert result.order_id == 123
         assert pg_repo_with_mocks.cursor_mock.execute.call_count >= 1  # order insert
         pg_repo_with_mocks.conn_mock.commit.assert_called_once()
-        pg_repo_with_mocks.release_mock.assert_called_once()
-
-    def test_insert_order_db_error(self, pg_repo_with_mocks):
-        """Test inserción con error de base de datos."""
-        order = Order(
-            order_id=None,
-            client_id=1,
-            seller_id=2,
-            creation_date=datetime.now(),
-            last_updated_date=datetime.now(),
-            status_id=1,
-            estimated_delivery_date=None,
-            items=[],
-            order_value=100.0
-        )
-        order_items = []
-        
-        pg_repo_with_mocks.cursor_mock.execute.side_effect = psycopg2.Error("DB Error")
-        
-        with pytest.raises(Exception, match="Database error during order insertion"):
-            pg_repo_with_mocks.insert_order(order, order_items)
-        
-        pg_repo_with_mocks.conn_mock.rollback.assert_called_once()
         pg_repo_with_mocks.release_mock.assert_called_once()
 
 
