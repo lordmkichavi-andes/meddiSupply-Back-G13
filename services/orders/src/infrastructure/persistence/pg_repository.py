@@ -13,32 +13,102 @@ class PgOrderRepository(OrderRepository):
     para obtener y persistir datos de Órdenes usando psycopg2.
     """
 
-    def insert_order(self, order: Order, order_items: List[OrderItem]) -> Order:
-        """
-        Inserta una nueva orden (cabecera y líneas) en una transacción.
-        """
+    def insert_order(self, order: Order, order_items: List[OrderItem], products_data: List[dict]) -> Order:
         conn = None
         try:
             conn = get_connection()
             cursor = conn.cursor()
 
+            # 1️⃣ Insertar cabecera de la orden
             order_sql = """
                 INSERT INTO orders.Orders (seller_id, client_id, creation_date, last_updated_date, estimated_delivery_date, status_id, total_value)
                 VALUES (%s, %s, CURRENT_DATE, CURRENT_DATE, %s, %s, %s)
                 RETURNING order_id;
             """
-
             cursor.execute(order_sql, (
-                order.seller_id, 
-                order.client_id, 
-                order.estimated_delivery_date, 
-                order.status_id, 
+                order.seller_id,
+                order.client_id,
+                order.estimated_delivery_date,
+                order.status_id,
                 order.order_value
             ))
-            
             new_order_id = cursor.fetchone()[0]
-            order.order_id = new_order_id 
+            order.order_id = new_order_id
 
+            # 2️⃣ Upsert condicional de productos
+            product_sql = """
+                INSERT INTO products.Products (product_id, name, sku, category_id, value, image_url, provider_id, objective_profile, unit_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (product_id) DO UPDATE
+                SET name = EXCLUDED.name,
+                    sku = EXCLUDED.sku,
+                    category_id = EXCLUDED.category_id,
+                    value = EXCLUDED.value,
+                    image_url = EXCLUDED.image_url,
+                    provider_id = EXCLUDED.provider_id,
+                    objective_profile = EXCLUDED.objective_profile,
+                    unit_id = EXCLUDED.unit_id
+                WHERE products.Products.name IS DISTINCT FROM EXCLUDED.name;
+            """
+
+            for p in products_data:
+                # Resolver category_id a partir del nombre
+                cursor.execute("SELECT category_id FROM products.Category WHERE name = %s", (p.get("category_name"),))
+                row = cursor.fetchone()
+                if row:
+                    category_id = row[0]
+                else:
+                    cursor.execute(
+                        "INSERT INTO products.Category (name) VALUES (%s) RETURNING category_id",
+                        (p.get("category_name") or "DEFAULT")
+                    )
+                    category_id = cursor.fetchone()[0]
+
+                # Resolver provider_id
+                provider_id = p.get("provider_id")
+                if not provider_id:
+                    cursor.execute("SELECT provider_id FROM products.Providers ORDER BY RANDOM() LIMIT 1;")
+                    row = cursor.fetchone()
+                    if row:
+                        provider_id = row[0]
+                    else:
+                        cursor.execute(
+                            "INSERT INTO products.Providers (name) VALUES (%s) RETURNING provider_id",
+                            ("Default Provider",)
+                        )
+                        provider_id = cursor.fetchone()[0]
+
+                # Resolver unit_id
+                unit_id = p.get("unit_id")
+                if not unit_id:
+                    cursor.execute("SELECT unit_id FROM products.units ORDER BY RANDOM() LIMIT 1;")
+                    row = cursor.fetchone()
+                    if row:
+                        unit_id = row[0]
+                    else:
+                        cursor.execute(
+                            "INSERT INTO products.units (name) VALUES (%s) RETURNING unit_id",
+                            ("Default Unit",)
+                        )
+                        unit_id = cursor.fetchone()[0]
+
+                # Resolver objective_profile
+                objective_profile = p.get("objective_profile") or "Default Profile"
+
+                # Insertar producto con category_id y campos obligatorios
+                cursor.execute(product_sql, (
+                    p["product_id"],
+                    p["name"],
+                    p["sku"],
+                    category_id,
+                    p["value"],
+                    p.get("image_url"),
+                    provider_id,
+                    objective_profile,
+                    unit_id
+                ))
+
+            # 3️⃣ Insertar líneas de la orden
             lines_insert_sql = """
                 INSERT INTO orders.OrderLines (order_id, product_id, quantity, price_unit)
                 VALUES (%s, %s, %s, %s);
@@ -47,20 +117,19 @@ class PgOrderRepository(OrderRepository):
                 (new_order_id, item.product_id, item.quantity, item.price_unit)
                 for item in order_items
             ]
-            
             psycopg2.extras.execute_batch(cursor, lines_insert_sql, lines_data)
 
             conn.commit()
             return order
 
         except psycopg2.Error as e:
-            print(f"ERROR de base de datos al insertar orden: {e}")
             if conn:
-                conn.rollback() 
-            raise Exception("Database error during order insertion.")
+                conn.rollback()
+            raise Exception(f"Database error: {e}")
         finally:
             if conn:
                 release_connection(conn)
+
 
     def get_orders_by_client_id(self, client_id: int) -> List[Order]:
         """
