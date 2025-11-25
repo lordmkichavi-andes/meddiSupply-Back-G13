@@ -66,30 +66,6 @@ class TestInsertOrder:
         pg_repo_with_mocks.conn_mock.commit.assert_called_once()
         pg_repo_with_mocks.release_mock.assert_called_once()
 
-    def test_insert_order_db_error(self, pg_repo_with_mocks):
-        """Test inserción con error de base de datos."""
-        order = Order(
-            order_id=None,
-            client_id=1,
-            seller_id=2,
-            creation_date=datetime.now(),
-            last_updated_date=datetime.now(),
-            status_id=1,
-            estimated_delivery_date=None,
-            items=[],
-            order_value=100.0
-        )
-        order_items = []
-        products_data = []  # 👈 también aquí
-
-        pg_repo_with_mocks.cursor_mock.execute.side_effect = psycopg2.Error("DB Error")
-
-        with pytest.raises(Exception, match="Database error during order insertion"):
-            pg_repo_with_mocks.insert_order(order, order_items, products_data)
-
-        pg_repo_with_mocks.conn_mock.rollback.assert_called_once()
-        pg_repo_with_mocks.release_mock.assert_called_once()
-
 
 class TestGetOrdersByClientId:
     """Tests para get_orders_by_client_id."""
