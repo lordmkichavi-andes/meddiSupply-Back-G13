@@ -39,7 +39,7 @@ class RecommendationAgent:
         provider = provider.upper()
         
         if provider == 'GEMINI':
-            return "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent"
+            return "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent"
         
         if provider == 'OPENAI':
             return "https://api.openai.com/v1/chat/completions" 
@@ -210,9 +210,14 @@ class RecommendationAgent:
             logger.error(f"LLM ERROR: La variable LLM_API_KEY {self.API_KEY} está vacía. No se puede llamar al servicio de {self.LLM_PROVIDER}.")
             return None
 
+        logger.error(f"API_KEY: {API_KEY}")
+
         if self.LLM_PROVIDER == 'GEMINI':
             endpoint_url = f"{self.API_URL}?key={self.API_KEY}"
 
+        logger.error(f"LLM_PROVIDER: {LLM_PROVIDER}")
+        logger.error(f"LLM_MODEL: {LLM_MODEL}")
+        
         elif self.LLM_PROVIDER == 'OPENAI':
             if self.API_KEY:
                 headers['Authorization'] = f'Bearer {self.API_KEY}'
