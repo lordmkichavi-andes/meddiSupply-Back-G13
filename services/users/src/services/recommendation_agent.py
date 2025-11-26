@@ -216,8 +216,8 @@ class RecommendationAgent:
         if self.LLM_PROVIDER:
             logger.error(f"LLM_PROVIDER: {self.LLM_PROVIDER}")
 
-        if self.LLM_MODEL:
-            logger.error(f"LLM_MODEL: {self.LLM_MODEL}")
+        if self.MODEL_NAME:
+            logger.error(f"LLM_MODEL: {self.MODEL_NAME}")
 
         if self.LLM_PROVIDER == 'GEMINI':
             endpoint_url = f"{self.API_URL}?key={self.API_KEY}"
