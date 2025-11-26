@@ -211,13 +211,13 @@ class RecommendationAgent:
             return None
 
         if self.API_KEY:
-            logger.error(f"API_KEY: {API_KEY}")
+            logger.error(f"API_KEY: {self.API_KEY}")
 
         if self.LLM_PROVIDER:
-            logger.error(f"LLM_PROVIDER: {LLM_PROVIDER}")
+            logger.error(f"LLM_PROVIDER: {self.LLM_PROVIDER}")
 
         if self.LLM_MODEL:
-            logger.error(f"LLM_MODEL: {LLM_MODEL}")
+            logger.error(f"LLM_MODEL: {self.LLM_MODEL}")
 
         if self.LLM_PROVIDER == 'GEMINI':
             endpoint_url = f"{self.API_URL}?key={self.API_KEY}"
