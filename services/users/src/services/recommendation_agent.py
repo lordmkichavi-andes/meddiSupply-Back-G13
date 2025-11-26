@@ -8,6 +8,7 @@ from typing import List, Dict, Any, Optional
 from src.domain.interfaces import UserRepository
 import logging
 import codecs
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +40,7 @@ class RecommendationAgent:
         provider = provider.upper()
         
         if provider == 'GEMINI':
-            return "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent"
+            return "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent"
         
         if provider == 'OPENAI':
             return "https://api.openai.com/v1/chat/completions" 
@@ -73,8 +74,12 @@ class RecommendationAgent:
         return selected_tags
 
     def _build_agent_prompt(
-        self, tags: List[str], catalog: List[Dict[str, Any]], client_profile: Dict[str, Any], 
-        regional_setting: str, client_purchase_history: List[Dict[str, Any]]
+        self,
+        tags: List[str],
+        catalog: List[Dict[str, Any]],
+        client_profile: Dict[str, Any],
+        regional_setting: str,
+        client_purchase_history: List[Dict[str, Any]]
     ) -> str:
         tag_str = ", ".join(tags) if tags else "Ninguna registrada."
         catalog_list = "\n".join([f"- {p['name']} (SKU: {p['sku']})" for p in catalog])
@@ -83,39 +88,44 @@ class RecommendationAgent:
             f"Nombre: {client_profile.get('user_name', 'N/A')}.\n"
             f"Balance Pendiente: ${client_profile.get('balance', '0.00')}."
         )
-        
+
         if client_purchase_history:
             history_summary = "\n".join([
-                f"- SKU: {h.get('product_sku', 'N/A')} | Última Fecha: {h.get('last_purchase_date', 'N/A')}" 
+                f"- SKU: {h.get('product_sku', 'N/A')} | Última Fecha: {h.get('last_purchase_date', 'N/A')}"
                 for h in client_purchase_history
             ])
         else:
             history_summary = "El cliente no tiene historial de compras reciente o disponible."
 
         return f"""
-        Eres un Motor de Razonamiento IA (LLM) para MediSupply. Genera una lista de tres (3) recomendaciones de productos.
+    Eres un Motor de Razonamiento IA (LLM) para MediSupply.
 
-        **CONTEXTO DE DECISIÓN:**
-        1. PAÍS OBJETIVO: {regional_setting}
-        2. PERFIL: {profile_summary}
-        3. EVIDENCIA VISUAL (Tags): {tag_str}
-        4. HISTORIAL DE COMPRAS: {history_summary}
-        5. CATÁLOGO DISPONIBLE: {catalog_list}
+    Contexto:
+    1) País objetivo: {regional_setting}
+    2) Perfil: {profile_summary}
+    3) Evidencia visual (Tags): {tag_str}
+    4) Historial de compras: {history_summary}
+    5) Catálogo disponible:
+    {catalog_list}
 
-        ---
-        TAREA CRÍTICA:
-        A) Usa búsqueda web para encontrar restricciones sanitarias en {regional_setting} que afecten al catálogo.
-        B) Genera 3 recomendaciones balanceando Táctica (Tags), Preferencia (Historial) y Legalidad (Web).
-        C) SALIDA: Genera SOLO el objeto JSON.
-        
-        {{
-            "recommendations": [
-                {{"product_sku": "string", "product_name": "string", "score": 0.0, "reasoning": "string"}},
-                {{"product_sku": "string", "product_name": "string", "score": 0.0, "reasoning": "string"}},
-                {{"product_sku": "string", "product_name": "string", "score": 0.0, "reasoning": "string"}}
-            ]
-        }}
-        """
+    Instrucciones estrictas:
+    - Tu salida debe ser SOLO un objeto JSON válido UTF-8.
+    - No incluyas texto antes o después del JSON (sin explicaciones, sin markdown).
+    - El JSON debe seguir exactamente el siguiente esquema y tipos:
+    - recommendations: array de 3 objetos.
+    - Cada objeto: product_sku (string), product_name (string), score (number 0.0–1.0), reasoning (string).
+    - Las recomendaciones deben balancear Tags, Historial y contexto legal del país (si no hay información legal suficiente, infiérela conservadoramente y explícala brevemente en 'reasoning').
+
+    Formato exacto de salida:
+    {{
+    "recommendations": [
+        {{"product_sku": "string", "product_name": "string", "score": 0.0, "reasoning": "string"}},
+        {{"product_sku": "string", "product_name": "string", "score": 0.0, "reasoning": "string"}},
+        {{"product_sku": "string", "product_name": "string", "score": 0.0, "reasoning": "string"}}
+    ]
+    }}
+    """
+
 
     def invoke(self, prompt: str) -> Optional[Dict[str, Any]]:
         """
@@ -127,24 +137,8 @@ class RecommendationAgent:
             payload = {
                 "contents": [{"parts": [{"text": prompt}]}],
                 "generationConfig": {
-                    "responseMimeType": "application/json",
-                    "responseSchema": {
-                        "type": "OBJECT",
-                        "properties": {
-                            "recommendations": {
-                                "type": "ARRAY",
-                                "items": {
-                                    "type": "OBJECT",
-                                    "properties": {
-                                        "product_sku": {"type": "STRING"},
-                                        "product_name": {"type": "STRING"},
-                                        "score": {"type": "NUMBER"},
-                                        "reasoning": {"type": "STRING"}
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    "temperature": 0.1,
+                    "maxOutputTokens": 4096
                 }
             }
 
@@ -250,6 +244,8 @@ class RecommendationAgent:
                     result = response.json()
                     
                     json_str = self._extract_response(result)
+
+                    logger.error(f"LLM API - json {json_str}")
                     
                     if json_str:
                         return json.loads(json_str)
@@ -305,34 +301,53 @@ class RecommendationAgent:
         
         return self.invoke(full_prompt)
 
+    import re
+
     def _extract_response(self, response_json: Dict[str, Any]) -> Optional[str]:
-        """Extrae la cadena JSON de texto de la respuesta del proveedor activo."""
-        
         if self.LLM_PROVIDER == 'GEMINI':
-            if response_json.get('candidates') and response_json['candidates'][0]['content']['parts'][0]['text']:
-                raw_text = response_json['candidates'][0]['content']['parts'][0]['text']
-                
-                try:
-                    escaped_text = codecs.decode(raw_text, 'unicode_escape') 
-                    corrected_text = escaped_text.encode('latin1').decode('utf8')
-                    data = json.loads(corrected_text)
-                    return json.dumps(data, ensure_ascii=False)
-                    
-                except Exception as e:
-                    logger.error(f"Gemini: Fallo en la decodificación/parsing JSON. Error: {e}. Texto crudo (corrupto): {raw_text[:50]}...")
+            try:
+                candidates = response_json.get('candidates', [])
+                logger.error(f"candidates {candidates}")
+                if not candidates:
+                    logger.error("Gemini: No hay candidatos en la respuesta.")
                     return None
-        
+
+                content = candidates[0].get('content', {})
+                parts = content.get('parts', [])
+
+                if parts and 'text' in parts[0]:
+                    raw_text = parts[0]['text']
+                elif 'text' in content:
+                    raw_text = content['text']
+                else:
+                    logger.error("Gemini: No se encontró texto en la respuesta.")
+                    return None
+
+                # Intento parsear JSON directo
+                try:
+                    data = json.loads(raw_text)
+                    return json.dumps(data, ensure_ascii=False)
+                except json.JSONDecodeError:
+                    # Buscar bloque JSON dentro del texto
+                    import re
+                    match = re.search(r'\{.*\}', raw_text, re.DOTALL)
+                    if match:
+                        data = json.loads(match.group(0))
+                        return json.dumps(data, ensure_ascii=False)
+                    logger.error(f"Gemini: Texto no contiene JSON válido. Texto crudo: {raw_text[:100]}...")
+                    return None
+
+            except Exception as e:
+                logger.error(f"Gemini: Error inesperado en extractor. {e}")
+                return None
         if self.LLM_PROVIDER == 'OPENAI':
             if response_json.get('choices') and response_json['choices'][0]['message']['content']:
                 return response_json['choices'][0]['message']['content']
-        
         if self.LLM_PROVIDER == 'CLAUDE':
             if response_json.get('content') and response_json['content'][0]['type'] == 'tool_use':
                 tool_input = response_json['content'][0]['input']
                 return json.dumps(tool_input)
-            
             if response_json.get('content') and response_json['content'][0]['text']:
-                 return response_json['content'][0]['text']
-        
+                return response_json['content'][0]['text']
         logger.error(f"Fallo al extraer la respuesta del proveedor {self.LLM_PROVIDER}. Estructura inesperada.")
         return None
